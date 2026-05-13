@@ -4,10 +4,10 @@
  * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
  */
 
-/** Demo-Passwort für den Video-Bereich — in Produktion niemals nur clientseitig verlassen. */
-const VIDEO_ACCESS_PASSWORD = "dualpeer";
+/** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
+const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
 
-const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-video-unlocked";
+const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
 
 /**
  * STUN/TURN für WebRTC (PeerJS übergibt dies an RTCPeerConnection).
@@ -71,8 +71,7 @@ const els = {
   pipNativeMsg: $("#pipNativeMsg"),
   btnPipNativeRemote: $("#btnPipNativeRemote"),
   btnPipNativeLocal: $("#btnPipNativeLocal"),
-  videoPrivacyWrap: $("#videoPrivacyWrap"),
-  accessGate: $("#accessGate"),
+  loginOverlay: $("#loginOverlay"),
   accessPassword: $("#accessPassword"),
   accessUnlock: $("#accessUnlock"),
   accessError: $("#accessError"),
@@ -402,8 +401,13 @@ window.addEventListener("beforeunload", () => hangup());
 
 function setVideoAccessUi(unlocked) {
   videoAccessUnlocked = unlocked;
-  if (els.videoPrivacyWrap) {
-    els.videoPrivacyWrap.classList.toggle("is-unlocked", unlocked);
+  document.body.classList.toggle("login-locked", !unlocked);
+  document.querySelectorAll("body > header, body > main, body > footer").forEach((el) => {
+    if (unlocked) el.removeAttribute("inert");
+    else el.setAttribute("inert", "");
+  });
+  if (els.loginOverlay) {
+    els.loginOverlay.hidden = unlocked;
   }
   if (els.btnStartHost) els.btnStartHost.disabled = !unlocked;
   if (els.btnConnect) els.btnConnect.disabled = !unlocked;
@@ -461,6 +465,7 @@ function initAccessGate() {
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && btn) btn.click();
     });
+    requestAnimationFrame(() => input.focus());
   }
 }
 

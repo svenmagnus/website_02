@@ -105,58 +105,53 @@ header.site-header p {
   }
 }
 
-/* Passwortschicht über Video-Panels */
-.video-privacy-wrap {
-  position: relative;
-  margin-bottom: 1rem;
-  min-height: min(70vh, 520px);
+body.login-locked {
+  overflow: hidden;
 }
 
-.video-panels {
-  position: relative;
-  z-index: 0;
-}
-
-.access-gate {
-  position: absolute;
+/* Vollbild-Login über die gesamte Seite */
+.login-overlay {
+  position: fixed;
   inset: 0;
-  z-index: 3;
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
-  background: rgba(10, 10, 16, 0.88);
-  backdrop-filter: blur(12px);
+  padding: 1.25rem;
+  background: rgba(6, 6, 10, 0.94);
+  backdrop-filter: blur(16px);
 }
 
-.video-privacy-wrap.is-unlocked .access-gate {
-  display: none;
+.login-overlay[hidden] {
+  display: none !important;
 }
 
-.access-gate-card {
+.login-overlay-card {
   width: 100%;
   max-width: 22rem;
-  padding: 1.25rem 1.35rem;
+  padding: 1.35rem 1.4rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(124, 92, 255, 0.12);
 }
 
-.access-gate-card h2 {
+.login-overlay-card h2 {
   margin: 0 0 0.5rem;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 600;
 }
 
-.access-gate-hint {
+.login-overlay-hint {
   margin: 0 0 1rem;
   font-size: 0.82rem;
   color: var(--muted);
   line-height: 1.45;
 }
 
-.access-gate-row {
+.login-overlay-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -164,11 +159,11 @@ header.site-header p {
   margin-bottom: 0.75rem;
 }
 
-.access-gate-row label {
+.login-overlay-row label {
   min-width: 4.5rem;
 }
 
-.access-gate-row input[type="password"] {
+.login-overlay-row input[type="password"] {
   flex: 1;
   min-width: 140px;
   padding: 0.5rem 0.65rem;
@@ -180,13 +175,13 @@ header.site-header p {
   font-size: 0.85rem;
 }
 
-.access-error {
+.login-overlay-error {
   font-size: 0.78rem;
   color: var(--danger);
   margin: 0 0 0.75rem;
 }
 
-.access-gate-card .primary {
+.login-overlay-card .primary {
   width: 100%;
 }
 
