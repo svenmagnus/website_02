@@ -4,7 +4,48 @@
  * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
  */
 
+/** Demo-Passwort für den Video-Bereich — in Produktion niemals nur clientseitig verlassen. */
+const VIDEO_ACCESS_PASSWORD = "dualpeer";
+
+const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-video-unlocked";
+
+/**
+ * STUN/TURN für WebRTC (PeerJS übergibt dies an RTCPeerConnection).
+ * Ersetze Host, Benutzername und Credential durch deinen TURN-Dienst (z. B. coturn, Twilio, Metered).
+ */
+const TURN_SERVER_HOST = "turn.example.com";
+const TURN_USERNAME_PLACEHOLDER = "DEIN_TURN_BENUTZERNAME";
+const TURN_CREDENTIAL_PLACEHOLDER = "DEIN_TURN_PASSWORT_ODER_SECRET";
+
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  {
+    urls: [
+      `turn:${TURN_SERVER_HOST}:3478?transport=udp`,
+      `turn:${TURN_SERVER_HOST}:3478?transport=tcp`,
+    ],
+    username: TURN_USERNAME_PLACEHOLDER,
+    credential: TURN_CREDENTIAL_PLACEHOLDER,
+  },
+  {
+    urls: [`turns:${TURN_SERVER_HOST}:5349?transport=tcp`],
+    username: TURN_USERNAME_PLACEHOLDER,
+    credential: TURN_CREDENTIAL_PLACEHOLDER,
+  },
+];
+
+const PEER_CONNECTION_CONFIG = {
+  iceServers: ICE_SERVERS,
+};
+
+const PEER_OPTIONS = {
+  debug: 0,
+  config: PEER_CONNECTION_CONFIG,
+};
+
 const $ = (sel) => document.querySelector(sel);
+
+let videoAccessUnlocked = false;
 
 const els = {
   stage: $("#stage"),
@@ -30,6 +71,11 @@ const els = {
   pipNativeMsg: $("#pipNativeMsg"),
   btnPipNativeRemote: $("#btnPipNativeRemote"),
   btnPipNativeLocal: $("#btnPipNativeLocal"),
+  videoPrivacyWrap: $("#videoPrivacyWrap"),
+  accessGate: $("#accessGate"),
+  accessPassword: $("#accessPassword"),
+  accessUnlock: $("#accessUnlock"),
+  accessError: $("#accessError"),
 };
 
 let peer = null;
@@ -185,8 +231,8 @@ function hangup() {
   els.peerIdOut.textContent = "—";
   setStatus(els.statusHost, "Getrennt.");
   setStatus(els.statusGuest, "Getrennt.");
-  els.btnStartHost.disabled = false;
-  els.btnConnect.disabled = false;
+  els.btnStartHost.disabled = !videoAccessUnlocked;
+  els.btnConnect.disabled = !videoAccessUnlocked;
 }
 
 function initLovenseIfPresent() {
@@ -273,9 +319,7 @@ els.btnStartHost.addEventListener("click", async () => {
   hangup();
   try {
     const stream = await getMedia();
-    peer = new Peer(undefined, {
-      debug: 0,
-    });
+    peer = new Peer(undefined, PEER_OPTIONS);
 
     peer.on("open", (id) => {
       els.peerIdOut.textContent = id;
@@ -297,7 +341,7 @@ els.btnConnect.addEventListener("click", async () => {
   hangup();
   try {
     const stream = await getMedia();
-    peer = new Peer(undefined, { debug: 0 });
+    peer = new Peer(undefined, PEER_OPTIONS);
 
     peer.on("open", (myId) => {
       els.peerIdOut.textContent = myId;
@@ -356,7 +400,72 @@ document.querySelectorAll("[data-preset]").forEach((btn) => {
 
 window.addEventListener("beforeunload", () => hangup());
 
+function setVideoAccessUi(unlocked) {
+  videoAccessUnlocked = unlocked;
+  if (els.videoPrivacyWrap) {
+    els.videoPrivacyWrap.classList.toggle("is-unlocked", unlocked);
+  }
+  if (els.btnStartHost) els.btnStartHost.disabled = !unlocked;
+  if (els.btnConnect) els.btnConnect.disabled = !unlocked;
+}
+
+function initAccessGate() {
+  const input = els.accessPassword;
+  const btn = els.accessUnlock;
+  const err = els.accessError;
+
+  function showAccessErr(msg) {
+    if (!err) return;
+    err.textContent = msg || "";
+    err.hidden = !msg;
+  }
+
+  function unlockFromGate() {
+    showAccessErr("");
+    try {
+      sessionStorage.setItem(SESSION_VIDEO_UNLOCK_KEY, "1");
+    } catch (_) {
+      /* ignore */
+    }
+    setVideoAccessUi(true);
+    if (input) input.value = "";
+  }
+
+  try {
+    if (sessionStorage.getItem(SESSION_VIDEO_UNLOCK_KEY) === "1") {
+      unlockFromGate();
+      return;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+
+  setVideoAccessUi(false);
+
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const v = (input && input.value ? input.value : "").trim();
+      if (v === VIDEO_ACCESS_PASSWORD) {
+        unlockFromGate();
+      } else {
+        showAccessErr("Passwort ungültig.");
+        if (input) {
+          input.value = "";
+          input.focus();
+        }
+      }
+    });
+  }
+
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && btn) btn.click();
+    });
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  initAccessGate();
   initLayoutControls();
   initLovenseIfPresent();
 });
