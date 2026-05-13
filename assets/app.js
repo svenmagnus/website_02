@@ -9,13 +9,10 @@ const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
 
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
 
-/**
- * STUN/TURN für WebRTC (PeerJS übergibt dies an RTCPeerConnection).
- * Ersetze Host, Benutzername und Credential durch deinen TURN-Dienst (z. B. coturn, Twilio, Metered).
- */
-const TURN_SERVER_HOST = "turn.example.com";
-const TURN_USERNAME_PLACEHOLDER = "DEIN_TURN_BENUTZERNAME";
-const TURN_CREDENTIAL_PLACEHOLDER = "DEIN_TURN_PASSWORT_ODER_SECRET";
+// Echte TURN-Konfiguration (Beispiel OpenRelay)
+const TURN_SERVER_HOST = "openrelay.metered.ca:443";
+const TURN_USERNAME_PLACEHOLDER = "openrelayproject";
+const TURN_CREDENTIAL_PLACEHOLDER = "openrelayproject";
 
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
