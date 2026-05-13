@@ -21,17 +21,39 @@
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
-    <header>
-      <h1>Dual-Peer — zwei Kameras, eine Verbindung</h1>
-      <p>
-        Eine Host-Seite startet die Session und teilt die Peer-ID. Die zweite Person verbindet sich
-        damit: euer Video erscheint gegenüber. Über den Datenkanal kann die verbindende Seite
-        Impulse senden — bei aktivem Lovense Cam Extension SDK werden kompatible Toys über
-        <code>receiveTip</code> angesprochen (sonst nur visuelles Feedback).
-      </p>
+    <header class="site-header">
+      <div class="header-copy">
+        <h1>Dual-Peer — zwei Kameras, eine Verbindung</h1>
+        <p>
+          Eine Host-Seite startet die Session und teilt die Peer-ID. Die zweite Person verbindet sich
+          damit: euer Video erscheint gegenüber. Über den Datenkanal kann die verbindende Seite
+          Impulse senden — bei aktivem Lovense Cam Extension SDK werden kompatible Toys über
+          <code>receiveTip</code> angesprochen (sonst nur visuelles Feedback).
+        </p>
+      </div>
+      <span class="privat-badge" role="status" aria-label="Privater Bereich">PRIVAT</span>
     </header>
 
     <main>
+      <div class="video-privacy-wrap" id="videoPrivacyWrap">
+        <div class="access-gate" id="accessGate" role="dialog" aria-labelledby="accessGateTitle">
+          <div class="access-gate-card">
+            <h2 id="accessGateTitle">Video-Bereich geschützt</h2>
+            <p class="access-gate-hint">Passwort eingeben, um die Video-Panels anzuzeigen.</p>
+            <div class="access-gate-row">
+              <label for="accessPassword">Passwort</label>
+              <input
+                type="password"
+                id="accessPassword"
+                autocomplete="current-password"
+                placeholder="Passwort …"
+              />
+            </div>
+            <p class="access-error" id="accessError" hidden></p>
+            <button type="button" class="primary" id="accessUnlock">Entsperren</button>
+          </div>
+        </div>
+        <div class="video-panels" id="videoPanels">
       <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video-Bereich">
         <article class="panel">
           <div class="panel-head">
@@ -91,13 +113,17 @@
         </button>
         <span class="pip-native-msg" id="pipNativeMsg" role="status"></span>
       </div>
+        </div>
+      </div>
 
       <section class="controls">
         <div class="card">
           <h2>Verbindung</h2>
           <div class="row">
-            <button type="button" class="primary" id="btnStartHost">Als Host starten</button>
-            <button type="button" class="secondary" id="btnConnect">Mit Host verbinden</button>
+            <button type="button" class="primary" id="btnStartHost" disabled>
+              Als Host starten
+            </button>
+            <button type="button" class="secondary" id="btnConnect" disabled>Mit Host verbinden</button>
             <button type="button" id="btnHangup">Trennen</button>
           </div>
           <div class="row">
@@ -146,7 +172,8 @@
 
     <footer>
       Technische Demo — nur mit Einwilligung aller Beteiligten nutzen. PeerJS nutzt öffentliche
-      Signaling-Server; für Produktion eigenen PeerServer / TURN einplanen.
+      Signaling-Server; für Produktion eigenen PeerServer nutzen. TURN-ICE-Server sind in
+      <code>assets/app.js</code> konfigurierbar (Platzhalter durch echte Zugangsdaten ersetzen).
     </footer>
 
     <script src="assets/app.js"></script>
