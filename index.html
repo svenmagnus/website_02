@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dual-Peer — Du &amp; Gegenüber</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+    <!-- Lovense Cam Extension SDK (optional): im Lovense Developer Dashboard Website-Name eintragen und unten __LOVENSE_* setzen. -->
+    <!-- <script src="https://api.lovense-api.com/cam-extension/static/js-sdk/broadcast.js"></script> -->
+    <script>
+      // Muss exakt zum Lovense-Dashboard passen, wenn broadcast.js aktiv ist:
+      window.__LOVENSE_SITE_NAME__ = "DualPeerDemo";
+      window.__LOVENSE_MODEL_NAME__ = "model1";
+    </script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Dual-Peer — zwei Kameras, eine Verbindung</h1>
+      <p>
+        Eine Host-Seite startet die Session und teilt die Peer-ID. Die zweite Person verbindet sich
+        damit: euer Video erscheint gegenüber. Über den Datenkanal kann die verbindende Seite
+        Impulse senden — bei aktivem Lovense Cam Extension SDK werden kompatible Toys über
+        <code>receiveTip</code> angesprochen (sonst nur visuelles Feedback).
+      </p>
+    </header>
+
+    <main>
+      <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video-Bereich">
+        <article class="panel">
+          <div class="panel-head">
+            <span>Du</span>
+            <span class="tag you">Lokal</span>
+          </div>
+          <div class="video-wrap">
+            <video id="localVideo" autoplay playsinline muted></video>
+            <div id="localPulse" class="toy-pulse" aria-hidden="true"></div>
+            <div id="localPlaceholder" class="video-placeholder">
+              Kamera startet mit „Als Host starten“ oder „Mit Host verbinden“.
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <span>Gegenüber</span>
+            <span class="tag partner">Remote</span>
+          </div>
+          <div class="video-wrap">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <div id="remotePulse" class="toy-pulse" aria-hidden="true"></div>
+            <div id="remotePlaceholder" class="video-placeholder">
+              Wartet auf Peer-Stream …
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <div class="layout-toolbar" aria-label="Ansicht und PiP">
+        <span class="layout-toolbar-label">Ansicht</span>
+        <div class="layout-toolbar-btns">
+          <button type="button" class="layout-btn active" id="layoutSplit" data-layout="split">
+            Nebeneinander
+          </button>
+          <button type="button" class="layout-btn" id="layoutPipRemote" data-layout="pip-remote">
+            PiP: Gegenüber groß
+          </button>
+          <button type="button" class="layout-btn" id="layoutPipLocal" data-layout="pip-local">
+            PiP: Du groß
+          </button>
+        </div>
+        <span class="layout-toolbar-label">Ecke (PiP)</span>
+        <select id="pipCorner" class="pip-corner-select" aria-label="Position des kleinen Videos">
+          <option value="br">Unten rechts</option>
+          <option value="bl">Unten links</option>
+          <option value="tr">Oben rechts</option>
+          <option value="tl">Oben links</option>
+        </select>
+        <span class="layout-toolbar-label">Browser</span>
+        <button type="button" id="btnPipNativeRemote" title="Schwebendes Fenster (Gegenüber)">
+          PiP-Fenster: Gegenüber
+        </button>
+        <button type="button" id="btnPipNativeLocal" title="Schwebendes Fenster (Du)">
+          PiP-Fenster: Du
+        </button>
+        <span class="pip-native-msg" id="pipNativeMsg" role="status"></span>
+      </div>
+
+      <section class="controls">
+        <div class="card">
+          <h2>Verbindung</h2>
+          <div class="row">
+            <button type="button" class="primary" id="btnStartHost">Als Host starten</button>
+            <button type="button" class="secondary" id="btnConnect">Mit Host verbinden</button>
+            <button type="button" id="btnHangup">Trennen</button>
+          </div>
+          <div class="row">
+            <label for="peerIdIn">Host Peer-ID</label>
+            <input type="text" id="peerIdIn" placeholder="ID vom Host einfügen …" autocomplete="off" />
+          </div>
+          <p class="status-line" id="statusHost">Host: noch nicht gestartet.</p>
+          <p class="status-line" id="statusGuest">Gast: noch nicht verbunden.</p>
+          <div>
+            <span class="status-line">Deine aktuelle Peer-ID:</span>
+            <div class="peer-id-box" id="peerIdOut">—</div>
+          </div>
+          <p class="lovense-hint" id="lovenseStatus"></p>
+        </div>
+
+        <div class="card">
+          <h2>Fernsteuerung (an den Host)</h2>
+          <p class="status-line" style="margin: 0 0 0.5rem">
+            Nur die verbindende Seite (Gast) sendet hier Signale zum Host. Intensität ist für UI /
+            Mapping gedacht; Lovense reagiert auf den eingetragenen Tip-Betrag laut Extension-Setup.
+          </p>
+          <div class="row">
+            <label for="toyLevel">Intensität</label>
+            <input type="range" id="toyLevel" min="0" max="100" value="55" />
+          </div>
+          <div class="preset-grid">
+            <button type="button" data-preset="15">Leicht</button>
+            <button type="button" data-preset="45">Mittel</button>
+            <button type="button" data-preset="80">Stark</button>
+            <button type="button" data-preset="100">Max</button>
+          </div>
+          <div class="row" style="margin-top: 0.75rem">
+            <label for="toyTipAmount">Tip (Lovense)</label>
+            <input type="number" id="toyTipAmount" min="1" value="25" />
+          </div>
+          <div class="row">
+            <label for="toyTipName">Name</label>
+            <input type="text" id="toyTipName" value="Partner" maxlength="40" />
+          </div>
+          <div class="row">
+            <button type="button" class="primary" id="btnSendToy">Impuls senden</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      Technische Demo — nur mit Einwilligung aller Beteiligten nutzen. PeerJS nutzt öffentliche
+      Signaling-Server; für Produktion eigenen PeerServer / TURN einplanen.
+    </footer>
+
+    <script src="assets/app.js"></script>
+  </body>
+</html>
