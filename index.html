@@ -12,10 +12,10 @@
     />
     <link rel="stylesheet" href="assets/styles.css" />
     <!-- Lovense Cam Extension SDK (optional): im Lovense Developer Dashboard Website-Name eintragen und unten __LOVENSE_* setzen. -->
-    <!-- <script src="https://api.lovense-api.com/cam-extension/static/js-sdk/broadcast.js"></script> -->
+    <script src="https://api.lovense-api.com/cam-extension/static/js-sdk/broadcast.js"></script>
     <script>
       // Muss exakt zum Lovense-Dashboard passen, wenn broadcast.js aktiv ist:
-      window.__LOVENSE_SITE_NAME__ = "DualPeerDemo";
+      window.LOVENSE_SITE_NAME = "test:DualPeerDemo";
       window.__LOVENSE_MODEL_NAME__ = "model1";
     </script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
