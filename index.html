@@ -21,6 +21,32 @@
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
+    <div
+      class="login-overlay"
+      id="loginOverlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="loginOverlayTitle"
+    >
+      <div class="login-overlay-card">
+        <h2 id="loginOverlayTitle">Dual-Peer — Anmeldung</h2>
+        <p class="login-overlay-hint">
+          Passwort eingeben für Zugriff auf Video-Panels und Kamera-Verbindung.
+        </p>
+        <div class="login-overlay-row">
+          <label for="accessPassword">Passwort</label>
+          <input
+            type="password"
+            id="accessPassword"
+            autocomplete="current-password"
+            placeholder="Passwort …"
+          />
+        </div>
+        <p class="login-overlay-error" id="accessError" hidden></p>
+        <button type="button" class="primary" id="accessUnlock">Anmelden</button>
+      </div>
+    </div>
+
     <header class="site-header">
       <div class="header-copy">
         <h1>Dual-Peer — zwei Kameras, eine Verbindung</h1>
@@ -35,25 +61,6 @@
     </header>
 
     <main>
-      <div class="video-privacy-wrap" id="videoPrivacyWrap">
-        <div class="access-gate" id="accessGate" role="dialog" aria-labelledby="accessGateTitle">
-          <div class="access-gate-card">
-            <h2 id="accessGateTitle">Video-Bereich geschützt</h2>
-            <p class="access-gate-hint">Passwort eingeben, um die Video-Panels anzuzeigen.</p>
-            <div class="access-gate-row">
-              <label for="accessPassword">Passwort</label>
-              <input
-                type="password"
-                id="accessPassword"
-                autocomplete="current-password"
-                placeholder="Passwort …"
-              />
-            </div>
-            <p class="access-error" id="accessError" hidden></p>
-            <button type="button" class="primary" id="accessUnlock">Entsperren</button>
-          </div>
-        </div>
-        <div class="video-panels" id="videoPanels">
       <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video-Bereich">
         <article class="panel">
           <div class="panel-head">
@@ -112,8 +119,6 @@
           PiP-Fenster: Du
         </button>
         <span class="pip-native-msg" id="pipNativeMsg" role="status"></span>
-      </div>
-        </div>
       </div>
 
       <section class="controls">
