@@ -10,7 +10,7 @@ const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
 
 // Echte TURN-Konfiguration (Beispiel OpenRelay)
-const TURN_SERVER_HOST = "openrelay.metered.ca:443";
+const TURN_SERVER_HOST = "openrelay.metered.ca";
 const TURN_USERNAME_PLACEHOLDER = "openrelayproject";
 const TURN_CREDENTIAL_PLACEHOLDER = "openrelayproject";
 
