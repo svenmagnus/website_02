@@ -478,7 +478,11 @@ const intensityValue = document.getElementById('intensityValue');
 intensityRange.addEventListener('input', (e) => {
     const val = e.target.value;
     intensityValue.textContent = val + '%';
-    // Hier später die Bluetooth- oder API-Befehle für das Toy einfügen
+    // Echter Lovense-Befehl für den Teilnehmer:
+if (typeof sendLovenseTipping === "function") {
+  sendLovenseTipping(val); 
+}
+
     console.log("Sende Intensität an Toy:", val);
 });
 
