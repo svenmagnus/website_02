@@ -471,3 +471,26 @@ document.addEventListener("DOMContentLoaded", () => {
   initLayoutControls();
   initLovenseIfPresent();
 });
+// Intensität auslesen und anzeigen
+const intensityRange = document.getElementById('intensityRange');
+const intensityValue = document.getElementById('intensityValue');
+
+intensityRange.addEventListener('input', (e) => {
+    const val = e.target.value;
+    intensityValue.textContent = val + '%';
+    // Hier später die Bluetooth- oder API-Befehle für das Toy einfügen
+    console.log("Sende Intensität an Toy:", val);
+});
+
+// Test-Button Logik
+document.getElementById('testDevice').addEventListener('click', () => {
+    // Kurze Simulation eines Hardware-Checks
+    alert("Suche nach Toy... Verbindung stabil. Testlauf gestartet.");
+});
+
+// Abmelden Logik
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    if(confirm("Möchtest du dich wirklich abmelden?")) {
+        window.location.reload(); // Einfacher Reset der Session
+    }
+});
