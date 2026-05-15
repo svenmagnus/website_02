@@ -48,6 +48,10 @@
      </div>
     <header class="site-header">
       <div class="header-copy">
+        <div class="header-actions">
+          <span class="privat-badge" role="status" aria-label="Privater Bereich">PRIVAT</span>
+          <button type="button" id="logoutBtn" class="logout-link">Abmelden</button>
+        </div>
         <h1>Dual-Peer — zwei Kameras, eine Verbindung</h1>
         <p>
           Eine Host-Seite startet die Session und teilt die Peer-ID. Die zweite Person verbindet sich
@@ -55,14 +59,7 @@
           Impulse senden — bei aktivem Lovense Cam Extension SDK werden kompatible Toys über
           <code>receiveTip</code> angesprochen (sonst nur visuelles Feedback).
         </p>
-      
-           </div> <!-- Schließt div class="header-copy" (vorher Zeile 58) -->
-            <span class="privat-badge" role="status" aria-label="Privater Bereich">PRIVAT</span>
-       
-            <button type="button" id="logoutBtn" class="link-button" style="color: red; cursor: pointer; margin-left: 10px;">
-          Abmelden
-        </button>
-
+      </div>
     </header>
     <main>
       <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video-Bereich">
