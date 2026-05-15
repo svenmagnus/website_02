@@ -58,8 +58,9 @@ header.main-header {
 
 #main-logo {
   display: block;
-  height: 2.25rem;
+  height: clamp(3.25rem, 5vw + 2rem, 4rem);
   width: auto;
+  max-width: min(320px, 70vw);
 }
 
 .header-copy {
