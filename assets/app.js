@@ -494,7 +494,22 @@ document.getElementById('testDevice').addEventListener('click', () => {
 
 // Abmelden Logik
 document.getElementById('logoutBtn').addEventListener('click', () => {
-    if(confirm("Möchtest du dich wirklich abmelden?")) {
-        window.location.reload(); // Einfacher Reset der Session
+    // 1. Verbindung sauber trennen
+    if (typeof peer !== 'undefined' && peer) {
+        peer.destroy();
+    }
+    
+    // 2. Kamera/Mikrofon ausschalten
+    if (typeof localStream !== 'undefined' && localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+
+    // 3. Zurück zum Login-Bildschirm (Overlay wieder anzeigen)
+    const loginOverlay = document.getElementById('login-overlay'); // Prüfe, ob deine ID so heißt
+    if (loginOverlay) {
+        loginOverlay.style.display = 'flex';
+    } else {
+        // Fallback: Einfach die Seite neu laden, das ist der sicherste Logout
+        location.reload();
     }
 });
