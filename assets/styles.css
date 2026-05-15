@@ -51,12 +51,11 @@ header.site-header {
   min-width: 0;
 }
 
-.header-actions {
+.header-actions { /* oder wie dein Container heißt */
   display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  grid-column: 2;
-  grid-row: 1;
+  align-items: center; /* Zentriert Logo und Buttons vertikal */
+  justify-content: flex-end; /* Schiebt die Buttons nach rechts */
+  gap: 15px; /* Erzeugt einen sauberen Abstand zwischen Badge und Logout */
 }
 
 .header-copy h1 {
@@ -85,7 +84,8 @@ header.site-header p {
 
 /* Leuchtender, pulsierender Hinweis oben rechts */
 .privat-badge {
-  padding: 0.45rem 0.95rem;
+  width: auto; /* Verhindert das Strecken über die ganze Zeile */
+    align-self: center;padding: 0.45rem 0.95rem;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 800;
