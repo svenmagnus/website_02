@@ -72,6 +72,7 @@ const els = {
   accessPassword: $("#accessPassword"),
   accessUnlock: $("#accessUnlock"),
   accessError: $("#accessError"),
+  logoutBtn: $("#logoutBtn"),
 };
 
 let peer = null;
@@ -466,50 +467,51 @@ function initAccessGate() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  initAccessGate();
-  initLayoutControls();
-  initLovenseIfPresent();
-});
-// Intensität auslesen und anzeigen
-const intensityRange = document.getElementById('intensityRange');
-const intensityValue = document.getElementById('intensityValue');
+function initLogout() {
+  const btn = els.logoutBtn;
+  if (!btn) return;
 
-intensityRange.addEventListener('input', (e) => {
-    const val = e.target.value;
-    intensityValue.textContent = val + '%';
-    // Echter Lovense-Befehl für den Teilnehmer:
-if (typeof sendLovenseTipping === "function") {
-  sendLovenseTipping(val); 
+  btn.addEventListener("click", () => {
+    try {
+      sessionStorage.removeItem(SESSION_VIDEO_UNLOCK_KEY);
+    } catch (_) {
+      /* ignore */
+    }
+    try {
+      hangup();
+    } catch (_) {
+      /* ignore */
+    }
+    location.reload();
+  });
 }
 
-    console.log("Sende Intensität an Toy:", val);
-});
+function initHardwareTestControls() {
+  const intensityRange = document.getElementById("intensityRange");
+  const intensityValue = document.getElementById("intensityValue");
+  if (intensityRange && intensityValue) {
+    intensityRange.addEventListener("input", (e) => {
+      const val = e.target.value;
+      intensityValue.textContent = val + "%";
+      if (typeof sendLovenseTipping === "function") {
+        sendLovenseTipping(val);
+      }
+      console.log("Sende Intensität an Toy:", val);
+    });
+  }
 
-// Test-Button Logik
-document.getElementById('testDevice').addEventListener('click', () => {
-    // Kurze Simulation eines Hardware-Checks
-    alert("Suche nach Toy... Verbindung stabil. Testlauf gestartet.");
-});
+  const testDevice = document.getElementById("testDevice");
+  if (testDevice) {
+    testDevice.addEventListener("click", () => {
+      alert("Suche nach Toy... Verbindung stabil. Testlauf gestartet.");
+    });
+  }
+}
 
-// Abmelden Logik
-document.getElementById('logoutBtn').addEventListener('click', () => {
-    // 1. Verbindung sauber trennen
-    if (typeof peer !== 'undefined' && peer) {
-        peer.destroy();
-    }
-    
-    // 2. Kamera/Mikrofon ausschalten
-    if (typeof localStream !== 'undefined' && localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-    }
-
-    // 3. Zurück zum Login-Bildschirm (Overlay wieder anzeigen)
-    const loginOverlay = document.getElementById('login-overlay'); // Prüfe, ob deine ID so heißt
-    if (loginOverlay) {
-        loginOverlay.style.display = 'flex';
-    } else {
-        // Fallback: Einfach die Seite neu laden, das ist der sicherste Logout
-        location.reload();
-    }
+document.addEventListener("DOMContentLoaded", () => {
+  initAccessGate();
+  initLogout();
+  initLayoutControls();
+  initLovenseIfPresent();
+  initHardwareTestControls();
 });
