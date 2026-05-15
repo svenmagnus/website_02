@@ -37,55 +37,44 @@ a {
   color: var(--partner);
 }
 
-header.site-header {
+header.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, #12121a 0%, var(--bg) 100%);
 }
 
+.header-left {
+  flex-shrink: 0;
+}
+
+.logo-link {
+  display: block;
+  line-height: 0;
+}
+
+#main-logo {
+  display: block;
+  height: 2.25rem;
+  width: auto;
+}
+
 .header-copy {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.75rem 1rem;
-  min-width: 0;
-}
-
-.header-actions { /* oder wie dein Container heißt */
   display: flex;
-  align-items: center; /* Zentriert Logo und Buttons vertikal */
-  justify-content: flex-end; /* Schiebt die Buttons nach rechts */
-  gap: 15px; /* Erzeugt einen sauberen Abstand zwischen Badge und Logout */
-}
-
-.header-copy h1 {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.header-copy p {
-  grid-column: 1 / -1;
-}
-
-header.site-header h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.15rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-header.site-header p {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-  max-width: 52rem;
-  line-height: 1.45;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  flex-shrink: 0;
 }
 
 /* Leuchtender, pulsierender Hinweis oben rechts */
 .privat-badge {
-  width: auto; /* Verhindert das Strecken über die ganze Zeile */
-    align-self: center;padding: 0.45rem 0.95rem;
+  flex: 0 0 auto;
+  width: fit-content;
+  padding: 0.45rem 0.95rem;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 800;
@@ -122,6 +111,8 @@ header.site-header p {
 }
 
 button.logout-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 0;
   border: none;
   border-radius: 0;
