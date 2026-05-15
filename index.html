@@ -46,21 +46,18 @@
         <button type="button" class="primary" id="accessUnlock">Anmelden</button>
       </div>
      </div>
-    <header class="site-header">
-      <div class="header-copy">
-        <div class="header-actions">
-          <span class="privat-badge" role="status" aria-label="Privater Bereich">PRIVAT</span>
-          <button type="button" id="logoutBtn" class="logout-link">Abmelden</button>
-        </div>
-        <h1>Dual-Peer — zwei Kameras, eine Verbindung</h1>
-        <p>
-          Eine Host-Seite startet die Session und teilt die Peer-ID. Die zweite Person verbindet sich
-          damit: euer Video erscheint gegenüber. Über den Datenkanal kann die verbindende Seite
-          Impulse senden — bei aktivem Lovense Cam Extension SDK werden kompatible Toys über
-          <code>receiveTip</code> angesprochen (sonst nur visuelles Feedback).
-        </p>
+     <header class="main-header">
+      <div class="header-left">
+          <a href="index.html" class="logo-link">
+              <img src="assets/logo.png" alt="Tangent-Club Logo" id="main-logo">
+          </a>
       </div>
-    </header>
+      
+      <div class="header-copy">
+          <span class="privat-badge">PRIVAT</span>
+          <button id="logoutBtn" class="logout-link">Abmelden &times;</button>
+      </div>
+  </header>
     <main>
       <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video-Bereich">
         <article class="panel">
