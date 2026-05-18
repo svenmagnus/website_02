@@ -6,7 +6,6 @@
 
 /** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
 const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
-
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
 
 // Echte TURN-Konfiguration (Beispiel OpenRelay)
@@ -241,14 +240,18 @@ function initLovenseIfPresent() {
     return;
   }
   try {
-    const site = window.__LOVENSE_SITE_NAME__ || "DualPeerDemo";
+    // Hier korrigiert auf LOVENSE_SITE_NAME, passend zu deiner index.html
+    const site = window.LOVENSE_SITE_NAME || "test:Tangent-Club";
     const model = window.__LOVENSE_MODEL_NAME__ || "model1";
-    // API: https://developer-api.lovense.com/docs/cam-solutions/cam-extension-for-chrome.html
+    
+    console.log("Initialisiere Lovense mit Site:", site);
     camExtensionInstance = new CamExtension(site, model);
-    camExtensionInstance.on("ready", () => {
+    
+    camExtensionInstance.on("ready", (ce) => {
+      console.log("Lovense Cam Extension ist bereit!", ce);
       if (els.lovenseStatus) {
         els.lovenseStatus.textContent =
-          "Lovense Cam Extension bereit — receiveTip() löst Toy-Reaktionen aus (Extension + Connect).";
+          "Lovense Cam Extension erfolgreich geladen und bereit.";
       }
     });
   } catch (e) {
@@ -260,12 +263,14 @@ function initLovenseIfPresent() {
 
 function fireLovenseTip(amount, tipperName) {
   if (!camExtensionInstance || typeof camExtensionInstance.receiveTip !== "function") {
+    console.error("Lovense Instanz oder receiveTip Methode nicht gefunden.");
     return;
   }
   try {
+    console.log(`Führe receiveTip aus: ${amount} Tokens von ${tipperName}`);
     camExtensionInstance.receiveTip(Number(amount) || 1, tipperName || "Remote");
-  } catch (_) {
-    /* ignore */
+  } catch (e) {
+    console.error("Fehler beim Ausführen von receiveTip:", e);
   }
 }
 
@@ -276,6 +281,8 @@ function handleIncomingToyPayload(data) {
   const tip = Number(data.tipAmount) || Math.max(1, Math.round(level / 5));
   const name = data.tipperName || "Partner";
   pulseFor("local", 600 + level * 5);
+  
+  // Wenn der Host ein Signal vom Gast empfängt, wird hier das lokale Toy getriggert
   fireLovenseTip(tip, name);
 }
 
@@ -321,7 +328,7 @@ els.btnStartHost.addEventListener("click", async () => {
     peer.on("open", (id) => {
       els.peerIdOut.textContent = id;
       setupPeerHandlers(stream);
-      setStatus(els.statusHost, "Warte auf eingehende Verbindung … Peer-ID an Partner senden.", "ok");
+      setStatus(els.statusHost, "Werte auf eingehende Verbindung … Peer-ID an Partner senden.", "ok");
       els.btnStartHost.disabled = true;
     });
   } catch (e) {
@@ -378,6 +385,10 @@ els.btnSendToy.addEventListener("click", () => {
   const level = Number(els.toyLevel.value) || 50;
   const tipAmount = Number(els.toyTipAmount.value) || 10;
   const tipperName = (els.toyTipName.value || "Partner").trim() || "Partner";
+
+  // Trigger Lovense SDK beim lokalen Absenden (zu Testzwecken)
+  fireLovenseTip(tipAmount, tipperName);
+
   dataConn.send({
     type: "toy",
     level,
