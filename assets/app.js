@@ -496,28 +496,25 @@ function initLogout() {
     location.reload();
   });
 }
-
-function initHardwareTestControls() {
-  const intensityRange = document.getElementById("intensityRange");
-  const intensityValue = document.getElementById("intensityValue");
+intensityRange.addEventListener("input", (e) => {
+  const val = Number(e.target.value);
+  intensityValue.textContent = val + "%";
   
-  if (intensityRange && intensityValue) {
-    intensityRange.addEventListener("input", (e) => {
-      const val = Number(e.target.value);
-      intensityValue.textContent = val + "%";
-      
-      console.log("Sende Intensität an Toy:", val);
+  console.log("Sende Intensität an Toy:", val);
 
-      // --- NEU: Direktes Ansteuern des lokalen Toys über das SDK ---
-      if (val > 0) {
-        // Wir simulieren einen Tip. Je höher der Regler, desto höher der "Betrag"
-        // Dadurch greifen deine Stufen (Levels), die du in der Extension definiert hast!
-        if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
-          camExtensionInstance.receiveTip(val, "Local-Test");
-        }
-      }
-    });
+  // --- Überprüfung der Intensität ---
+  if (val > 0) {
+    // Wenn der Regler größer als 0 ist, wird das Toy aktiviert
+    if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
+      camExtensionInstance.receiveTip(val, "Local-Test");
+    }
+  } else {
+    // Wenn der Regler auf 0 steht, senden wir die 0, um das Toy zu stoppen
+    if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
+      camExtensionInstance.receiveTip(0, "Local-Test-Stop");
+    }
   }
+});
 
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
