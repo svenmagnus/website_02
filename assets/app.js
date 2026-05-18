@@ -238,7 +238,36 @@ function hangup() {
 function resetConnectionLabels() {
   setStatus(els.statusHost, "Host: noch nicht gestartet.");
   setStatus(els.statusGuest, "Gast: noch nicht verbunden.");
-  updateDataConnStatus();
+  updateConnectionUi();
+}
+
+function hasRemoteVideo() {
+  return !!(els.remoteVideo && els.remoteVideo.srcObject);
+}
+
+function updatePeerConnectionStatus() {
+  const videoOk = hasRemoteVideo();
+  const dataOk = !!(dataConn && dataConn.open);
+
+  if (sessionRole === "host") {
+    if (!videoOk && !dataOk) return;
+    if (videoOk && dataOk) {
+      setStatus(els.statusHost, "Partner verbunden (Video + Steuerung).", "ok");
+    } else if (videoOk) {
+      setStatus(els.statusHost, "Partner verbunden (Video).", "ok");
+    } else if (dataOk) {
+      setStatus(els.statusHost, "Partner verbunden (Steuerung).", "ok");
+    }
+    setStatus(els.statusGuest, "Partner verbunden.", "ok");
+  } else if (sessionRole === "guest") {
+    if (videoOk && dataOk) {
+      setStatus(els.statusGuest, "Verbunden (Video + Steuerung).", "ok");
+    } else if (videoOk) {
+      setStatus(els.statusGuest, "Video verbunden — Steuerung: Verbindungsaufbau …", "ok");
+    } else if (peer) {
+      setStatus(els.statusGuest, "Verbindungsaufbau …", "ok");
+    }
+  }
 }
 
 function updateDataConnStatus() {
@@ -254,6 +283,11 @@ function updateDataConnStatus() {
   } else {
     setStatus(els.statusData, "Datenkanal: getrennt.");
   }
+}
+
+function updateConnectionUi() {
+  updatePeerConnectionStatus();
+  updateDataConnStatus();
 }
 
 function setPeerStatus(msg, cls) {
@@ -350,16 +384,16 @@ function handleIncomingToyPayload(data) {
 
 function setupDataConnection(conn) {
   dataConn = conn;
-  updateDataConnStatus();
+  updateConnectionUi();
 
   conn.on("data", handleIncomingToyPayload);
   conn.on("close", () => {
     dataConn = null;
-    updateDataConnStatus();
+    updateConnectionUi();
     setPeerStatus("Partner getrennt.", "err");
   });
   conn.on("open", () => {
-    updateDataConnStatus();
+    updateConnectionUi();
   });
   conn.on("error", (err) => {
     setDataActivityStatus(
@@ -368,24 +402,29 @@ function setupDataConnection(conn) {
     );
   });
 
-  if (conn.open) updateDataConnStatus();
+  if (conn.open) updateConnectionUi();
+}
+
+function onRemoteStream(remoteStream) {
+  els.remoteVideo.srcObject = remoteStream;
+  showPlaceholder(false, false);
+  updateConnectionUi();
 }
 
 function setupPeerHandlers(stream) {
   peer.on("call", (call) => {
     call.answer(stream);
     mediaConn = call;
-    call.on("stream", (remoteStream) => {
-      els.remoteVideo.srcObject = remoteStream;
-      showPlaceholder(false, false);
+    call.on("stream", onRemoteStream);
+    call.on("close", () => {
+      showPlaceholder(false, true);
+      updateConnectionUi();
     });
-    call.on("close", () => showPlaceholder(false, true));
   });
 
   peer.on("connection", (conn) => {
     setupDataConnection(conn);
-    setStatus(els.statusHost, "Partner verbunden (Video).", "ok");
-    setStatus(els.statusGuest, "Partner verbunden.", "ok");
+    updateConnectionUi();
   });
 
   peer.on("error", (err) => {
@@ -430,16 +469,16 @@ els.btnConnect.addEventListener("click", async () => {
 
       const call = peer.call(remoteId, stream);
       mediaConn = call;
-      call.on("stream", (remoteStream) => {
-        els.remoteVideo.srcObject = remoteStream;
-        showPlaceholder(false, false);
+      call.on("stream", onRemoteStream);
+      call.on("close", () => {
+        showPlaceholder(false, true);
+        updateConnectionUi();
       });
-      call.on("close", () => showPlaceholder(false, true));
 
       const conn = peer.connect(remoteId, { reliable: true });
       setupDataConnection(conn);
 
-      setStatus(els.statusGuest, "Verbindungsaufbau …", "ok");
+      updateConnectionUi();
       els.btnConnect.disabled = true;
       els.btnStartHost.disabled = true;
     });
