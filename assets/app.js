@@ -502,19 +502,29 @@ function initHardwareTestControls() {
   const intensityValue = document.getElementById("intensityValue");
   if (intensityRange && intensityValue) {
     intensityRange.addEventListener("input", (e) => {
-      const val = e.target.value;
+      const val = Number(e.target.value);
       intensityValue.textContent = val + "%";
-      if (typeof sendLovenseTipping === "function") {
-        sendLovenseTipping(val);
-      }
       console.log("Sende Intensität an Toy:", val);
+
+      if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
+        if (val > 0) {
+          camExtensionInstance.receiveTip(val, "Local-Test");
+        } else {
+          camExtensionInstance.receiveTip(0, "Local-Test-Stop");
+        }
+      }
     });
   }
 
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
     testDevice.addEventListener("click", () => {
-      alert("Suche nach Toy... Verbindung stabil. Testlauf gestartet.");
+      if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
+        camExtensionInstance.receiveTip(25, "Connection-Test");
+        alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
+      } else {
+        alert("Lovense SDK ist im Browser noch nicht bereit oder aktiv.");
+      }
     });
   }
 }
