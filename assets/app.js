@@ -500,21 +500,35 @@ function initLogout() {
 function initHardwareTestControls() {
   const intensityRange = document.getElementById("intensityRange");
   const intensityValue = document.getElementById("intensityValue");
+  
   if (intensityRange && intensityValue) {
     intensityRange.addEventListener("input", (e) => {
-      const val = e.target.value;
+      const val = Number(e.target.value);
       intensityValue.textContent = val + "%";
-      if (typeof sendLovenseTipping === "function") {
-        sendLovenseTipping(val);
-      }
+      
       console.log("Sende Intensität an Toy:", val);
+
+      // --- NEU: Direktes Ansteuern des lokalen Toys über das SDK ---
+      if (val > 0) {
+        // Wir simulieren einen Tip. Je höher der Regler, desto höher der "Betrag"
+        // Dadurch greifen deine Stufen (Levels), die du in der Extension definiert hast!
+        if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
+          camExtensionInstance.receiveTip(val, "Local-Test");
+        }
+      }
     });
   }
 
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
     testDevice.addEventListener("click", () => {
-      alert("Suche nach Toy... Verbindung stabil. Testlauf gestartet.");
+      // Nutzt das SDK für einen kurzen Vibrationstest (z.B. Wert 25)
+      if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
+        camExtensionInstance.receiveTip(25, "Connection-Test");
+        alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
+      } else {
+        alert("Lovense SDK ist im Browser noch nicht bereit oder aktiv.");
+      }
     });
   }
 }
