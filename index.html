@@ -11,13 +11,14 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="assets/styles.css" />
-    <!-- Lovense Cam Extension SDK (optional): im Lovense Developer Dashboard Website-Name eintragen und unten __LOVENSE_* setzen. -->
+    <!-- Lovense Cam Extension SDK — Reihenfolge laut Developer-Doku einhalten -->
     <script src="https://api.lovense-api.com/cam-extension/static/js-sdk/broadcast.js"></script>
     <script>
-      // Muss exakt zum Lovense-Dashboard passen, wenn broadcast.js aktiv ist:
+      // Exakt wie im Lovense Developer Dashboard (Testphase: test: + Website Name)
       window.LOVENSE_SITE_NAME = "test:Tangent-Club";
       window.__LOVENSE_MODEL_NAME__ = "model1";
     </script>
+    <script src="assets/lovense-broadcast.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -140,7 +141,28 @@
             <span class="status-line">Deine aktuelle Peer-ID:</span>
             <div class="peer-id-box" id="peerIdOut">—</div>
           </div>
-          <p class="lovense-hint" id="lovenseStatus"></p>
+          <p class="lovense-hint" id="lovenseStatus">Lovense: initialisiere …</p>
+          <p class="lovense-hint" id="lovenseToyStatus"></p>
+        </div>
+
+        <div class="card lovense-setup-card">
+          <h2>Lovense Cam Extension (Integrationstest)</h2>
+          <ol class="lovense-checklist">
+            <li>Google Chrome + <strong>Lovense Cam Extension</strong> installiert</li>
+            <li>In der Extension: Cam-Site <strong>test:Tangent-Club</strong> hinzufügen</li>
+            <li>Toys in der Extension verbinden — das <strong>Widget</strong> muss auf dieser Seite sichtbar sein</li>
+            <li>Status unten muss <strong>„Extension bereit“</strong> zeigen, dann Test-Tip senden</li>
+          </ol>
+          <p class="lovense-hint lovense-url-hint" id="lovenseUrlHint"></p>
+          <div class="row">
+            <label for="lovenseModelName">Model-Name (Cam Extension)</label>
+            <input type="text" id="lovenseModelName" value="model1" maxlength="40" autocomplete="off" />
+          </div>
+          <div class="row">
+            <button type="button" class="secondary" id="btnLovenseTestTip">
+              Test: receiveTip(25)
+            </button>
+          </div>
         </div>
 
         <div class="card">

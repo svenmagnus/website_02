@@ -64,6 +64,10 @@ const els = {
   toyTipName: $("#toyTipName"),
   btnSendToy: $("#btnSendToy"),
   lovenseStatus: $("#lovenseStatus"),
+  lovenseToyStatus: $("#lovenseToyStatus"),
+  lovenseUrlHint: $("#lovenseUrlHint"),
+  lovenseModelName: $("#lovenseModelName"),
+  btnLovenseTestTip: $("#btnLovenseTestTip"),
   pipCorner: $("#pipCorner"),
   pipNativeMsg: $("#pipNativeMsg"),
   btnPipNativeRemote: $("#btnPipNativeRemote"),
@@ -317,42 +321,107 @@ function isLovenseReady() {
   );
 }
 
-function initLovenseIfPresent() {
-  lovenseReady = false;
-  if (typeof CamExtension === "undefined") {
-    setLovenseStatus(
-      "Cam Extension SDK nicht geladen — broadcast.js prüfen oder Netzwerk blockiert."
+function syncLovenseFromBridge() {
+  const bridge = window.dualPeerLovense;
+  if (!bridge) return;
+  camExtensionInstance = bridge.instance || null;
+  lovenseReady = !!bridge.ready;
+}
+
+function formatLovenseToys(toys) {
+  if (!toys || !toys.length) return "Kein Toy in der Extension verbunden.";
+  return toys
+    .map((t) => `${t.type || "toy"}: ${t.status === "on" ? "an" : "aus"}${t.battery ? ` (${t.battery}%)` : ""}`)
+    .join(" · ");
+}
+
+function onLovenseReady(detail) {
+  syncLovenseFromBridge();
+  const ver = (detail && detail.version) || window.dualPeerLovense?.version;
+  setLovenseStatus(
+    `Extension bereit${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. Widget sichtbar?`
+  );
+  if (els.lovenseToyStatus) {
+    els.lovenseToyStatus.textContent = formatLovenseToys(
+      (detail && detail.toys) || window.dualPeerLovense?.toys
     );
+  }
+}
+
+function onLovenseError(detail) {
+  syncLovenseFromBridge();
+  lovenseReady = false;
+  const msg =
+    detail && detail.message
+      ? detail.message
+      : detail && detail.code
+        ? String(detail.code)
+        : "Unbekannter SDK-Fehler";
+  setLovenseStatus("Lovense Fehler: " + msg);
+}
+
+function onLovenseToys(toys) {
+  if (els.lovenseToyStatus) els.lovenseToyStatus.textContent = formatLovenseToys(toys);
+}
+
+function initLovenseIfPresent() {
+  syncLovenseFromBridge();
+
+  if (els.lovenseUrlHint) {
+    els.lovenseUrlHint.textContent =
+      "Broadcast-URL (muss im Lovense-Dashboard passen): " + location.origin + location.pathname;
+  }
+
+  if (els.lovenseModelName) {
+    els.lovenseModelName.value = window.__LOVENSE_MODEL_NAME__ || "model1";
+    els.lovenseModelName.addEventListener("change", () => {
+      window.__LOVENSE_MODEL_NAME__ = (els.lovenseModelName.value || "model1").trim() || "model1";
+      setLovenseStatus("Model-Name geändert — Seite neu laden, dann Extension erneut verbinden.");
+    });
+  }
+
+  if (els.btnLovenseTestTip) {
+    els.btnLovenseTestTip.addEventListener("click", () => {
+      if (fireLovenseTip(25, "Integration-Test")) {
+        setLovenseStatus("receiveTip(25) gesendet — Toy sollte jetzt reagieren.");
+      } else {
+        alert("Lovense noch nicht bereit:\n" + lovenseNotReadyMessage());
+      }
+    });
+  }
+
+  if (!window.dualPeerLovense) {
+    setLovenseStatus("lovense-broadcast.js fehlt — broadcast.js und lovense-broadcast.js prüfen.");
     return;
   }
-  try {
-    const site = window.LOVENSE_SITE_NAME || "test:Tangent-Club";
-    const model = window.__LOVENSE_MODEL_NAME__ || "model1";
 
-    console.log("Initialisiere Lovense mit Site:", site, "Model:", model);
+  if (window.dualPeerLovense.ready) {
+    onLovenseReady({ version: window.dualPeerLovense.version, toys: window.dualPeerLovense.toys });
+  } else if (window.dualPeerLovense.error) {
+    onLovenseError(window.dualPeerLovense.error);
+  } else {
     setLovenseStatus(
-      "Lovense SDK geladen — warte auf Chrome Cam Extension (Status: bereit) …"
+      "SDK geladen — Chrome Cam Extension: test:Tangent-Club wählen, Toys koppeln, auf „bereit“ warten."
     );
-    camExtensionInstance = new CamExtension(site, model);
-
-    camExtensionInstance.on("ready", (ce) => {
-      lovenseReady = true;
-      camExtensionInstance = ce || camExtensionInstance;
-      console.log("Lovense Cam Extension ist bereit!", camExtensionInstance);
-      setLovenseStatus(
-        "Lovense Cam Extension bereit. Toys in der Extension verbinden, dann testen."
-      );
-    });
-  } catch (e) {
-    lovenseReady = false;
-    setLovenseStatus("Lovense Init fehlgeschlagen: " + (e && e.message ? e.message : String(e)));
   }
+
+  document.addEventListener("dualpeer-lovense-ready", (e) => onLovenseReady(e.detail));
+  document.addEventListener("dualpeer-lovense-error", (e) => onLovenseError(e.detail));
+  document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
 
 /** Tip in Tokens (nicht 0–100 Intensität). Gibt true zurück, wenn receiveTip ausgeführt wurde. */
 function fireLovenseTip(amount, tipperName) {
   const tokens = Math.round(Number(amount));
   if (!tokens || tokens < 1) return false;
+  syncLovenseFromBridge();
+  const bridge = window.dualPeerLovense;
+  if (bridge && typeof bridge.receiveTip === "function") {
+    const ok = bridge.receiveTip(tokens, tipperName || "Remote");
+    if (ok) console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
+    else console.warn("Lovense noch nicht bereit — receiveTip in Warteschlange oder fehlgeschlagen.");
+    return ok;
+  }
   if (!isLovenseReady()) {
     console.warn("Lovense noch nicht bereit — receiveTip übersprungen.");
     return false;
@@ -618,11 +687,18 @@ function lovenseNotReadyMessage() {
   if (typeof CamExtension === "undefined") {
     return "broadcast.js nicht geladen.";
   }
+  if (!window.dualPeerLovense) {
+    return "lovense-broadcast.js nicht geladen.";
+  }
+  if (window.dualPeerLovense.error) {
+    const e = window.dualPeerLovense.error;
+    return (e.message || e.code || "SDK-Fehler") + " — URL im Lovense-Dashboard prüfen.";
+  }
   if (!camExtensionInstance) {
     return "CamExtension noch nicht initialisiert.";
   }
   if (!lovenseReady) {
-    return "Chrome Cam Extension noch nicht verbunden — Extension öffnen, Site wählen, Toys koppeln.";
+    return "Extension nicht bereit — Chrome: test:Tangent-Club wählen, Widget auf dieser Seite prüfen.";
   }
   return "receiveTip nicht verfügbar.";
 }

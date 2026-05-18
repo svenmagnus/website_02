@@ -60,14 +60,13 @@ Zusätzlich kann die Position des PiP-Fensters gewählt werden:
     • unten rechts
     • andere Positionen je nach Einstellung
 
-7. Lovense Toy Anbindung
-Verbinde dein Lovense Toy
-Bevor die Session startet:
-    1. Schalte dein Lovense-Gerät ein.
-    2. Öffne die Lovense Connect App auf deinem Smartphone.
-    3. Verbinde das Toy per Bluetooth mit der Lovense-App.
-    4. Lass die Lovense Connect App während der gesamten Video-Session im Hintergrund geöffnet.
-    5. Sobald die Verbindung aktiv ist, können die Fernsteuerungs- und Impulsfunktionen in der Videochat-App genutzt werden.
+7. Lovense Cam Extension (Chrome)
+Integration über die Lovense Cam Extension (nicht die Lovense-Connect-App allein):
+    1. Google Chrome verwenden und die Lovense Cam Extension installieren.
+    2. In der Extension die Cam-Site test:Tangent-Club hinzufügen.
+    3. Toys in der Extension verbinden — auf der Broadcast-Seite muss das Lovense-Widget erscheinen.
+    4. Status „Extension bereit“ abwarten, dann „Test: receiveTip(25)“ oder Fernsteuerung nutzen.
+    5. Die Broadcast-URL muss im Lovense Developer Dashboard als „Model Broadcasting URL Pattern“ eingetragen sein.
 
 
 Fernsteuerung / Impulsfunktion
@@ -195,13 +194,13 @@ You can also choose the Picture-in-Picture position:
     • Bottom right
     • Other positions depending on settings
 
-7. Lovense toy integration 
-Connect Your Lovense Toy
-Before starting the session:
-    1. Turn on your Lovense device. 
-    2. Open the Lovense Connect App on your smartphone. 
-    3. Make sure the toy is connected to the Lovense app via Bluetooth. 
-    4. Keep the Lovense Connect app running in the background during the video session. 
+7. Lovense Cam Extension (Chrome)
+Use the Lovense Cam Extension (not the Lovense Connect app alone):
+    1. Use Google Chrome with the Lovense Cam Extension installed.
+    2. Add cam site test:Tangent-Club in the extension.
+    3. Connect toys in the extension — the Lovense widget must appear on the broadcast page.
+    4. Wait for “Extension ready”, then use “Test: receiveTip(25)” or remote control.
+    5. Register the broadcast URL in the Lovense Developer Dashboard (Model Broadcasting URL Pattern).
     5. Once connected, the remote control / impulse features in the video chat app can be used.
 Remote Control / Impulse Function
 On the right side, participants can send signals to the host.
