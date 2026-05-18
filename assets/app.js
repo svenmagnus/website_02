@@ -58,6 +58,7 @@ const els = {
   peerIdIn: $("#peerIdIn"),
   statusHost: $("#statusHost"),
   statusGuest: $("#statusGuest"),
+  statusData: $("#statusData"),
   toyLevel: $("#toyLevel"),
   toyTipAmount: $("#toyTipAmount"),
   toyTipName: $("#toyTipName"),
@@ -229,13 +230,33 @@ function hangup() {
   sessionRole = null;
   stopMedia();
   els.peerIdOut.textContent = "—";
-  setStatus(els.statusHost, "Getrennt.");
-  setStatus(els.statusGuest, "Getrennt.");
+  resetConnectionLabels();
   els.btnStartHost.disabled = !videoAccessUnlocked;
   els.btnConnect.disabled = !videoAccessUnlocked;
 }
 
-function setSessionStatus(msg, cls) {
+function resetConnectionLabels() {
+  setStatus(els.statusHost, "Host: noch nicht gestartet.");
+  setStatus(els.statusGuest, "Gast: noch nicht verbunden.");
+  updateDataConnStatus();
+}
+
+function updateDataConnStatus() {
+  if (!els.statusData) return;
+  if (dataConn && dataConn.open) {
+    setStatus(
+      els.statusData,
+      "Datenkanal: verbunden — Fernsteuerung aktiv (auch im Hintergrund-Tab).",
+      "ok"
+    );
+  } else if (dataConn) {
+    setStatus(els.statusData, "Datenkanal: Verbindungsaufbau …");
+  } else {
+    setStatus(els.statusData, "Datenkanal: getrennt.");
+  }
+}
+
+function setPeerStatus(msg, cls) {
   if (sessionRole === "host") {
     setStatus(els.statusHost, msg, cls);
   } else if (sessionRole === "guest") {
@@ -244,6 +265,10 @@ function setSessionStatus(msg, cls) {
     setStatus(els.statusHost, msg, cls);
     setStatus(els.statusGuest, msg, cls);
   }
+}
+
+function setDataActivityStatus(msg, cls) {
+  if (els.statusData) setStatus(els.statusData, msg, cls);
 }
 
 function setLovenseStatus(text) {
@@ -318,20 +343,32 @@ function handleIncomingToyPayload(data) {
 
   const ok = fireLovenseTip(tip, name);
   const msg = ok
-    ? `Impuls von ${name} empfangen (${tip} Tokens).`
-    : `Impuls von ${name} — Lovense: ${lovenseNotReadyMessage()}`;
-  setSessionStatus(msg, ok ? "ok" : "err");
+    ? `Empfangen: ${tip} Tokens von ${name}.`
+    : `Empfangen von ${name} — Lovense: ${lovenseNotReadyMessage()}`;
+  setDataActivityStatus(msg, ok ? "ok" : "err");
 }
 
 function setupDataConnection(conn) {
   dataConn = conn;
+  updateDataConnStatus();
+
   conn.on("data", handleIncomingToyPayload);
   conn.on("close", () => {
     dataConn = null;
+    updateDataConnStatus();
+    setPeerStatus("Partner getrennt.", "err");
   });
   conn.on("open", () => {
-    setSessionStatus("Datenkanal offen — Fernsteuerung in beide Richtungen möglich.", "ok");
+    updateDataConnStatus();
   });
+  conn.on("error", (err) => {
+    setDataActivityStatus(
+      "Datenkanal-Fehler: " + (err && err.message ? err.message : String(err)),
+      "err"
+    );
+  });
+
+  if (conn.open) updateDataConnStatus();
 }
 
 function setupPeerHandlers(stream) {
@@ -347,7 +384,8 @@ function setupPeerHandlers(stream) {
 
   peer.on("connection", (conn) => {
     setupDataConnection(conn);
-    setStatus(els.statusHost, "Partner verbunden (Video + Steuerung).", "ok");
+    setStatus(els.statusHost, "Partner verbunden (Video).", "ok");
+    setStatus(els.statusGuest, "Partner verbunden.", "ok");
   });
 
   peer.on("error", (err) => {
@@ -418,21 +456,25 @@ els.btnHangup.addEventListener("click", () => hangup());
 
 els.btnSendToy.addEventListener("click", () => {
   if (!dataConn || !dataConn.open) {
-    setSessionStatus("Kein Datenkanal — zuerst verbinden.", "err");
+    setDataActivityStatus("Kein Datenkanal — zuerst verbinden.", "err");
     return;
   }
   const level = Number(els.toyLevel.value) || 50;
   const tipAmount = Number(els.toyTipAmount.value) || 10;
   const tipperName = (els.toyTipName.value || "Partner").trim() || "Partner";
 
-  dataConn.send({
-    type: "toy",
-    level,
-    tipAmount,
-    tipperName,
-    ts: Date.now(),
-  });
-  setSessionStatus(`Impuls gesendet (${tipAmount} Tokens an Partner).`, "ok");
+  try {
+    dataConn.send({
+      type: "toy",
+      level,
+      tipAmount,
+      tipperName,
+      ts: Date.now(),
+    });
+    setDataActivityStatus(`Gesendet: ${tipAmount} Tokens an Partner.`, "ok");
+  } catch (e) {
+    setDataActivityStatus("Senden fehlgeschlagen: " + (e && e.message ? e.message : String(e)), "err");
+  }
 });
 
 document.querySelectorAll("[data-preset]").forEach((btn) => {
