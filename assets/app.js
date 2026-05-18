@@ -496,30 +496,29 @@ function initLogout() {
     location.reload();
   });
 }
-intensityRange.addEventListener("input", (e) => {
-  const val = Number(e.target.value);
-  intensityValue.textContent = val + "%";
-  
-  console.log("Sende Intensität an Toy:", val);
 
-  // --- Überprüfung der Intensität ---
-  if (val > 0) {
-    // Wenn der Regler größer als 0 ist, wird das Toy aktiviert
-    if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
-      camExtensionInstance.receiveTip(val, "Local-Test");
-    }
-  } else {
-    // Wenn der Regler auf 0 steht, senden wir die 0, um das Toy zu stoppen
-    if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
-      camExtensionInstance.receiveTip(0, "Local-Test-Stop");
-    }
+function initHardwareTestControls() {
+  const intensityRange = document.getElementById("intensityRange");
+  const intensityValue = document.getElementById("intensityValue");
+  if (intensityRange && intensityValue) {
+    intensityRange.addEventListener("input", (e) => {
+      const val = Number(e.target.value);
+      intensityValue.textContent = val + "%";
+      console.log("Sende Intensität an Toy:", val);
+
+      if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
+        if (val > 0) {
+          camExtensionInstance.receiveTip(val, "Local-Test");
+        } else {
+          camExtensionInstance.receiveTip(0, "Local-Test-Stop");
+        }
+      }
+    });
   }
-});
 
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
     testDevice.addEventListener("click", () => {
-      // Nutzt das SDK für einen kurzen Vibrationstest (z.B. Wert 25)
       if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
         camExtensionInstance.receiveTip(25, "Connection-Test");
         alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
