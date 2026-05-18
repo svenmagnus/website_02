@@ -79,6 +79,9 @@ let localStream = null;
 let mediaConn = null;
 let dataConn = null;
 let camExtensionInstance = null;
+let lovenseReady = false;
+/** @type {"host"|"guest"|null} */
+let sessionRole = null;
 
 const LAYOUT_STORAGE_KEY = "dualpeer-layout";
 
@@ -223,6 +226,7 @@ function hangup() {
     peer.destroy();
     peer = null;
   }
+  sessionRole = null;
   stopMedia();
   els.peerIdOut.textContent = "—";
   setStatus(els.statusHost, "Getrennt.");
@@ -231,46 +235,76 @@ function hangup() {
   els.btnConnect.disabled = !videoAccessUnlocked;
 }
 
-function initLovenseIfPresent() {
-  if (typeof CamExtension === "undefined") {
-    if (els.lovenseStatus) {
-      els.lovenseStatus.textContent =
-        "Cam Extension SDK nicht geladen — nur Demo-Signale über WebRTC.";
-    }
-    return;
-  }
-  try {
-    // Hier korrigiert auf LOVENSE_SITE_NAME, passend zu deiner index.html
-    const site = window.LOVENSE_SITE_NAME || "test:Tangent-Club";
-    const model = window.__LOVENSE_MODEL_NAME__ || "model1";
-    
-    console.log("Initialisiere Lovense mit Site:", site);
-    camExtensionInstance = new CamExtension(site, model);
-    
-    camExtensionInstance.on("ready", (ce) => {
-      console.log("Lovense Cam Extension ist bereit!", ce);
-      if (els.lovenseStatus) {
-        els.lovenseStatus.textContent =
-          "Lovense Cam Extension erfolgreich geladen und bereit.";
-      }
-    });
-  } catch (e) {
-    if (els.lovenseStatus) {
-      els.lovenseStatus.textContent = "Lovense Init fehlgeschlagen: " + e.message;
-    }
+function setSessionStatus(msg, cls) {
+  if (sessionRole === "host") {
+    setStatus(els.statusHost, msg, cls);
+  } else if (sessionRole === "guest") {
+    setStatus(els.statusGuest, msg, cls);
+  } else {
+    setStatus(els.statusHost, msg, cls);
+    setStatus(els.statusGuest, msg, cls);
   }
 }
 
-function fireLovenseTip(amount, tipperName) {
-  if (!camExtensionInstance || typeof camExtensionInstance.receiveTip !== "function") {
-    console.error("Lovense Instanz oder receiveTip Methode nicht gefunden.");
+function setLovenseStatus(text) {
+  if (els.lovenseStatus) els.lovenseStatus.textContent = text || "";
+}
+
+function isLovenseReady() {
+  return (
+    lovenseReady &&
+    camExtensionInstance &&
+    typeof camExtensionInstance.receiveTip === "function"
+  );
+}
+
+function initLovenseIfPresent() {
+  lovenseReady = false;
+  if (typeof CamExtension === "undefined") {
+    setLovenseStatus(
+      "Cam Extension SDK nicht geladen — broadcast.js prüfen oder Netzwerk blockiert."
+    );
     return;
   }
   try {
-    console.log(`Führe receiveTip aus: ${amount} Tokens von ${tipperName}`);
-    camExtensionInstance.receiveTip(Number(amount) || 1, tipperName || "Remote");
+    const site = window.LOVENSE_SITE_NAME || "test:Tangent-Club";
+    const model = window.__LOVENSE_MODEL_NAME__ || "model1";
+
+    console.log("Initialisiere Lovense mit Site:", site, "Model:", model);
+    setLovenseStatus(
+      "Lovense SDK geladen — warte auf Chrome Cam Extension (Status: bereit) …"
+    );
+    camExtensionInstance = new CamExtension(site, model);
+
+    camExtensionInstance.on("ready", (ce) => {
+      lovenseReady = true;
+      camExtensionInstance = ce || camExtensionInstance;
+      console.log("Lovense Cam Extension ist bereit!", camExtensionInstance);
+      setLovenseStatus(
+        "Lovense Cam Extension bereit. Toys in der Extension verbinden, dann testen."
+      );
+    });
+  } catch (e) {
+    lovenseReady = false;
+    setLovenseStatus("Lovense Init fehlgeschlagen: " + (e && e.message ? e.message : String(e)));
+  }
+}
+
+/** Tip in Tokens (nicht 0–100 Intensität). Gibt true zurück, wenn receiveTip ausgeführt wurde. */
+function fireLovenseTip(amount, tipperName) {
+  const tokens = Math.round(Number(amount));
+  if (!tokens || tokens < 1) return false;
+  if (!isLovenseReady()) {
+    console.warn("Lovense noch nicht bereit — receiveTip übersprungen.");
+    return false;
+  }
+  try {
+    console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
+    camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
+    return true;
   } catch (e) {
     console.error("Fehler beim Ausführen von receiveTip:", e);
+    return false;
   }
 }
 
@@ -281,20 +315,23 @@ function handleIncomingToyPayload(data) {
   const tip = Number(data.tipAmount) || Math.max(1, Math.round(level / 5));
   const name = data.tipperName || "Partner";
   pulseFor("local", 600 + level * 5);
-  
-  // Wenn der Host ein Signal vom Gast empfängt, wird hier das lokale Toy getriggert
-  fireLovenseTip(tip, name);
+
+  const ok = fireLovenseTip(tip, name);
+  const msg = ok
+    ? `Impuls von ${name} empfangen (${tip} Tokens).`
+    : `Impuls von ${name} — Lovense: ${lovenseNotReadyMessage()}`;
+  setSessionStatus(msg, ok ? "ok" : "err");
 }
 
-function setupDataConnection(conn, isInitiator) {
+function setupDataConnection(conn) {
   dataConn = conn;
   conn.on("data", handleIncomingToyPayload);
   conn.on("close", () => {
     dataConn = null;
   });
-  if (isInitiator) {
-    conn.on("open", () => setStatus(els.statusGuest, "Datenkanal offen — Fernsteuerung möglich.", "ok"));
-  }
+  conn.on("open", () => {
+    setSessionStatus("Datenkanal offen — Fernsteuerung in beide Richtungen möglich.", "ok");
+  });
 }
 
 function setupPeerHandlers(stream) {
@@ -309,7 +346,7 @@ function setupPeerHandlers(stream) {
   });
 
   peer.on("connection", (conn) => {
-    setupDataConnection(conn, false);
+    setupDataConnection(conn);
     setStatus(els.statusHost, "Partner verbunden (Video + Steuerung).", "ok");
   });
 
@@ -321,6 +358,7 @@ function setupPeerHandlers(stream) {
 
 els.btnStartHost.addEventListener("click", async () => {
   hangup();
+  sessionRole = "host";
   try {
     const stream = await getMedia();
     peer = new Peer(undefined, PEER_OPTIONS);
@@ -343,6 +381,7 @@ els.btnConnect.addEventListener("click", async () => {
     return;
   }
   hangup();
+  sessionRole = "guest";
   try {
     const stream = await getMedia();
     peer = new Peer(undefined, PEER_OPTIONS);
@@ -360,7 +399,7 @@ els.btnConnect.addEventListener("click", async () => {
       call.on("close", () => showPlaceholder(false, true));
 
       const conn = peer.connect(remoteId, { reliable: true });
-      setupDataConnection(conn, true);
+      setupDataConnection(conn);
 
       setStatus(els.statusGuest, "Verbindungsaufbau …", "ok");
       els.btnConnect.disabled = true;
@@ -379,15 +418,12 @@ els.btnHangup.addEventListener("click", () => hangup());
 
 els.btnSendToy.addEventListener("click", () => {
   if (!dataConn || !dataConn.open) {
-    setStatus(els.statusGuest, "Kein Datenkanal — zuerst verbinden.", "err");
+    setSessionStatus("Kein Datenkanal — zuerst verbinden.", "err");
     return;
   }
   const level = Number(els.toyLevel.value) || 50;
   const tipAmount = Number(els.toyTipAmount.value) || 10;
   const tipperName = (els.toyTipName.value || "Partner").trim() || "Partner";
-
-  // Trigger Lovense SDK beim lokalen Absenden (zu Testzwecken)
-  fireLovenseTip(tipAmount, tipperName);
 
   dataConn.send({
     type: "toy",
@@ -396,7 +432,7 @@ els.btnSendToy.addEventListener("click", () => {
     tipperName,
     ts: Date.now(),
   });
-  setStatus(els.statusGuest, "Befehl gesendet.", "ok");
+  setSessionStatus(`Impuls gesendet (${tipAmount} Tokens an Partner).`, "ok");
 });
 
 document.querySelectorAll("[data-preset]").forEach((btn) => {
@@ -497,6 +533,19 @@ function initLogout() {
   });
 }
 
+function lovenseNotReadyMessage() {
+  if (typeof CamExtension === "undefined") {
+    return "broadcast.js nicht geladen.";
+  }
+  if (!camExtensionInstance) {
+    return "CamExtension noch nicht initialisiert.";
+  }
+  if (!lovenseReady) {
+    return "Chrome Cam Extension noch nicht verbunden — Extension öffnen, Site wählen, Toys koppeln.";
+  }
+  return "receiveTip nicht verfügbar.";
+}
+
 function initHardwareTestControls() {
   const intensityRange = document.getElementById("intensityRange");
   const intensityValue = document.getElementById("intensityValue");
@@ -504,14 +553,11 @@ function initHardwareTestControls() {
     intensityRange.addEventListener("input", (e) => {
       const val = Number(e.target.value);
       intensityValue.textContent = val + "%";
-      console.log("Sende Intensität an Toy:", val);
+      if (val <= 0) return;
 
-      if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
-        if (val > 0) {
-          camExtensionInstance.receiveTip(val, "Local-Test");
-        } else {
-          camExtensionInstance.receiveTip(0, "Local-Test-Stop");
-        }
+      const tokens = Math.max(1, Math.round(val / 4));
+      if (!fireLovenseTip(tokens, "Local-Test")) {
+        console.warn("Hardware-Test:", lovenseNotReadyMessage());
       }
     });
   }
@@ -519,11 +565,10 @@ function initHardwareTestControls() {
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
     testDevice.addEventListener("click", () => {
-      if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
-        camExtensionInstance.receiveTip(25, "Connection-Test");
+      if (fireLovenseTip(25, "Connection-Test")) {
         alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
       } else {
-        alert("Lovense SDK ist im Browser noch nicht bereit oder aktiv.");
+        alert("Lovense noch nicht bereit: " + lovenseNotReadyMessage());
       }
     });
   }

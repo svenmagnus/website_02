@@ -143,10 +143,11 @@
         </div>
 
         <div class="card">
-          <h2>Fernsteuerung (an den Host)</h2>
+          <h2>Fernsteuerung (beidseitig)</h2>
           <p class="status-line" style="margin: 0 0 0.5rem">
-            Nur die verbindende Seite (Gast) sendet hier Signale zum Host. Intensität ist für UI /
-            Mapping gedacht; Lovense reagiert auf den eingetragenen Tip-Betrag laut Extension-Setup.
+            Host und Gast können Impulse senden — das Toy des Empfängers reagiert über Lovense
+            <code>receiveTip</code>. Intensität steuert nur den Video-Puls; für Lovense zählt der
+            Tip-Betrag laut Extension-Setup.
           </p>
           <div class="row">
             <label for="toyLevel">Intensität</label>
