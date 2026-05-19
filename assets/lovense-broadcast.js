@@ -48,18 +48,18 @@
   }
 
   function init() {
-    const site = global.LOVENSE_SITE_NAME || "test:Tangent-Club";
-    const model = global.__LOVENSE_MODEL_NAME__ || "model1";
+    const site = window.LOVENSE_SITE_NAME || "test:Tangent-Club";
+    const model = window.__LOVENSE_MODEL_NAME__ || "model1";
 
-    if (typeof global.CamExtension === "undefined") {
-      state.error = { code: "NO_SDK", message: "broadcast.js nicht geladen" };
-      dispatch("dualpeer-lovense-error", state.error);
-      return;
+    if (typeof window.CamExtension === "undefined") {
+        state.error = { code: "NO_SDK", message: "broadcast.js nicht geladen" };
+        dispatch("dualpeer-lovens-error", state.error);
+        return;
     }
 
     try {
-      const camExtension = new global.CamExtension(site, model);
-      state.instance = camExtension;
+        const camExtension = new window.CamExtension(site, model);
+        state.instance = camExtension;
 
       camExtension.on("ready", async (ce) => {
         state.instance = ce || camExtension;
