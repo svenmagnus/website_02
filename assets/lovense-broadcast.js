@@ -53,7 +53,7 @@
 
     if (typeof window.CamExtension === "undefined") {
         state.error = { code: "NO_SDK", message: "broadcast.js nicht geladen" };
-        dispatch("dualpeer-lovens-error", state.error);
+        dispatch("dualpeer-lovense-error", state.error);
         return;
     }
 
