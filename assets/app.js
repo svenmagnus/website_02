@@ -741,48 +741,42 @@ function initHardwareTestControls() {
 // =================================================================
 // DOM INITIALISIERUNG & BESTÄNDIGE EVENT-BINDUNG
 // =================================================================
- document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
 
     let lastSelf = 0;
     const slider = document.getElementById("selfControlSlider");
+    const patternSelect = document.getElementById("patternSelect");
 
+    // 1. SLIDER CONTROL
     if (slider) {
         slider.addEventListener("change", function () {
             const now = Date.now();
             if (now - lastSelf < 80) return;
             lastSelf = now;
 
-            // Reines JavaScript, um den Slider-Wert sicher auszulesen:
             const val = Number(slider.value);
             if (val <= 0) return;
 
-            // Der Wert wird 1:1 direkt an dein Toy geschickt!
             fireLovenseTip(val, "Self-Control");
         });
     }
 
- // Schließt das DOMContentLoaded sauber ab
- 
-     // --- Hierunter geht es dann weiter mit dem PATTERN CONTROL ---
+    // 2. PATTERN CONTROL
+    if (patternSelect) {
+        patternSelect.addEventListener("change", function () {
+            const type = this.value;
+            if (!type) return;
 
-  // -----------------------------
-  // PATTERN CONTROL
-  // -----------------------------
-  if (patternSelect) {
-    patternSelect.addEventListener("change", function () {
-      const type = this.value;
-      if (!type) return;
+            const map = {
+                earthquake: 10,
+                fireworks: 20,
+                wave: 12,
+                pulse: 15
+            };
 
-      const map = {
-        earthquake: 10,
-        fireworks: 20,
-        wave: 12,
-        pulse: 15,
-      };
+            fireLovenseTip(map[type] || 10, "Pattern");
+            this.value = "";
+        });
+    }
 
-      fireLovenseTip(map[type] || 10, "Pattern");
-      this.value = "";
-    });
-  }
-});
-
+}); // Schließt das DOMContentLoaded am absolutem Dateiende sauber ab!
