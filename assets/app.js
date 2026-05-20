@@ -462,9 +462,49 @@ function onRemoteStream(remoteStream) {
   els.remoteVideo.srcObject = remoteStream;
   showPlaceholder(false, false);
   
-  // HIER DER FIX: Status-Texte überschreiben, sobald das Bild da ist
-  setStatus(els.statusHost, "Verbunden: Live-Stream aktiv", "ok");
-  setStatus(els.statusGuest, "Verbunden: Live-Stream aktiv", "ok");
+  // Überprüft deine Rolle und setzt den passenden Text, sobald das Bild da ist
+  if (sessionRole === "host") {
+    setStatus(els.statusHost, "Partner verbunden. Live-Stream aktiv!", "ok");
+  } else {
+    setStatus(els.statusGuest, "Mit Host verbunden. Live-Stream aktiv!", "ok");
+  }
+  
+  updateConnectionUi();
+} // <-- DIESE KLAMMER FEHLTE! Sie schließt die onRemoteStream-Funktion ab.
+
+// Ab hier folgt dann der Host-Button:
+els.btnStartHost.addEventListener("click", async () => {
+  hangup();
+  sessionRole = "host";
+  try {
+    const stream = await getMedia(); // Deine eigene Kamera wird geholt
+    peer = new Peer(undefined, PEER_OPTIONS);
+
+    peer.on("open", (id) => {
+      els.peerIdOut.textContent = id;
+      setupPeerHandlers(stream);
+      
+      // FIX: Klare Meldung für dich als Host
+      setStatus(els.statusHost, "Eigene Kamera aktiv. Warte auf Partner...", "ok");
+      
+      els.btnStartHost.disabled = true;
+    });
+  } catch (e) {
+    setStatus(els.statusHost, "Kamera/Mikro-Fehler: " + e.message, "err");
+  }
+});
+
+// 2. ÄNDERUNG: Wenn das Bild vom Partner tatsächlich eintrifft
+function onRemoteStream(remoteStream) {
+  els.remoteVideo.srcObject = remoteStream;
+  showPlaceholder(false, false); // Blendet das "Wartet auf Peer-Stream..."-Feld aus
+  
+  // FIX: Status updaten, da die Verbindung jetzt vollendet ist
+  if (sessionRole === "host") {
+    setStatus(els.statusHost, "Partner verbunden. Live-Stream aktiv!", "ok");
+  } else {
+    setStatus(els.statusGuest, "Mit Host verbunden. Live-Stream aktiv!", "ok");
+  }
   
   updateConnectionUi();
 }
