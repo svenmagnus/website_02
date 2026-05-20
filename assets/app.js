@@ -766,4 +766,25 @@ document.addEventListener("DOMContentLoaded", () => {
           this.value = "";
       });
   }
+
+// --- STATUS-MONITOR START ---
+  function updateLovenseStatus() {
+      const statusEl = document.getElementById("lovenseStatus");
+      if (!statusEl) return;
+
+      // Prüfung: Ist die Instanz bereit?
+      const isReady = typeof window.camExtensionInstance !== 'undefined' || !!window.dualPeerLovense?.ready;
+      
+      if (isReady) {
+          statusEl.innerHTML = '<span style="color: #4ade80;">● Extension bereit</span>';
+      } else {
+          statusEl.innerHTML = '<span style="color: #f87171;">○ Suche Extension... (bitte Seite neu laden)</span>';
+      }
+  }
+
+  // Initialer Aufruf und Intervall
+  updateLovenseStatus(); 
+  setInterval(updateLovenseStatus, 2000);
+  // --- STATUS-MONITOR ENDE ---
+
 });
