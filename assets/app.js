@@ -694,7 +694,6 @@ function lovenseNotReadyMessage() {
   }
   return "receiveTip nicht verfügbar.";
 }
-
 function initHardwareTestControls() {
   const intensityRange = document.getElementById("intensityRange");
   const intensityValue = document.getElementById("intensityValue");
@@ -713,38 +712,47 @@ function initHardwareTestControls() {
 }
 
 // =================================================================
-// TOY SELF CONTROL LOGIK
+// TOY SELF CONTROL LOGIK (Absolut synchron mit dem Empfänger)
 // =================================================================
 
-// Globale Bindung für den Aufruf direkt aus dem HTML-onchange
+// 1. Dein eigener Schieberegler (Senden an das eigene Toy via Extension)
 window.sendVibrationTest = function(intensity) {
-  const modelName = "model1";
-  console.log("Sende Einzel-Impuls mit Intensität: " + intensity + "%");
-  
-  if (typeof lovense !== 'undefined' && lovense.sendAction) {
-      lovense.sendAction({
-          model: modelName,
-          action: "vibrate",
-          vapi: parseInt(intensity)
-      });
-  }
+    const val = Number(intensity);
+    if (val <= 0) return;
+
+    // Umrechnung von Prozent in Tokens – exakt wie im funktionierenden Hardware-Test oben!
+    const tokens = Math.max(1, Math.round(val / 4));
+    console.log("Self-Control Schieberegler: " + tokens + " Tokens an eigene Extension.");
+    
+    // Nutzt die identische Brücke, die auch der Partner-Kanal nutzt
+    fireLovenseTip(tokens, "Self-Control");
 };
 
+// 2. Deine Muster-Auswahl (Special Commands)
 window.sendPatternTest = function(patternType) {
-  if (!patternType) return;
-  const modelName = "model1";
-  console.log("Simuliere Special Command: " + patternType);
-  
-  if (typeof lovense !== 'undefined' && lovense.sendAction) {
-      lovense.sendAction({
-          model: modelName,
-          action: "pattern",
-          rule: patternType
-      });
-  }
-  document.getElementById('patternSelect').value = "";
+    if (!patternType) return;
+    
+    let tokens = 0;
+    // Abgleich mit deinen Dashboard-Tokens aus dem Screenshot
+    if (patternType === "earthquake") {
+        tokens = 10;
+    } else if (patternType === "fireworks") {
+        tokens = 20;
+    } else {
+        tokens = 15; // Fallback für andere Muster
+    }
+    
+    console.log("Self-Control Muster: " + patternType + " triggert " + tokens + " Tokens.");
+    fireLovenseTip(tokens, "Pattern-Control");
+    
+    // Dropdown im UI sofort wieder zurücksetzen
+    const selectEl = document.getElementById('patternSelect');
+    if (selectEl) selectEl.value = "";
 };
 
+// =================================================================
+// DOM INITIALISIERUNG
+// =================================================================
 document.addEventListener("DOMContentLoaded", () => {
   initAccessGate();
   initLogout();
@@ -752,7 +760,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLovenseIfPresent();
   initHardwareTestControls();
 
-  // Live-Prozentanzeige für den neuen Slider initialisieren
+  // Live-Prozentanzeige für deinen Text neben dem Slider beim Ziehen
   const slider = document.getElementById('selfControlSlider');
   const intensityVal = document.getElementById('intensityVal');
   if (slider && intensityVal) {
