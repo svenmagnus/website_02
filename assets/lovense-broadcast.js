@@ -22,7 +22,10 @@
     while (state.pendingTips.length) {
       const tip = state.pendingTips.shift();
       try {
-        state.instance.receiveTip(tip.amount, tip.tipperName);
+        state.instance.receiveTip({
+    amount: tip.amount,
+    name: tip.tipperName
+});
       } catch (e) {
         console.error("[Lovense] receiveTip (queued) failed:", e);
       }
@@ -39,7 +42,10 @@
       return false;
     }
     try {
-      state.instance.receiveTip(tokens, name);
+      state.instance.receiveTip({
+        amount: tokens,
+        name: name
+    });
       return true;
     } catch (e) {
       console.error("[Lovense] receiveTip failed:", e);
