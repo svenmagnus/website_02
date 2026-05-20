@@ -740,8 +740,10 @@ document.addEventListener("DOMContentLoaded", () => {
   initLayoutControls();
   initLovenseIfPresent();
   initHardwareTestControls();
-
+  
 let lastSelf = 0;
+
+
 
 slider.addEventListener("change", function () {
   const now = Date.now();
@@ -770,3 +772,4 @@ slider.addEventListener("change", function () {
   fireLovenseTip(map[type] || 10, "Pattern");
   this.value = "";
 });
+}); 
