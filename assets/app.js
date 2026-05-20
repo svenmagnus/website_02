@@ -203,10 +203,7 @@ async function getMedia() {
     audio: true,
   });
   els.localVideo.srcObject = localStream;
-  
-  // Geändert: Erster Wert auf false, damit der Text verschwindet!
-  showPlaceholder(false, false); 
-  
+  showPlaceholder(true, false);
   return localStream;
 }
 
@@ -370,6 +367,10 @@ function onLovenseToys(toys) {
 function initLovenseIfPresent() {
   syncLovenseFromBridge();
 
+  if (els.lovenseUrlHint) {
+    els.lovenseUrlHint.textContent =
+      "Broadcast-URL (muss im Lovense-Dashboard passen): " + location.origin + location.pathname;
+  }
 
   if (els.lovenseModelName) {
     els.lovenseModelName.value = window.__LOVENSE_MODEL_NAME__ || "model1";
@@ -398,68 +399,50 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-error", (e) => onLovenseError(e.detail));
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
-
-/** Tip in Tokens (nicht 0–100 Intensität). Gibt true zurück, wenn receiveTip ausgeführt wurde. */
+/** Direktes Vibrations-Signal an die Extension senden (0-100% Intensität) */
 function fireLovenseTip(amount, tipperName) {
   const tokens = Math.round(Number(amount));
   if (!tokens || tokens < 1) return false;
-  syncLovenseFromBridge();
-  const bridge = window.dualPeerLovense;
-  if (bridge && typeof bridge.receiveTip === "function") {
-    const ok = bridge.receiveTip(tokens, tipperName || "Remote");
-    if (ok) console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
-    else console.warn("Lovense noch nicht bereit — receiveTip in Warteschlange oder fehlgeschlagen.");
-    return ok;
-  }
-  if (!isLovenseReady()) {
-    console.warn("Lovense noch nicht bereit — receiveTip übersprungen.");
-    return false;
-  }
+
+  // Da dein Slider Werte von 0-100 liefert, Lovense-Vibrationen aber 
+  // meistens auf Stufen von 0 bis 20 laufen, rechnet das Skript das hier um:
+  const intensity = Math.min(20, Math.max(1, Math.round(tokens / 5)));
+
+  console.log(`[Lovense] Sende Direkt-Vibration: Stufe ${intensity} von 20 (Slider: ${tokens}%)`);
+
+  // Wir nutzen das direkte sendCommand-Protokoll, um das Tip-Menü zu umgehen
   try {
-    console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
-    camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
-    return true;
+      if (typeof window.postMessage === "function") {
+          window.postMessage({
+              source: "lovense-developer-page",
+              method: "sendCommand",
+              data: {
+                  action: "vibrate",
+                  strength: intensity,
+                  apiVer: 1
+              }
+          }, "*");
+          return true;
+      }
   } catch (e) {
-    console.error("Fehler beim Ausführen von receiveTip:", e);
-    return false;
+      console.error("Fehler beim Senden des Direkt-Vibrationsbefehls:", e);
   }
+  return false;
 }
 
 function handleIncomingToyPayload(data) {
-  if (!data || data.type !== "toy") return;
-
+  if (!data || typeof data !== "object") return;
+  if (data.type !== "toy") return;
   const level = Math.min(100, Math.max(0, Number(data.level) || 0));
-
-  // stabilere Token-Berechnung (verhindert Spam)
-  const tip = Math.max(
-    1,
-    Math.round((Number(data.tipAmount) || level) / 6)
-  );
-
+  const tip = Number(data.tipAmount) || Math.max(1, Math.round(level / 5));
   const name = data.tipperName || "Partner";
-
-  pulseFor("local", 600 + level * 4);
-
-
-
-console.log("LOVENSE STATE:", {
-  ready: window.dualPeerLovense?.ready,
-  instance: window.dualPeerLovense?.instance
-});
+  pulseFor("local", 600 + level * 5);
 
   const ok = fireLovenseTip(tip, name);
-
-  if (ok) {
-    setDataActivityStatus(
-      `Empfangen: ${tip} Tokens von ${name}`,
-      "ok"
-    );
-  } else {
-    setDataActivityStatus(
-      `Empfangen von ${name} — Lovense nicht bereit`,
-      "err"
-    );
-  }
+  const msg = ok
+    ? `Empfangen: ${tip} Tokens von ${name}.`
+    : `Empfangen von ${name} — Lovense: ${lovenseNotReadyMessage()}`;
+  setDataActivityStatus(msg, ok ? "ok" : "err");
 }
 
 function setupDataConnection(conn) {
@@ -735,48 +718,52 @@ function initHardwareTestControls() {
 // DOM INITIALISIERUNG & BESTÄNDIGE EVENT-BINDUNG
 // =================================================================
 document.addEventListener("DOMContentLoaded", () => {
+  initAccessGate();
+  initLogout();
+  initLayoutControls();
+  initLovenseIfPresent();
+  initHardwareTestControls();
 
-    initAccessGate();
-    initLogout();
-    initLayoutControls();
-    initLovenseIfPresent();
-    initHardwareTestControls();
+  // 1. Live-Prozentanzeige für deinen Text neben dem Slider beim Ziehen
+  const slider = document.getElementById('selfControlSlider');
+  const intensityVal = document.getElementById('intensityVal');
+  if (slider && intensityVal) {
+      slider.addEventListener('input', function() {
+          intensityVal.innerText = this.value + '%';
+      });
 
-    let lastSelf = 0;
+      // ZUVERLÄSSIGER EVENT LISTENER: Führt Befehl direkt beim Loslassen aus
+      slider.addEventListener('change', function() {
+          const val = Number(this.value);
+          if (val <= 0) return;
 
-     const slider = document.getElementById("selfControlSlider");
-    const patternSelect = document.getElementById("patternSelect");
+          const tokens = Math.max(1, Math.round(val / 4));
+          console.log("Self-Control Schieberegler ausgelöst: " + tokens + " Tokens.");
+          fireLovenseTip(tokens, "Self-Control");
+      });
+  }
 
-    // 1. SLIDER CONTROL
-    if (slider) {
-        slider.addEventListener("change", function () {
-            const now = Date.now();
-            if (now - lastSelf < 80) return;
-            lastSelf = now;
+  // 2. ZUVERLÄSSIGER EVENT LISTENER: Muster-Auswahl (Special Commands) direkt über JS binden
+  const patternSelect = document.getElementById('patternSelect');
+  if (patternSelect) {
+      patternSelect.addEventListener('change', function() {
+          const patternType = this.value;
+          if (!patternType) return;
 
-            const val = Number(slider.value);
-            if (val <= 0) return;
+          let tokens = 0;
+          if (patternType === "earthquake") {
+              tokens = 10;
+          } else if (patternType === "fireworks") {
+              tokens = 20;
+          } else {
+              tokens = 15; // Fallback
+          }
 
-            fireLovenseTip(val, "Self-Control");
-        });
-    }
+          console.log("Self-Control Muster ausgelöst: " + patternType + " (" + tokens + " Tokens)");
+          fireLovenseTip(tokens, "Pattern-Control");
 
-    // 2. PATTERN CONTROL
-    if (patternSelect) {
-        patternSelect.addEventListener("change", function () {
-            const type = this.value;
-            if (!type) return;
-
-            const map = {
-                earthquake: 10,
-                fireworks: 20,
-                wave: 12,
-                pulse: 15
-            };
-
-            fireLovenseTip(map[type] || 10, "Pattern");
-            this.value = "";
-        });
-    }
-
-}); // Schließt das DOMContentLoaded am absolutem Dateiende sauber ab!
+          // Dropdown im UI sofort wieder zurücksetzen
+          this.value = "";
+      });
+  }
+});
