@@ -742,24 +742,26 @@ function initHardwareTestControls() {
 // DOM INITIALISIERUNG & BESTÄNDIGE EVENT-BINDUNG
 // =================================================================
  document.addEventListener("DOMContentLoaded", () => {
-     
-    // Hier drin sollten deine ursprünglichen inits stehen (initAccessGate(); etc.)
- 
-     let lastSelf = 0;
- 
-     const slider = document.getElementById("selfControlSlider");
-     if (slider) {
-         slider.addEventListener("change", function () {
-             const now = Date.now();
-             if (now - lastSelf < 80) return;
-             lastSelf = now;
- 
-             const val = Number(this.value);
-             if (val <= 0) return;
- 
-             // Sende den reinen, echten Wert 1:1 an das Toy!
-             fireLovenseTip(val, "Self-Control");
-         });     }
+
+    let lastSelf = 0;
+    const slider = document.getElementById("selfControlSlider");
+
+    if (slider) {
+        slider.addEventListener("change", function () {
+            const now = Date.now();
+            if (now - lastSelf < 80) return;
+            lastSelf = now;
+
+            // Reines JavaScript, um den Slider-Wert sicher auszulesen:
+            const val = Number(slider.value);
+            if (val <= 0) return;
+
+            // Der Wert wird 1:1 direkt an dein Toy geschickt!
+            fireLovenseTip(val, "Self-Control");
+        });
+    }
+
+ // Schließt das DOMContentLoaded sauber ab
  
      // --- Hierunter geht es dann weiter mit dem PATTERN CONTROL ---
 
