@@ -5,7 +5,10 @@
  */
 
 function fireLovenseTip(amount, name) {
-  return window.dualPeerLovense?.sendTip(amount, name);
+  const tokens = Math.max(1, Math.round(Number(amount)));
+  if (!window.dualPeerLovense) return false;
+
+  return window.dualPeerLovense.receiveTip(tokens, name || "Remote");
 }
 
 /** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
