@@ -210,7 +210,10 @@ async function getMedia() {
     audio: true,
   });
   els.localVideo.srcObject = localStream;
-  showPlaceholder(true, false);
+  
+  // Geändert: Erster Wert auf false, damit der Text verschwindet!
+  showPlaceholder(false, false); 
+  
   return localStream;
 }
 
@@ -738,40 +741,27 @@ function initHardwareTestControls() {
 // =================================================================
 // DOM INITIALISIERUNG & BESTÄNDIGE EVENT-BINDUNG
 // =================================================================
-document.addEventListener("DOMContentLoaded", () => {
-  initAccessGate();
-  initLogout();
-  initLayoutControls();
-  initLovenseIfPresent();
-  initHardwareTestControls();
-
-  let lastSelf = 0;
-
-  const slider = document.getElementById("selfControlSlider");
-  const patternSelect = document.getElementById("patternSelect");
-  const intensityVal = document.getElementById("intensityVal");
-
-  // -----------------------------
-  // SLIDER (Self-Control)
-  // -----------------------------
-  if (slider) {
-    slider.addEventListener("input", function () {
-      if (intensityVal) intensityVal.textContent = this.value + "%";
-    });
-
-    slider.addEventListener("change", function () {
-    const now = Date.now();
-    if (now - lastSelf < 80) return;
-    lastSelf = now;
-
-    // Wir holen den Wert direkt über die ID des Sliders
-    const val = Number($("#selfControlSlider").val()); 
-    if (val <= 0) return;
-
-    // Wir senden den vollen Wert 1:1 ohne Teilung!
-    fireLovenseTip(val, "Self-Control"); 
-});
-  }
+ document.addEventListener("DOMContentLoaded", () => {
+     
+    // Hier drin sollten deine ursprünglichen inits stehen (initAccessGate(); etc.)
+ 
+     let lastSelf = 0;
+ 
+     const slider = document.getElementById("selfControlSlider");
+     if (slider) {
+         slider.addEventListener("change", function () {
+             const now = Date.now();
+             if (now - lastSelf < 80) return;
+             lastSelf = now;
+ 
+             const val = Number(this.value);
+             if (val <= 0) return;
+ 
+             // Sende den reinen, echten Wert 1:1 an das Toy!
+             fireLovenseTip(val, "Self-Control");
+         });     }
+ 
+     // --- Hierunter geht es dann weiter mit dem PATTERN CONTROL ---
 
   // -----------------------------
   // PATTERN CONTROL
@@ -793,3 +783,4 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
