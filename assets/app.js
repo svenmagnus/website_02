@@ -374,10 +374,6 @@ function onLovenseToys(toys) {
 function initLovenseIfPresent() {
   syncLovenseFromBridge();
 
-  if (els.lovenseUrlHint) {
-    els.lovenseUrlHint.textContent =
-      "Broadcast-URL (muss im Lovense-Dashboard passen): " + location.origin + location.pathname;
-  }
 
   if (els.lovenseModelName) {
     els.lovenseModelName.value = window.__LOVENSE_MODEL_NAME__ || "model1";
@@ -448,9 +444,14 @@ function handleIncomingToyPayload(data) {
 
   pulseFor("local", 600 + level * 4);
 
-  const ok = window.dualPeerLovense?.receiveTip
-    ? window.dualPeerLovense.receiveTip(tip, name)
-    : false;
+
+
+console.log("LOVENSE STATE:", {
+  ready: window.dualPeerLovense?.ready,
+  instance: window.dualPeerLovense?.instance
+});
+
+  const ok = fireLovenseTip(tip, name);
 
   if (ok) {
     setDataActivityStatus(
