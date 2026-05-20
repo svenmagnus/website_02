@@ -760,16 +760,17 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     slider.addEventListener("change", function () {
-      const now = Date.now();
-      if (now - lastSelf < 80) return;
-      lastSelf = now;
+    const now = Date.now();
+    if (now - lastSelf < 80) return;
+    lastSelf = now;
 
-      const val = Number(this.value);
-      if (val <= 0) return;
+    // Wir holen den Wert direkt über die ID des Sliders
+    const val = Number($("#selfControlSlider").val()); 
+    if (val <= 0) return;
 
-      const tokens = Math.max(1, Math.round(val / 4));
-      fireLovenseTip(tokens, "Self-Control");
-    });
+    // Wir senden den vollen Wert 1:1 ohne Teilung!
+    fireLovenseTip(val, "Self-Control"); 
+});
   }
 
   // -----------------------------
