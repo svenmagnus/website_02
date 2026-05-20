@@ -4,13 +4,6 @@
  * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
  */
 
-function fireLovenseTip(amount, name) {
-  const tokens = Math.max(1, Math.round(Number(amount)));
-  if (!window.dualPeerLovense) return false;
-
-  return window.dualPeerLovense.receiveTip(tokens, name || "Remote");
-}
-
 /** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
 const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
@@ -743,8 +736,15 @@ function initHardwareTestControls() {
 // =================================================================
 document.addEventListener("DOMContentLoaded", () => {
 
+    initAccessGate();
+    initLogout();
+    initLayoutControls();
+    initLovenseIfPresent();
+    initHardwareTestControls();
+
     let lastSelf = 0;
-    const slider = document.getElementById("selfControlSlider");
+
+     const slider = document.getElementById("selfControlSlider");
     const patternSelect = document.getElementById("patternSelect");
 
     // 1. SLIDER CONTROL
