@@ -399,26 +399,59 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-error", (e) => onLovenseError(e.detail));
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
-/** Direktes Vibrations-Signal an die Extension senden (0-100% Intensität) */
+/** * Kern-Funktion für Lovense-Signale. 
+ * Rechnet Slider-Prozente (0-100) in Lovense-Vibrationsstufen um.
+ */
 function fireLovenseTip(amount, tipperName) {
     const tokens = Math.round(Number(amount));
     if (!tokens || tokens < 1) return false;
 
-    console.log(`[Lovense] Sende Tip an Dashboard: ${tokens} Tokens`);
+    // Umrechnung von 0-100% auf die 20 Vibrationsstufen der Hardware
+    const intensity = Math.min(20, Math.max(1, Math.round(tokens / 5)));
+    console.log(`[Lovense] Verarbeite Signal: ${tokens} Tokens -> Stufe ${intensity}/20 von ${tipperName || "System"}`);
 
-    // Das Dashboard horcht auf das "lovense_receive_tip" Event im window
-    // Das ist die Standard-Schnittstelle für alle Cam-Plattformen
-    const event = new CustomEvent("lovense_receive_tip", {
-        detail: {
-            amount: tokens,
-            name: tipperName || "Partner"
+    // WEG 1: Direktbefehl an die Hardware (triggert deine Edge sofort)
+    try {
+        if (typeof window.postMessage === "function") {
+            window.postMessage({
+                source: "lovense-developer-page",
+                method: "sendCommand",
+                data: {
+                    action: "vibrate",
+                    strength: intensity,
+                    apiVer: 1
+                }
+            }, "*");
         }
-    });
-    
-    // Wir feuern das Event direkt ins Fenster, damit Stream Master es abgreift
-    window.dispatchEvent(event);
+    } catch (e) {
+        console.error("Fehler beim Senden des Direkt-Vibrationsbefehls:", e);
+    }
+
+    // WEG 2: Event für das Dashboard-Interface (damit dort Pegel ausschlagen)
+    try {
+        const event = new CustomEvent("lovense_receive_tip", {
+            detail: { amount: tokens, name: tipperName || "Partner" }
+        });
+        window.dispatchEvent(event);
+    } catch (e) { /* ignore */ }
+
     return true;
 }
+
+/**
+ * EXTRA-BRIDGE: Hier fangen wir das Signal ab, wenn du im Lovense-Popup 
+ * auf "Send Tip" klickst, und leiten es direkt an unsere Funktion weiter.
+ */
+window.addEventListener("message", (e) => {
+    // Prüfen, ob das Event von der Lovense-Extension kommt
+    if (e.data && e.data.source === "lovense-extension" && e.data.method === "testTip") {
+        const testAmount = e.data.data?.amount || 10;
+        console.log(`[Lovense-Popup] Test-Tip erkannt: ${testAmount} Tokens.`);
+        
+        // Schickt das Signal direkt in unsere funktionierende Vibrations-Logik
+        fireLovenseTip(testAmount, "Lovense-Test-Popup");
+    }
+});
 
 function handleIncomingToyPayload(data) {
   if (!data || typeof data !== "object") return;
