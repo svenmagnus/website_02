@@ -740,36 +740,51 @@ document.addEventListener("DOMContentLoaded", () => {
   initLayoutControls();
   initLovenseIfPresent();
   initHardwareTestControls();
-  
-let lastSelf = 0;
 
+  let lastSelf = 0;
 
+  const slider = document.getElementById("selfControlSlider");
+  const patternSelect = document.getElementById("patternSelect");
+  const intensityVal = document.getElementById("intensityVal");
 
-slider.addEventListener("change", function () {
-  const now = Date.now();
-  if (now - lastSelf < 80) return;
+  // -----------------------------
+  // SLIDER (Self-Control)
+  // -----------------------------
+  if (slider) {
+    slider.addEventListener("input", function () {
+      if (intensityVal) intensityVal.textContent = this.value + "%";
+    });
 
-  lastSelf = now;
+    slider.addEventListener("change", function () {
+      const now = Date.now();
+      if (now - lastSelf < 80) return;
+      lastSelf = now;
 
-  const val = Number(this.value);
-  if (val <= 0) return;
+      const val = Number(this.value);
+      if (val <= 0) return;
 
-  const tokens = Math.max(1, Math.round(val / 4));
-  fireLovenseTip(tokens, "Self-Control");
+      const tokens = Math.max(1, Math.round(val / 4));
+      fireLovenseTip(tokens, "Self-Control");
+    });
+  }
+
+  // -----------------------------
+  // PATTERN CONTROL
+  // -----------------------------
+  if (patternSelect) {
+    patternSelect.addEventListener("change", function () {
+      const type = this.value;
+      if (!type) return;
+
+      const map = {
+        earthquake: 10,
+        fireworks: 20,
+        wave: 12,
+        pulse: 15,
+      };
+
+      fireLovenseTip(map[type] || 10, "Pattern");
+      this.value = "";
+    });
+  }
 });
-
-  patternSelect.addEventListener("change", function () {
-  const type = this.value;
-  if (!type) return;
-
-  const map = {
-    earthquake: 10,
-    fireworks: 20,
-    wave: 12,
-    pulse: 15,
-  };
-
-  fireLovenseTip(map[type] || 10, "Pattern");
-  this.value = "";
-});
-}); 
