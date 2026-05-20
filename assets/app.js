@@ -401,33 +401,23 @@ function initLovenseIfPresent() {
 }
 /** Direktes Vibrations-Signal an die Extension senden (0-100% Intensität) */
 function fireLovenseTip(amount, tipperName) {
-  const tokens = Math.round(Number(amount));
-  if (!tokens || tokens < 1) return false;
+    const tokens = Math.round(Number(amount));
+    if (!tokens || tokens < 1) return false;
 
-  // Da dein Slider Werte von 0-100 liefert, Lovense-Vibrationen aber 
-  // meistens auf Stufen von 0 bis 20 laufen, rechnet das Skript das hier um:
-  const intensity = Math.min(20, Math.max(1, Math.round(tokens / 5)));
+    console.log(`[Lovense] Sende Tip an Dashboard: ${tokens} Tokens`);
 
-  console.log(`[Lovense] Sende Direkt-Vibration: Stufe ${intensity} von 20 (Slider: ${tokens}%)`);
-
-  // Wir nutzen das direkte sendCommand-Protokoll, um das Tip-Menü zu umgehen
-  try {
-      if (typeof window.postMessage === "function") {
-          window.postMessage({
-              source: "lovense-developer-page",
-              method: "sendCommand",
-              data: {
-                  action: "vibrate",
-                  strength: intensity,
-                  apiVer: 1
-              }
-          }, "*");
-          return true;
-      }
-  } catch (e) {
-      console.error("Fehler beim Senden des Direkt-Vibrationsbefehls:", e);
-  }
-  return false;
+    // Das Dashboard horcht auf das "lovense_receive_tip" Event im window
+    // Das ist die Standard-Schnittstelle für alle Cam-Plattformen
+    const event = new CustomEvent("lovense_receive_tip", {
+        detail: {
+            amount: tokens,
+            name: tipperName || "Partner"
+        }
+    });
+    
+    // Wir feuern das Event direkt ins Fenster, damit Stream Master es abgreift
+    window.dispatchEvent(event);
+    return true;
 }
 
 function handleIncomingToyPayload(data) {
@@ -471,6 +461,11 @@ function setupDataConnection(conn) {
 function onRemoteStream(remoteStream) {
   els.remoteVideo.srcObject = remoteStream;
   showPlaceholder(false, false);
+  
+  // HIER DER FIX: Status-Texte überschreiben, sobald das Bild da ist
+  setStatus(els.statusHost, "Verbunden: Live-Stream aktiv", "ok");
+  setStatus(els.statusGuest, "Verbunden: Live-Stream aktiv", "ok");
+  
   updateConnectionUi();
 }
 
@@ -506,7 +501,7 @@ els.btnStartHost.addEventListener("click", async () => {
     peer.on("open", (id) => {
       els.peerIdOut.textContent = id;
       setupPeerHandlers(stream);
-      setStatus(els.statusHost, "Werte auf eingehende Verbindung … Peer-ID an Partner senden.", "ok");
+      setStatus(els.statusHost, "Warte auf eingehende Verbindung … Peer-ID an Partner senden.", "ok");
       els.btnStartHost.disabled = true;
     });
   } catch (e) {
