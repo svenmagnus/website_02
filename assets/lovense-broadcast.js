@@ -15,7 +15,7 @@
 
   function sendNow(amount, name) {
     // Lovense REST API Konfiguration
-    const LOVENSE_API_URL = "https://api.lovense-api.com/api/lan/v2/command";
+  const LOVENSE_API_URL = "https://api.lovense-api.com/api/basic/v1/command";
     const LOVENSE_TOKEN = "RvF8ZPPgospbjRpcoGxIfEND8fSFG__UvQb2iIYQLZF0JTXtXE-7DiajEMImnlyC";
     const LOVENSE_UID = "mkcab2cc52-c5ea-452d-bd5e-2d85048ffecb";
 
