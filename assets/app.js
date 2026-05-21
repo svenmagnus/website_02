@@ -418,7 +418,7 @@ function fireLovenseTip(amount, tipperName) {
     console.warn("Lovense noch nicht bereit — receiveTip übersprungen.");
     return false;
   }
-  try {
+*/  try {
     console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
     camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
     return true;
@@ -426,7 +426,9 @@ function fireLovenseTip(amount, tipperName) {
     console.error("Fehler beim Ausführen von receiveTip:", e);
     return false;
   }
+  */
 }
+
 
 function handleIncomingToyPayload(data) {
   if (!data || typeof data !== "object") return;
