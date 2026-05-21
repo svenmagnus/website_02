@@ -380,7 +380,15 @@ function initLovenseIfPresent() {
     });
   }
 
-
+  if (els.btnLovenseTestTip) {
+    els.btnLovenseTestTip.addEventListener("click", () => {
+      if (fireLovenseTip(25, "Integration-Test")) {
+        setLovenseStatus("receiveTip(25) gesendet — Toy sollte jetzt reagieren.");
+      } else {
+        alert("Lovense noch nicht bereit:\n" + lovenseNotReadyMessage());
+      }
+    });
+  }
 
   if (!window.dualPeerLovense) {
     setLovenseStatus("lovense-broadcast.js fehlt — broadcast.js und lovense-broadcast.js prüfen.");
@@ -699,7 +707,7 @@ function initHardwareTestControls() {
   const intensityRange = document.getElementById("intensityRange");
   const intensityValue = document.getElementById("intensityValue");
   if (intensityRange && intensityValue) {
-    intensityRange.addEventListener("change", (e) => {
+    intensityRange.addEventListener("input", (e) => {
       const val = Number(e.target.value);
       intensityValue.textContent = val + "%";
       if (val <= 0) return;
@@ -710,40 +718,18 @@ function initHardwareTestControls() {
       }
     });
   }
+
+  const testDevice = document.getElementById("testDevice");
+  if (testDevice) {
+    testDevice.addEventListener("click", () => {
+      if (fireLovenseTip(25, "Connection-Test")) {
+        alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
+      } else {
+        alert("Lovense noch nicht bereit: " + lovenseNotReadyMessage());
+      }
+    });
+  }
 }
-
-// =================================================================
-// TOY SELF CONTROL LOGIK
-// =================================================================
-
-// Globale Bindung für den Aufruf direkt aus dem HTML-onchange
-window.sendVibrationTest = function(intensity) {
-  const modelName = "model1";
-  console.log("Sende Einzel-Impuls mit Intensität: " + intensity + "%");
-  
-  if (typeof lovense !== 'undefined' && lovense.sendAction) {
-      lovense.sendAction({
-          model: modelName,
-          action: "vibrate",
-          vapi: parseInt(intensity)
-      });
-  }
-};
-
-window.sendPatternTest = function(patternType) {
-  if (!patternType) return;
-  const modelName = "model1";
-  console.log("Simuliere Special Command: " + patternType);
-  
-  if (typeof lovense !== 'undefined' && lovense.sendAction) {
-      lovense.sendAction({
-          model: modelName,
-          action: "pattern",
-          rule: patternType
-      });
-  }
-  document.getElementById('patternSelect').value = "";
-};
 
 document.addEventListener("DOMContentLoaded", () => {
   initAccessGate();
@@ -751,13 +737,4 @@ document.addEventListener("DOMContentLoaded", () => {
   initLayoutControls();
   initLovenseIfPresent();
   initHardwareTestControls();
-
-  // Live-Prozentanzeige für den neuen Slider initialisieren
-  const slider = document.getElementById('selfControlSlider');
-  const intensityVal = document.getElementById('intensityVal');
-  if (slider && intensityVal) {
-      slider.addEventListener('input', function() {
-          intensityVal.innerText = this.value + '%';
-      });
-  }
 });

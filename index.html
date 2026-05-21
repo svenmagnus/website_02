@@ -160,7 +160,11 @@
             <label for="lovenseModelName">Model-Name (Cam Extension)</label>
             <input type="text" id="lovenseModelName" value="model1" maxlength="40" autocomplete="off" />
           </div>
-    
+          <div class="row">
+            <button type="button" class="secondary" id="btnLovenseTestTip">
+              Test: receiveTip(25)
+            </button>
+          </div>
         </div>
 
         <div class="card">
@@ -194,26 +198,16 @@
         </div>
       </section>
           <!-- Test- und Steuerungsbereich -->
-          <div class="card" style="margin-top: 20px;">
-            <h2>Toy Self Control</h2>
-            
-            <div class="row">
-                <label>Intensität (Standard-Vibration): <span id="intensityVal">0%</span></label>
-                <input type="range" id="selfControlSlider" min="0" max="100" value="0" onchange="sendVibrationTest(this.value)">
-            </div>
-        
-            <div class="row" style="margin-top: 15px;">
-                <label>Muster simulieren (Special Commands):</label>
-                <select id="patternSelect" onchange="sendPatternTest(this.value)" style="width: 100%; padding: 8px; background: #1a1a2e; color: #fff; border: 1px solid #333; border-radius: 4px;">
-                    <option value="">-- Muster auswählen --</option>
-                    <option value="earthquake">Earthquake Pattern</option>
-                    <option value="fireworks">Fireworks Pattern</option>
-                    <option value="wave">Wave Pattern</option>
-                    <option value="pulse">Pulse Pattern</option>
-                </select>
-            </div>
-        </div>
+<div id="test-area" class="login-overlay-row" style="margin-top: 20px; border-top: 1px solid #ccc;padding-top: 15px;">
+  <h3>Hardware Test & Control</h3>
+    <!-- Schieberegler für das Toy -->
+  <div class="control-group" style="margin: 15px 0;">
+      <label for="intensityRange">Intensität (Self-Pleasure Mode):</label>
+      <input type="range" id="intensityRange" min="0" max="100" value="0" style="width: 100%;">
+      <span id="intensityValue">0%</span>
+  </div>
 
+  <button type="button" class="secondary" id="testDevice">Toy Verbindung testen</button>
 </div>
     </main>
 
