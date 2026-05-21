@@ -24,7 +24,9 @@
       try {
         state.instance.receiveTip({
     amount: tip.amount,
-    name: tip.tipperName
+    name: tip.tipperName,
+    vibrate:true  
+
 });
       } catch (e) {
         console.error("[Lovense] receiveTip (queued) failed:", e);
@@ -44,7 +46,8 @@
     try {
       state.instance.receiveTip({
         amount: tokens,
-        name: name
+        name: name,
+        vibrate:true  
     });
       return true;
     } catch (e) {
