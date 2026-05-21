@@ -712,22 +712,28 @@ function initHardwareTestControls() {
   }
 }
 
-  const testDevice = document.getElementById("testDevice");
-  if (testDevice) {
-    testDevice.addEventListener("click", () => {
-      if (fireLovenseTip(25, "Connection-Test")) {
-        alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
-      } else {
-        alert("Lovense noch nicht bereit: " + lovenseNotReadyMessage());
-      }
-    });
-  
-}
+// =================================================================
+// TOY SELF CONTROL LOGIK
+// =================================================================
 
-// Funktion für das neue Muster-Dropdown
-function sendPatternTest(patternType) {
+// Globale Bindung für den Aufruf direkt aus dem HTML-onchange
+window.sendVibrationTest = function(intensity) {
+  const modelName = "model1";
+  console.log("Sende Einzel-Impuls mit Intensität: " + intensity + "%");
+  
+  if (typeof lovense !== 'undefined' && lovense.sendAction) {
+      lovense.sendAction({
+          model: modelName,
+          action: "vibrate",
+          vapi: parseInt(intensity)
+      });
+  }
+};
+
+window.sendPatternTest = function(patternType) {
   if (!patternType) return;
   const modelName = "model1";
+  console.log("Simuliere Special Command: " + patternType);
   
   if (typeof lovense !== 'undefined' && lovense.sendAction) {
       lovense.sendAction({
@@ -737,54 +743,7 @@ function sendPatternTest(patternType) {
       });
   }
   document.getElementById('patternSelect').value = "";
-}
-
-
-// 1. Die Prozentanzeige live aktualisieren (OHNE Befehle an die Queue zu senden)
-const slider = document.getElementById('selfControlSlider');
-const intensityVal = document.getElementById('intensityVal');
-
-if (slider && intensityVal) {
-    slider.addEventListener('input', function() {
-        intensityVal.innerText = this.value + '%';
-    });
-}
-
-// 2. Funktion: Erst beim LOSLASSEN des Reglers wird GENAU EIN Befehl gesendet
-function sendVibrationTest(intensity) {
-    const modelName = "model1"; // Der feste Dummy-Wert für das Test-Setup
-    
-    console.log("Sende Einzel-Impuls mit Intensität: " + intensity + "%");
-    
-    // Prüft, ob die Lovense-Schnittstelle auf der Seite geladen ist
-    if (typeof lovense !== 'undefined' && lovense.sendAction) {
-        lovense.sendAction({
-            model: modelName,
-            action: "vibrate",
-            vapi: parseInt(intensity)
-        });
-    }
-}
-
-// 3. Funktion: Ein ausgewähltes Muster (Special Command) an den Stream Master senden
-function sendPatternTest(patternType) {
-    if (!patternType) return;
-    
-    const modelName = "model1";
-    console.log("Simuliere Special Command: " + patternType);
-    
-    if (typeof lovense !== 'undefined' && lovense.sendAction) {
-        // Sendet den reinen Musternamen (z.B. "earthquake" oder "fireworks")
-        lovense.sendAction({
-            model: modelName,
-            action: "pattern",
-            rule: patternType
-        });
-    }
-    
-    // Setzt das Dropdown-Menü im Interface sofort wieder auf den Standardwert zurück
-    document.getElementById('patternSelect').value = "";
-}
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   initAccessGate();
@@ -792,4 +751,13 @@ document.addEventListener("DOMContentLoaded", () => {
   initLayoutControls();
   initLovenseIfPresent();
   initHardwareTestControls();
+
+  // Live-Prozentanzeige für den neuen Slider initialisieren
+  const slider = document.getElementById('selfControlSlider');
+  const intensityVal = document.getElementById('intensityVal');
+  if (slider && intensityVal) {
+      slider.addEventListener('input', function() {
+          intensityVal.innerText = this.value + '%';
+      });
+  }
 });
