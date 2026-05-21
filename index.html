@@ -195,16 +195,17 @@
       </section>
           <!-- Test- und Steuerungsbereich -->
           <div class="card" style="margin-top: 20px;">
+            
             <h2>Toy Self Control</h2>
             
             <div class="row">
                 <label>Intensität (Standard-Vibration): <span id="intensityVal">0%</span></label>
-                <input type="range" id="selfControlSlider" min="0" max="100" value="0" onchange="sendVibrationTest(this.value)">
+                <input type="range" id="selfControlSlider" min="0" max="100" value="0">
             </div>
         
             <div class="row" style="margin-top: 15px;">
                 <label>Muster simulieren (Special Commands):</label>
-                <select id="patternSelect" onchange="sendPatternTest(this.value)" style="width: 100%; padding: 8px; background: #1a1a2e; color: #fff; border: 1px solid #333; border-radius: 4px;">
+                <select id="patternSelect"  style="width: 100%; padding: 8px; background: #1a1a2e; color: #fff; border: 1px solid #333; border-radius: 4px;">
                     <option value="">-- Muster auswählen --</option>
                     <option value="earthquake">Earthquake Pattern</option>
                     <option value="fireworks">Fireworks Pattern</option>
