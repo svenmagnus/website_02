@@ -14,26 +14,45 @@
   }
 
 function sendNow(amount, name) {
-    const tokens = Math.round(Number(amount));
-    if (!tokens || tokens < 1) return false;
+    // Lovense REST API Konfiguration (Voraussetzung laut Lovense Cam-Solutions)
+    const LOVENSE_API_URL = "https://api.lovense-api.com/api/lan/v2/command";
+    const LOVENSE_TOKEN = "RvF8ZPPgospbjRpcoGxIfEND8fSFG__UvQb2iIYQLZF0JTXtXE-7DiajEMImnlyC";
+    const LOVENSE_UID = "mkcab2cc52-c5ea-452d-bd5e-2d85048ffecb";
 
-    console.log(`[Lovense Buffer] Sende gesammelte ${tokens} Tokens von ${name} an die Extension`);
+    // Vibrationsstärke dynamisch berechnen
+    const vibrationLevel = Math.min(20, Math.max(1, Math.round(Number(amount) / 5)));
+    const action = `Vibrate:${vibrationLevel}`;
+    const timeSec = Math.min(30, Math.max(5, Math.round(Number(amount) / 3)));
 
-    // Der offizielle Standard-Weg: Keine Tokens im Code, kein Fetch ins Internet
-    try {
-        const event = new CustomEvent("lovense_receive_tip", {
-            detail: { 
-                amount: tokens, 
-                name: name || "Partner" 
-            }
-        });
-        window.dispatchEvent(event);
-    } catch (e) {
-        console.error("Fehler im Buffer-Versand:", e);
-    }
+    const payload = {
+      token: LOVENSE_TOKEN,
+      uid: LOVENSE_UID,
+      command: "Function",
+      action: action,
+      timeSec: timeSec,
+      apiVer: 1
+    };
+
+    console.log(`[Lovense REST API] Sende Vibration: ${action} für ${timeSec}s (${amount} Tokens von ${name})`);
+
+    // Der unentbehrliche Befehl, damit die Hardware anspringt:
+    fetch(LOVENSE_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log("[Lovense REST API] Antwort vom Server:", data);
+    })
+    .catch(e => {
+      console.error("[Lovense REST API] Netzwerkfehler:", e);
+    });
 
     return true;
-  }
+}
 
   // 🔥 FIX: stabil + kein Queue-Spam mehr
   function sendTip(amount, name = "Remote") {
