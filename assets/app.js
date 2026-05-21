@@ -380,6 +380,8 @@ function initLovenseIfPresent() {
     });
   }
 
+
+
   if (!window.dualPeerLovense) {
     setLovenseStatus("lovense-broadcast.js fehlt — broadcast.js und lovense-broadcast.js prüfen.");
     return;
@@ -400,27 +402,30 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
 
+/** Tip in Tokens (nicht 0–100 Intensität). Gibt true zurück, wenn receiveTip ausgeführt wurde. */
 function fireLovenseTip(amount, tipperName) {
-    const tokens = Math.round(Number(amount));
-    if (!tokens || tokens < 1) return false;
-
-    console.log(`[Lovense Standard] Signal an Extension übergeben: ${tokens} Tokens von ${tipperName || "System"}`);
-
-    // Nur dieser Event-Weg bleibt aktiv:
-    try {
-        const event = new CustomEvent("lovense_receive_tip", {
-            detail: { 
-                amount: tokens, 
-                name: tipperName || "Partner" 
-            }
-        });
-        window.dispatchEvent(event);
-    } catch (e) { 
-        console.error("Fehler beim Senden des Standard-Tips:", e);
-        return false;
-    }
-
+  const tokens = Math.round(Number(amount));
+  if (!tokens || tokens < 1) return false;
+  syncLovenseFromBridge();
+  const bridge = window.dualPeerLovense;
+  if (bridge && typeof bridge.receiveTip === "function") {
+    const ok = bridge.receiveTip(tokens, tipperName || "Remote");
+    if (ok) console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
+    else console.warn("Lovense noch nicht bereit — receiveTip in Warteschlange oder fehlgeschlagen.");
+    return ok;
+  }
+  if (!isLovenseReady()) {
+    console.warn("Lovense noch nicht bereit — receiveTip übersprungen.");
+    return false;
+  }
+  try {
+    console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
+    camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
     return true;
+  } catch (e) {
+    console.error("Fehler beim Ausführen von receiveTip:", e);
+    return false;
+  }
 }
 
 function handleIncomingToyPayload(data) {
@@ -464,51 +469,6 @@ function setupDataConnection(conn) {
 function onRemoteStream(remoteStream) {
   els.remoteVideo.srcObject = remoteStream;
   showPlaceholder(false, false);
-  
-  // Überprüft deine Rolle und setzt den passenden Text, sobald das Bild da ist
-  if (sessionRole === "host") {
-    setStatus(els.statusHost, "Partner verbunden. Live-Stream aktiv!", "ok");
-  } else {
-    setStatus(els.statusGuest, "Mit Host verbunden. Live-Stream aktiv!", "ok");
-  }
-  
-  updateConnectionUi();
-} // <-- DIESE KLAMMER FEHLTE! Sie schließt die onRemoteStream-Funktion ab.
-
-// Ab hier folgt dann der Host-Button:
-els.btnStartHost.addEventListener("click", async () => {
-  hangup();
-  sessionRole = "host";
-  try {
-    const stream = await getMedia(); // Deine eigene Kamera wird geholt
-    peer = new Peer(undefined, PEER_OPTIONS);
-
-    peer.on("open", (id) => {
-      els.peerIdOut.textContent = id;
-      setupPeerHandlers(stream);
-      
-      // FIX: Klare Meldung für dich als Host
-      setStatus(els.statusHost, "Eigene Kamera aktiv. Warte auf Partner...", "ok");
-      
-      els.btnStartHost.disabled = true;
-    });
-  } catch (e) {
-    setStatus(els.statusHost, "Kamera/Mikro-Fehler: " + e.message, "err");
-  }
-});
-
-// 2. ÄNDERUNG: Wenn das Bild vom Partner tatsächlich eintrifft
-function onRemoteStream(remoteStream) {
-  els.remoteVideo.srcObject = remoteStream;
-  showPlaceholder(false, false); // Blendet das "Wartet auf Peer-Stream..."-Feld aus
-  
-  // FIX: Status updaten, da die Verbindung jetzt vollendet ist
-  if (sessionRole === "host") {
-    setStatus(els.statusHost, "Partner verbunden. Live-Stream aktiv!", "ok");
-  } else {
-    setStatus(els.statusGuest, "Mit Host verbunden. Live-Stream aktiv!", "ok");
-  }
-  
   updateConnectionUi();
 }
 
@@ -544,7 +504,7 @@ els.btnStartHost.addEventListener("click", async () => {
     peer.on("open", (id) => {
       els.peerIdOut.textContent = id;
       setupPeerHandlers(stream);
-      setStatus(els.statusHost, "Warte auf eingehende Verbindung … Peer-ID an Partner senden.", "ok");
+      setStatus(els.statusHost, "Werte auf eingehende Verbindung … Peer-ID an Partner senden.", "ok");
       els.btnStartHost.disabled = true;
     });
   } catch (e) {
@@ -613,7 +573,7 @@ els.btnSendToy.addEventListener("click", () => {
     });
     setDataActivityStatus(`Gesendet: ${tipAmount} Tokens an Partner.`, "ok");
   } catch (e) {
-    setDataActivityStatus("Senden failed: " + (e && e.message ? e.message : String(e)), "err");
+    setDataActivityStatus("Senden fehlgeschlagen: " + (e && e.message ? e.message : String(e)), "err");
   }
 });
 
@@ -730,7 +690,7 @@ function lovenseNotReadyMessage() {
     return "CamExtension noch nicht initialisiert.";
   }
   if (!lovenseReady) {
-    return "Extension nicht bereit — Chrome: test:Tangent-Club wählen, Toys koppeln, auf „bereit“ warten.";
+    return "Extension nicht bereit — Chrome: test:Tangent-Club wählen, Widget auf dieser Seite prüfen.";
   }
   return "receiveTip nicht verfügbar.";
 }
@@ -752,77 +712,84 @@ function initHardwareTestControls() {
   }
 }
 
-// =================================================================
-// DOM INITIALISIERUNG & BESTÄNDIGE EVENT-BINDUNG
-// =================================================================
+  const testDevice = document.getElementById("testDevice");
+  if (testDevice) {
+    testDevice.addEventListener("click", () => {
+      if (fireLovenseTip(25, "Connection-Test")) {
+        alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
+      } else {
+        alert("Lovense noch nicht bereit: " + lovenseNotReadyMessage());
+      }
+    });
+  
+}
+
+// Funktion für das neue Muster-Dropdown
+function sendPatternTest(patternType) {
+  if (!patternType) return;
+  const modelName = "model1";
+  
+  if (typeof lovense !== 'undefined' && lovense.sendAction) {
+      lovense.sendAction({
+          model: modelName,
+          action: "pattern",
+          rule: patternType
+      });
+  }
+  document.getElementById('patternSelect').value = "";
+}
+
+
+// 1. Die Prozentanzeige live aktualisieren (OHNE Befehle an die Queue zu senden)
+const slider = document.getElementById('selfControlSlider');
+const intensityVal = document.getElementById('intensityVal');
+
+if (slider && intensityVal) {
+    slider.addEventListener('input', function() {
+        intensityVal.innerText = this.value + '%';
+    });
+}
+
+// 2. Funktion: Erst beim LOSLASSEN des Reglers wird GENAU EIN Befehl gesendet
+function sendVibrationTest(intensity) {
+    const modelName = "model1"; // Der feste Dummy-Wert für das Test-Setup
+    
+    console.log("Sende Einzel-Impuls mit Intensität: " + intensity + "%");
+    
+    // Prüft, ob die Lovense-Schnittstelle auf der Seite geladen ist
+    if (typeof lovense !== 'undefined' && lovense.sendAction) {
+        lovense.sendAction({
+            model: modelName,
+            action: "vibrate",
+            vapi: parseInt(intensity)
+        });
+    }
+}
+
+// 3. Funktion: Ein ausgewähltes Muster (Special Command) an den Stream Master senden
+function sendPatternTest(patternType) {
+    if (!patternType) return;
+    
+    const modelName = "model1";
+    console.log("Simuliere Special Command: " + patternType);
+    
+    if (typeof lovense !== 'undefined' && lovense.sendAction) {
+        // Sendet den reinen Musternamen (z.B. "earthquake" oder "fireworks")
+        lovense.sendAction({
+            model: modelName,
+            action: "pattern",
+            rule: patternType
+        });
+    }
+    
+    // Setzt das Dropdown-Menü im Interface sofort wieder auf den Standardwert zurück
+    document.getElementById('patternSelect').value = "";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initAccessGate();
   initLogout();
   initLayoutControls();
   initLovenseIfPresent();
   initHardwareTestControls();
-
-  // 1. Live-Prozentanzeige für deinen Text neben dem Slider beim Ziehen
-  const slider = document.getElementById('selfControlSlider');
-  const intensityVal = document.getElementById('intensityVal');
-  if (slider && intensityVal) {
-      slider.addEventListener('input', function() {
-          intensityVal.innerText = this.value + '%';
-      });
-
-      // ZUVERLÄSSIGER EVENT LISTENER: Führt Befehl direkt beim Loslassen aus
-      slider.addEventListener('change', function() {
-          const val = Number(this.value);
-          if (val <= 0) return;
-
-          const tokens = Math.max(1, Math.round(val / 4));
-          console.log("Self-Control Schieberegler ausgelöst: " + tokens + " Tokens.");
-          fireLovenseTip(tokens, "Self-Control");
-      });
-  }
-
-  // 2. ZUVERLÄSSIGER EVENT LISTENER: Muster-Auswahl (Special Commands) direkt über JS binden
-  const patternSelect = document.getElementById('patternSelect');
-  if (patternSelect) {
-      patternSelect.addEventListener('change', function() {
-          const patternType = this.value;
-          if (!patternType) return;
-
-          let tokens = 0;
-          if (patternType === "earthquake") {
-              tokens = 10;
-          } else if (patternType === "fireworks") {
-              tokens = 20;
-          } else {
-              tokens = 15; // Fallback
-          }
-
-          console.log("Self-Control Muster ausgelöst: " + patternType + " (" + tokens + " Tokens)");
-          fireLovenseTip(tokens, "Pattern-Control");
-
-          // Dropdown im UI sofort wieder zurücksetzen
-          this.value = "";
-      });
-  }
-
-// --- STATUS-MONITOR START ---
-  function updateLovenseStatus() {
-      const statusEl = document.getElementById("lovenseStatus");
-      if (!statusEl) return;
-
-      // Prüfung: Ist die Instanz bereit?
-      const isReady = typeof window.camExtensionInstance !== 'undefined' || !!window.dualPeerLovense?.ready;
-      
-      if (isReady) {
-          statusEl.innerHTML = '<span style="color: #4ade80;">● Extension bereit</span>';
-      } else {
-          statusEl.innerHTML = '<span style="color: #f87171;">○ Suche Extension... (bitte Seite neu laden)</span>';
-      }
-  }
-
-  // Initialer Aufruf und Intervall
-  updateLovenseStatus(); 
-  setInterval(updateLovenseStatus, 2000);
-  // --- STATUS-MONITOR ENDE ---
-
 });

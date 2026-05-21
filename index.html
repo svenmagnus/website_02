@@ -11,9 +11,9 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="assets/styles.css" />
-    <link rel="icon" href="data:,">
-        <!-- Lovense Cam Extension SDK — Reihenfolge laut Developer-Doku einhalten -->
+    <!-- Lovense Cam Extension SDK — Reihenfolge laut Developer-Doku einhalten -->
    
+    <script src="https://api.lovense-api.com/cam-extension/static/js-sdk/broadcast.js"></script>
     <script>
     
       // Exakt wie im Lovense Developer Dashboard (Testphase: test: + Website Name)
@@ -155,16 +155,20 @@
             <li>Toys in der Extension verbinden — das <strong>Widget</strong> muss auf dieser Seite sichtbar sein</li>
             <li>Status unten muss <strong>„Extension bereit“</strong> zeigen, dann Test-Tip senden</li>
           </ol>
-          <p class="lovense-hint lovense-url-hint" id="lovenseUrlHint" style="display: none;"></p>
+          <p class="lovense-hint lovense-url-hint" id="lovenseUrlHint"></p>
           <div class="row" style="display: none;">
             <label for="lovenseModelName">Model-Name (Cam Extension)</label>
             <input type="text" id="lovenseModelName" value="model1" maxlength="40" autocomplete="off" />
           </div>
-    
+          <div class="row">
+            <button type="button" class="secondary" id="btnLovenseTestTip">
+              Test: receiveTip(25)
+            </button>
+          </div>
         </div>
 
         <div class="card">
-          <h2>Fernsteuerung</h2>
+          <h2>Fernsteuerung (beidseitig)</h2>
           <p class="status-line" style="margin: 0 0 0.5rem">
             Host und Gast können Impulse senden — das Toy des Empfängers reagiert über Lovense
             <code>receiveTip</code>. Intensität steuert nur den Video-Puls; für Lovense zählt der
@@ -194,27 +198,16 @@
         </div>
       </section>
           <!-- Test- und Steuerungsbereich -->
-          <div class="card" style="margin-top: 20px;">
-            
-            <h2>Toy Self Control</h2>
-            
-            <div class="row">
-                <label>Intensität (Standard-Vibration): <span id="intensityVal">0%</span></label>
-                <input type="range" id="selfControlSlider" min="0" max="100" value="0">
-            </div>
-        
-            <div class="row" style="margin-top: 15px;">
-                <label>Muster simulieren (Special Commands):</label>
-                <select id="patternSelect"  style="width: 100%; padding: 8px; background: #1a1a2e; color: #fff; border: 1px solid #333; border-radius: 4px;">
-                    <option value="">-- Muster auswählen --</option>
-                    <option value="earthquake">Earthquake Pattern</option>
-                    <option value="fireworks">Fireworks Pattern</option>
-                    <option value="wave">Wave Pattern</option>
-                    <option value="pulse">Pulse Pattern</option>
-                </select>
-            </div>
-        </div>
+<div id="test-area" class="login-overlay-row" style="margin-top: 20px; border-top: 1px solid #ccc;padding-top: 15px;">
+  <h3>Hardware Test & Control</h3>
+    <!-- Schieberegler für das Toy -->
+  <div class="control-group" style="margin: 15px 0;">
+      <label for="intensityRange">Intensität (Self-Pleasure Mode):</label>
+      <input type="range" id="intensityRange" min="0" max="100" value="0" style="width: 100%;">
+      <span id="intensityValue">0%</span>
+  </div>
 
+  <button type="button" class="secondary" id="testDevice">Toy Verbindung testen</button>
 </div>
     </main>
 
