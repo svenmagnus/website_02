@@ -402,31 +402,44 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
 
-/** Tip in Tokens (nicht 0–100 Intensität). Gibt true zurück, wenn receiveTip ausgeführt wurde. */
+/** Tip in Tokens (nicht 0-100 Intensität). Gibt true zurück, wenn receiveTip ausgeführt wurde. */
 function fireLovenseTip(amount, tipperName) {
-  const tokens = Math.round(Number(amount));
-  if (!tokens || tokens < 1) return false;
-  syncLovenseFromBridge();
-  const bridge = window.dualPeerLovense;
-  if (bridge && typeof bridge.receiveTip === "function") {
-    const ok = bridge.receiveTip(tokens, tipperName || "Remote");
-    if (ok) console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
-    else console.warn("Lovense noch nicht bereit — receiveTip in Warteschlange oder fehlgeschlagen.");
-    return ok;
-  }
-  if (!isLovenseReady()) {
-    console.warn("Lovense noch nicht bereit — receiveTip übersprungen.");
-    return false;
-  }
-*/  try {
-    console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
-    camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
-    return true;
-  } catch (e) {
-    console.error("Fehler beim Ausführen von receiveTip:", e);
-    return false;
-  }
-  */
+    const tokens = Math.round(Number(amount));
+    if (!tokens || tokens < 1) return false;
+
+    syncLovenseFromBridge();
+    const bridge = window.dualPeerLovense;
+
+    // HIER den try-Block öffnen: Er sichert alles ab, was danach kommt
+    try {
+        // 1. Prüfung: Gibt es die moderne Bridge-Schnittstelle?
+        if (bridge && typeof bridge.receiveTip === "function") {
+            const ok = bridge.receiveTip(tokens, tipperName || "Remote");
+            if (ok) {
+                console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
+                return true; 
+            } else {
+                console.warn("Lovense noch nicht bereit – receiveTip in Warteschlange oder fehlgeschlagen.");
+                return false;
+            }
+        }
+
+        // 2. Fallback: Falls 'bridge' nicht da ist, aber die alte 'camExtensionInstance' existiert
+        if (typeof camExtensionInstance !== "undefined" && typeof camExtensionInstance.receiveTip === "function") {
+            console.log(`Fallback receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
+            camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
+            return true;
+        }
+
+        // Wenn weder Bridge noch alte Instanz gefunden wurden
+        console.warn("Lovense-Extension ist nicht bereit oder nicht installiert.");
+        return false;
+
+    } catch (error) {
+        // HIER am Ende des Blocks den Fehler abfangen, falls beim Aufruf etwas crasht
+        console.error("Fehler beim Ausführen von fireLovenseTip:", error);
+        return false;
+    }
 }
 
 
