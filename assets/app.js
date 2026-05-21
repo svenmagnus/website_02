@@ -380,16 +380,6 @@ function initLovenseIfPresent() {
     });
   }
 
-  if (els.btnLovenseTestTip) {
-    els.btnLovenseTestTip.addEventListener("click", () => {
-      if (fireLovenseTip(25, "Integration-Test")) {
-        setLovenseStatus("receiveTip(25) gesendet — Toy sollte jetzt reagieren.");
-      } else {
-        alert("Lovense noch nicht bereit:\n" + lovenseNotReadyMessage());
-      }
-    });
-  }
-
   if (!window.dualPeerLovense) {
     setLovenseStatus("lovense-broadcast.js fehlt — broadcast.js und lovense-broadcast.js prüfen.");
     return;
@@ -581,7 +571,7 @@ els.btnSendToy.addEventListener("click", () => {
     });
     setDataActivityStatus(`Gesendet: ${tipAmount} Tokens an Partner.`, "ok");
   } catch (e) {
-    setDataActivityStatus("Senden fehlgeschlagen: " + (e && e.message ? e.message : String(e)), "err");
+    setDataActivityStatus("Senden failed: " + (e && e.message ? e.message : String(e)), "err");
   }
 });
 
@@ -698,7 +688,7 @@ function lovenseNotReadyMessage() {
     return "CamExtension noch nicht initialisiert.";
   }
   if (!lovenseReady) {
-    return "Extension nicht bereit — Chrome: test:Tangent-Club wählen, Widget auf dieser Seite prüfen.";
+    return "Extension nicht bereit — Chrome: test:Tangent-Club wählen, Toys koppeln, auf „bereit“ warten.";
   }
   return "receiveTip nicht verfügbar.";
 }
@@ -707,7 +697,7 @@ function initHardwareTestControls() {
   const intensityRange = document.getElementById("intensityRange");
   const intensityValue = document.getElementById("intensityValue");
   if (intensityRange && intensityValue) {
-    intensityRange.addEventListener("input", (e) => {
+    intensityRange.addEventListener("change", (e) => {
       const val = Number(e.target.value);
       intensityValue.textContent = val + "%";
       if (val <= 0) return;
@@ -718,23 +708,58 @@ function initHardwareTestControls() {
       }
     });
   }
-
-  const testDevice = document.getElementById("testDevice");
-  if (testDevice) {
-    testDevice.addEventListener("click", () => {
-      if (fireLovenseTip(25, "Connection-Test")) {
-        alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
-      } else {
-        alert("Lovense noch nicht bereit: " + lovenseNotReadyMessage());
-      }
-    });
-  }
 }
 
+// =================================================================
+// DOM INITIALISIERUNG & BESTÄNDIGE EVENT-BINDUNG
+// =================================================================
 document.addEventListener("DOMContentLoaded", () => {
   initAccessGate();
   initLogout();
   initLayoutControls();
   initLovenseIfPresent();
   initHardwareTestControls();
+
+  // 1. Live-Prozentanzeige für deinen Text neben dem Slider beim Ziehen
+  const slider = document.getElementById('selfControlSlider');
+  const intensityVal = document.getElementById('intensityVal');
+  if (slider && intensityVal) {
+      slider.addEventListener('input', function() {
+          intensityVal.innerText = this.value + '%';
+      });
+
+      // ZUVERLÄSSIGER EVENT LISTENER: Führt Befehl direkt beim Loslassen aus
+      slider.addEventListener('change', function() {
+          const val = Number(this.value);
+          if (val <= 0) return;
+
+          const tokens = Math.max(1, Math.round(val / 4));
+          console.log("Self-Control Schieberegler ausgelöst: " + tokens + " Tokens.");
+          fireLovenseTip(tokens, "Self-Control");
+      });
+  }
+
+  // 2. ZUVERLÄSSIGER EVENT LISTENER: Muster-Auswahl (Special Commands) direkt über JS binden
+  const patternSelect = document.getElementById('patternSelect');
+  if (patternSelect) {
+      patternSelect.addEventListener('change', function() {
+          const patternType = this.value;
+          if (!patternType) return;
+
+          let tokens = 0;
+          if (patternType === "earthquake") {
+              tokens = 10;
+          } else if (patternType === "fireworks") {
+              tokens = 20;
+          } else {
+              tokens = 15; // Fallback
+          }
+
+          console.log("Self-Control Muster ausgelöst: " + patternType + " (" + tokens + " Tokens)");
+          fireLovenseTip(tokens, "Pattern-Control");
+
+          // Dropdown im UI sofort wieder zurücksetzen
+          this.value = "";
+      });
+  }
 });
