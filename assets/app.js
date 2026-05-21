@@ -4,10 +4,6 @@
  * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
  */
 
-function fireLovenseTip(amount, name) {
-  return window.dualPeerLovense?.sendTip(amount, name);
-}
-
 /** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
 const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
@@ -431,35 +427,18 @@ function fireLovenseTip(amount, tipperName) {
 }
 
 function handleIncomingToyPayload(data) {
-  if (!data || data.type !== "toy") return;
-
+  if (!data || typeof data !== "object") return;
+  if (data.type !== "toy") return;
   const level = Math.min(100, Math.max(0, Number(data.level) || 0));
-
-  // stabilere Token-Berechnung (verhindert Spam)
-  const tip = Math.max(
-    1,
-    Math.round((Number(data.tipAmount) || level) / 6)
-  );
-
+  const tip = Number(data.tipAmount) || Math.max(1, Math.round(level / 5));
   const name = data.tipperName || "Partner";
+  pulseFor("local", 600 + level * 5);
 
-  pulseFor("local", 600 + level * 4);
-
-  const ok = window.dualPeerLovense?.receiveTip
-    ? window.dualPeerLovense.receiveTip(tip, name)
-    : false;
-
-  if (ok) {
-    setDataActivityStatus(
-      `Empfangen: ${tip} Tokens von ${name}`,
-      "ok"
-    );
-  } else {
-    setDataActivityStatus(
-      `Empfangen von ${name} — Lovense nicht bereit`,
-      "err"
-    );
-  }
+  const ok = fireLovenseTip(tip, name);
+  const msg = ok
+    ? `Empfangen: ${tip} Tokens von ${name}.`
+    : `Empfangen von ${name} — Lovense: ${lovenseNotReadyMessage()}`;
+  setDataActivityStatus(msg, ok ? "ok" : "err");
 }
 
 function setupDataConnection(conn) {
@@ -740,36 +719,47 @@ document.addEventListener("DOMContentLoaded", () => {
   initLayoutControls();
   initLovenseIfPresent();
   initHardwareTestControls();
-  
-let lastSelf = 0;
 
+  // 1. Live-Prozentanzeige für deinen Text neben dem Slider beim Ziehen
+  const slider = document.getElementById('selfControlSlider');
+  const intensityVal = document.getElementById('intensityVal');
+  if (slider && intensityVal) {
+      slider.addEventListener('input', function() {
+          intensityVal.innerText = this.value + '%';
+      });
 
+      // ZUVERLÄSSIGER EVENT LISTENER: Führt Befehl direkt beim Loslassen aus
+      slider.addEventListener('change', function() {
+          const val = Number(this.value);
+          if (val <= 0) return;
 
-slider.addEventListener("change", function () {
-  const now = Date.now();
-  if (now - lastSelf < 80) return;
+          const tokens = Math.max(1, Math.round(val / 4));
+          console.log("Self-Control Schieberegler ausgelöst: " + tokens + " Tokens.");
+          fireLovenseTip(tokens, "Self-Control");
+      });
+  }
 
-  lastSelf = now;
+  // 2. ZUVERLÄSSIGER EVENT LISTENER: Muster-Auswahl (Special Commands) direkt über JS binden
+  const patternSelect = document.getElementById('patternSelect');
+  if (patternSelect) {
+      patternSelect.addEventListener('change', function() {
+          const patternType = this.value;
+          if (!patternType) return;
 
-  const val = Number(this.value);
-  if (val <= 0) return;
+          let tokens = 0;
+          if (patternType === "earthquake") {
+              tokens = 10;
+          } else if (patternType === "fireworks") {
+              tokens = 20;
+          } else {
+              tokens = 15; // Fallback
+          }
 
-  const tokens = Math.max(1, Math.round(val / 4));
-  fireLovenseTip(tokens, "Self-Control");
+          console.log("Self-Control Muster ausgelöst: " + patternType + " (" + tokens + " Tokens)");
+          fireLovenseTip(tokens, "Pattern-Control");
+
+          // Dropdown im UI sofort wieder zurücksetzen
+          this.value = "";
+      });
+  }
 });
-
-  patternSelect.addEventListener("change", function () {
-  const type = this.value;
-  if (!type) return;
-
-  const map = {
-    earthquake: 10,
-    fireworks: 20,
-    wave: 12,
-    pulse: 15,
-  };
-
-  fireLovenseTip(map[type] || 10, "Pattern");
-  this.value = "";
-});
-}); 
