@@ -194,18 +194,17 @@
         </div>
       </section>
           <!-- Test- und Steuerungsbereich -->
-          <div class="card" style="margin-top: 20px;">
-            
+          <div class="hardware-control-panel">
             <h2>Toy Self Control</h2>
             
-            <div class="row">
+            <div class="control-group">
                 <label>Intensität (Standard-Vibration): <span id="intensityVal">0%</span></label>
-                <input type="range" id="selfControlSlider" min="0" max="100" value="0">
+                <input type="range" id="selfControlSlider" min="0" max="100" value="0" onchange="sendVibrationTest(this.value)">
             </div>
         
-            <div class="row" style="margin-top: 15px;">
+            <div class="control-group" style="margin-top: 15px;">
                 <label>Muster simulieren (Special Commands):</label>
-                <select id="patternSelect"  style="width: 100%; padding: 8px; background: #1a1a2e; color: #fff; border: 1px solid #333; border-radius: 4px;">
+                <select id="patternSelect" onchange="sendPatternTest(this.value)">
                     <option value="">-- Muster auswählen --</option>
                     <option value="earthquake">Earthquake Pattern</option>
                     <option value="fireworks">Fireworks Pattern</option>

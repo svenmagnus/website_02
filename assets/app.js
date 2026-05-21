@@ -4,10 +4,6 @@
  * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
  */
 
-function fireLovenseTip(amount, name) {
-  return window.dualPeerLovense?.sendTip(amount, name);
-}
-
 /** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
 const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
@@ -384,6 +380,8 @@ function initLovenseIfPresent() {
     });
   }
 
+
+
   if (!window.dualPeerLovense) {
     setLovenseStatus("lovense-broadcast.js fehlt — broadcast.js und lovense-broadcast.js prüfen.");
     return;
@@ -431,35 +429,18 @@ function fireLovenseTip(amount, tipperName) {
 }
 
 function handleIncomingToyPayload(data) {
-  if (!data || data.type !== "toy") return;
-
+  if (!data || typeof data !== "object") return;
+  if (data.type !== "toy") return;
   const level = Math.min(100, Math.max(0, Number(data.level) || 0));
-
-  // stabilere Token-Berechnung (verhindert Spam)
-  const tip = Math.max(
-    1,
-    Math.round((Number(data.tipAmount) || level) / 6)
-  );
-
+  const tip = Number(data.tipAmount) || Math.max(1, Math.round(level / 5));
   const name = data.tipperName || "Partner";
+  pulseFor("local", 600 + level * 5);
 
-  pulseFor("local", 600 + level * 4);
-
-  const ok = window.dualPeerLovense?.receiveTip
-    ? window.dualPeerLovense.receiveTip(tip, name)
-    : false;
-
-  if (ok) {
-    setDataActivityStatus(
-      `Empfangen: ${tip} Tokens von ${name}`,
-      "ok"
-    );
-  } else {
-    setDataActivityStatus(
-      `Empfangen von ${name} — Lovense nicht bereit`,
-      "err"
-    );
-  }
+  const ok = fireLovenseTip(tip, name);
+  const msg = ok
+    ? `Empfangen: ${tip} Tokens von ${name}.`
+    : `Empfangen von ${name} — Lovense: ${lovenseNotReadyMessage()}`;
+  setDataActivityStatus(msg, ok ? "ok" : "err");
 }
 
 function setupDataConnection(conn) {
@@ -592,7 +573,7 @@ els.btnSendToy.addEventListener("click", () => {
     });
     setDataActivityStatus(`Gesendet: ${tipAmount} Tokens an Partner.`, "ok");
   } catch (e) {
-    setDataActivityStatus("Senden failed: " + (e && e.message ? e.message : String(e)), "err");
+    setDataActivityStatus("Senden fehlgeschlagen: " + (e && e.message ? e.message : String(e)), "err");
   }
 });
 
@@ -709,7 +690,7 @@ function lovenseNotReadyMessage() {
     return "CamExtension noch nicht initialisiert.";
   }
   if (!lovenseReady) {
-    return "Extension nicht bereit — Chrome: test:Tangent-Club wählen, Toys koppeln, auf „bereit“ warten.";
+    return "Extension nicht bereit — Chrome: test:Tangent-Club wählen, Widget auf dieser Seite prüfen.";
   }
   return "receiveTip nicht verfügbar.";
 }
@@ -731,42 +712,84 @@ function initHardwareTestControls() {
   }
 }
 
-// =================================================================
-// DOM INITIALISIERUNG & BESTÄNDIGE EVENT-BINDUNG
-// =================================================================
+  const testDevice = document.getElementById("testDevice");
+  if (testDevice) {
+    testDevice.addEventListener("click", () => {
+      if (fireLovenseTip(25, "Connection-Test")) {
+        alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
+      } else {
+        alert("Lovense noch nicht bereit: " + lovenseNotReadyMessage());
+      }
+    });
+  
+}
+
+// Funktion für das neue Muster-Dropdown
+function sendPatternTest(patternType) {
+  if (!patternType) return;
+  const modelName = "model1";
+  
+  if (typeof lovense !== 'undefined' && lovense.sendAction) {
+      lovense.sendAction({
+          model: modelName,
+          action: "pattern",
+          rule: patternType
+      });
+  }
+  document.getElementById('patternSelect').value = "";
+}
+
+
+// 1. Die Prozentanzeige live aktualisieren (OHNE Befehle an die Queue zu senden)
+const slider = document.getElementById('selfControlSlider');
+const intensityVal = document.getElementById('intensityVal');
+
+if (slider && intensityVal) {
+    slider.addEventListener('input', function() {
+        intensityVal.innerText = this.value + '%';
+    });
+}
+
+// 2. Funktion: Erst beim LOSLASSEN des Reglers wird GENAU EIN Befehl gesendet
+function sendVibrationTest(intensity) {
+    const modelName = "model1"; // Der feste Dummy-Wert für das Test-Setup
+    
+    console.log("Sende Einzel-Impuls mit Intensität: " + intensity + "%");
+    
+    // Prüft, ob die Lovense-Schnittstelle auf der Seite geladen ist
+    if (typeof lovense !== 'undefined' && lovense.sendAction) {
+        lovense.sendAction({
+            model: modelName,
+            action: "vibrate",
+            vapi: parseInt(intensity)
+        });
+    }
+}
+
+// 3. Funktion: Ein ausgewähltes Muster (Special Command) an den Stream Master senden
+function sendPatternTest(patternType) {
+    if (!patternType) return;
+    
+    const modelName = "model1";
+    console.log("Simuliere Special Command: " + patternType);
+    
+    if (typeof lovense !== 'undefined' && lovense.sendAction) {
+        // Sendet den reinen Musternamen (z.B. "earthquake" oder "fireworks")
+        lovense.sendAction({
+            model: modelName,
+            action: "pattern",
+            rule: patternType
+        });
+    }
+    
+    // Setzt das Dropdown-Menü im Interface sofort wieder auf den Standardwert zurück
+    document.getElementById('patternSelect').value = "";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initAccessGate();
   initLogout();
   initLayoutControls();
   initLovenseIfPresent();
   initHardwareTestControls();
-
-let lastSelf = 0;
-
-slider.addEventListener("change", function () {
-  const now = Date.now();
-  if (now - lastSelf < 80) return;
-
-  lastSelf = now;
-
-  const val = Number(this.value);
-  if (val <= 0) return;
-
-  const tokens = Math.max(1, Math.round(val / 4));
-  fireLovenseTip(tokens, "Self-Control");
-});
-
-  patternSelect.addEventListener("change", function () {
-  const type = this.value;
-  if (!type) return;
-
-  const map = {
-    earthquake: 10,
-    fireworks: 20,
-    wave: 12,
-    pulse: 15,
-  };
-
-  fireLovenseTip(map[type] || 10, "Pattern");
-  this.value = "";
 });
