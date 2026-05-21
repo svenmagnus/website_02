@@ -399,47 +399,26 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-error", (e) => onLovenseError(e.detail));
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
-/**
- * Ungebremste Kern-Funktion für Lovense-Signale.
- * Gibt die volle Intensität direkt an das Toy und das Dashboard weiter.
- */
+
 function fireLovenseTip(amount, tipperName) {
     const tokens = Math.round(Number(amount));
     if (!tokens || tokens < 1) return false;
 
-    // 1:1 Umrechnung für die Hardware (0-100% wird sauber auf Stufe 1-20 verteilt)
-    // 100% auf dem Slider sind jetzt auch echte Stufe 20 (maximale Power) auf dem Toy!
-    const intensity = Math.min(20, Math.max(1, Math.round(tokens / 5)));
-    
-    console.log(`[Lovense] Volle Fahrt: ${tokens} Tokens gesendet (Hardware-Stufe: ${intensity}/20) von ${tipperName || "System"}`);
+    console.log(`[Lovense Standard] Signal an Extension übergeben: ${tokens} Tokens von ${tipperName || "System"}`);
 
-    // WEG 1: Direktbefehl an die Hardware (Volle Power an deine Edge)
-    try {
-        if (typeof window.postMessage === "function") {
-            window.postMessage({
-                source: "lovense-developer-page",
-                method: "sendCommand",
-                data: {
-                    action: "vibrate",
-                    strength: intensity, // Nutzt die volle Stufe bis 20
-                    apiVer: 1
-                }
-            }, "*");
-        }
-    } catch (e) {
-        console.error("Fehler beim Senden des Direkt-Vibrationsbefehls:", e);
-    }
-
-    // WEG 2: Unverfälschtes Signal an dein Stream-Master-Dashboard
+    // Nur dieser Event-Weg bleibt aktiv:
     try {
         const event = new CustomEvent("lovense_receive_tip", {
             detail: { 
-                amount: tokens, // Hier gehen die echten Tokens (z.B. 25) rein!
+                amount: tokens, 
                 name: tipperName || "Partner" 
             }
         });
         window.dispatchEvent(event);
-    } catch (e) { /* ignore */ }
+    } catch (e) { 
+        console.error("Fehler beim Senden des Standard-Tips:", e);
+        return false;
+    }
 
     return true;
 }
