@@ -63,6 +63,7 @@ const els = {
   toyTipAmount: $("#toyTipAmount"),
   toyTipName: $("#toyTipName"),
   btnSendToy: $("#btnSendToy"),
+  toyControlList: $("#toyControlList"),
   chatMessages: $("#chat-messages"),
   chatInput: $("#chat-input"),
   chatSend: $("#chat-send"),
@@ -312,6 +313,192 @@ function setDataActivityStatus(msg, cls) {
   if (els.statusData) setStatus(els.statusData, msg, cls);
 }
 
+const TOY_PRESET_LEVELS = [
+  { label: "Low", value: 20 },
+  { label: "Medium", value: 45 },
+  { label: "High", value: 70 },
+  { label: "Max", value: 100 },
+  { label: "Ultra", value: 120 },
+];
+
+const TOY_SPECIAL_COMMANDS = [
+  { id: "earthquake", label: "Earthquake" },
+  { id: "pulse", label: "Pulse" },
+  { id: "wave", label: "Wave" },
+  { id: "fireworks", label: "Fireworks" },
+];
+
+let toyControlState = {};
+
+function getConnectedToys() {
+  const toys = window.dualPeerLovense?.toys;
+  if (Array.isArray(toys) && toys.length) return toys;
+  return [{ id: "default-toy", type: "Toy", status: "on" }];
+}
+
+function sendToyPayload(level, toyId, special) {
+  if (!dataConn || !dataConn.open) {
+    setDataActivityStatus("No data channel — connect first.", "err");
+    return;
+  }
+
+  const levelNum = Math.max(0, Number(level) || 0);
+  const tipAmount = levelNum <= 0 ? 0 : Math.max(1, Math.round(levelNum / 4));
+  const payload = {
+    type: "toy",
+    toyId,
+    level: levelNum,
+    tipAmount,
+    tipperName: "Partner",
+    special: Array.isArray(special) ? special : [],
+    ts: Date.now(),
+  };
+
+  try {
+    dataConn.send(payload);
+    if (levelNum <= 0) {
+      setDataActivityStatus(`Stop sent for ${toyId}.`, "ok");
+    } else {
+      setDataActivityStatus(`Sent ${levelNum}% to ${toyId}.`, "ok");
+    }
+  } catch (e) {
+    setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
+  }
+}
+
+function sendToySpecialPayload(toyId, special, checked) {
+  if (!dataConn || !dataConn.open) {
+    setDataActivityStatus("No data channel — connect first.", "err");
+    return;
+  }
+  try {
+    dataConn.send({
+      type: "toy_special",
+      toyId,
+      special,
+      enabled: !!checked,
+      ts: Date.now(),
+    });
+    setDataActivityStatus(`${special} ${checked ? "enabled" : "disabled"} for ${toyId}.`, "ok");
+  } catch (e) {
+    setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
+  }
+}
+
+function renderToyControls(toys) {
+  if (!els.toyControlList) return;
+  const list = els.toyControlList;
+  list.innerHTML = "";
+
+  const toyList = Array.isArray(toys) && toys.length ? toys : getConnectedToys();
+  toyList.forEach((toy, idx) => {
+    const toyId = toy.id || `toy-${idx + 1}`;
+    const toyName = toy.name || toy.type || `Toy ${idx + 1}`;
+    if (!toyControlState[toyId]) {
+      toyControlState[toyId] = { level: 0, specials: {} };
+    }
+
+    const block = document.createElement("section");
+    block.className = "toy-block";
+    block.dataset.toyId = toyId;
+
+    const title = document.createElement("h3");
+    title.className = "toy-block-title";
+    title.textContent = toyName;
+    block.appendChild(title);
+
+    const btnRow = document.createElement("div");
+    btnRow.className = "toy-preset-row";
+    TOY_PRESET_LEVELS.forEach((preset) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "toy-preset-btn";
+      b.textContent = preset.label;
+      b.dataset.toyId = toyId;
+      b.dataset.level = String(preset.value);
+      btnRow.appendChild(b);
+    });
+    block.appendChild(btnRow);
+
+    const sliderWrap = document.createElement("div");
+    sliderWrap.className = "toy-slider-row";
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = "0";
+    slider.max = "100";
+    slider.value = String(Math.min(100, toyControlState[toyId].level || 0));
+    slider.dataset.toyId = toyId;
+    slider.className = "toy-slider";
+    sliderWrap.appendChild(slider);
+    block.appendChild(sliderWrap);
+
+    const specialWrap = document.createElement("div");
+    specialWrap.className = "toy-special-row";
+    TOY_SPECIAL_COMMANDS.forEach((cmd) => {
+      const id = `special-${toyId}-${cmd.id}`;
+      const item = document.createElement("label");
+      item.className = "toy-special-item";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = id;
+      cb.dataset.toyId = toyId;
+      cb.dataset.special = cmd.id;
+      cb.checked = !!toyControlState[toyId].specials[cmd.id];
+      const span = document.createElement("span");
+      span.textContent = cmd.label;
+      item.appendChild(cb);
+      item.appendChild(span);
+      specialWrap.appendChild(item);
+    });
+    block.appendChild(specialWrap);
+
+    list.appendChild(block);
+  });
+}
+
+function initDynamicToyControls() {
+  if (!els.toyControlList) return;
+  renderToyControls(getConnectedToys());
+
+  els.toyControlList.addEventListener("click", (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.classList.contains("toy-preset-btn")) return;
+    const toyId = target.dataset.toyId;
+    const level = Number(target.dataset.level || 0);
+    if (!toyId) return;
+    toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
+    toyControlState[toyId].level = Math.min(100, level);
+    const slider = els.toyControlList.querySelector(`.toy-slider[data-toy-id="${toyId}"]`);
+    if (slider instanceof HTMLInputElement) slider.value = String(Math.min(100, level));
+    sendToyPayload(Math.min(100, level), toyId, Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k]));
+  });
+
+  els.toyControlList.addEventListener("input", (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (!target.classList.contains("toy-slider")) return;
+    const toyId = target.dataset.toyId;
+    if (!toyId) return;
+    const level = Math.max(0, Math.min(100, Number(target.value) || 0));
+    toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
+    toyControlState[toyId].level = level;
+    sendToyPayload(level, toyId, Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k]));
+  });
+
+  els.toyControlList.addEventListener("change", (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (target.type !== "checkbox" || !target.dataset.special) return;
+    const toyId = target.dataset.toyId;
+    const special = target.dataset.special;
+    if (!toyId || !special) return;
+    toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
+    toyControlState[toyId].specials[special] = target.checked;
+    sendToySpecialPayload(toyId, special, target.checked);
+  });
+}
+
 function formatChatTime(ts) {
   const d = new Date(ts || Date.now());
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -366,6 +553,10 @@ function handleIncomingDataMessage(raw) {
   if (!data) return;
   if (data.type === "toy") {
     handleIncomingToyPayload(data);
+    return;
+  }
+  if (data.type === "toy_special") {
+    handleIncomingToySpecialPayload(data);
     return;
   }
   if (data.type === "chat") {
@@ -457,6 +648,7 @@ function onLovenseReady(detail) {
       (detail && detail.toys) || window.dualPeerLovense?.toys
     );
   }
+  renderToyControls((detail && detail.toys) || window.dualPeerLovense?.toys);
 }
 
 function onLovenseError(detail) {
@@ -473,6 +665,7 @@ function onLovenseError(detail) {
 
 function onLovenseToys(toys) {
   if (els.lovenseToyStatus) els.lovenseToyStatus.textContent = formatLovenseToys(toys);
+  renderToyControls(toys);
 }
 
 function initLovenseIfPresent() {
@@ -560,6 +753,10 @@ function handleIncomingToyPayload(data) {
   const level = Math.min(100, Math.max(0, Number(data.level) || 0));
   const tip = Number(data.tipAmount) || Math.max(1, Math.round(level / 5));
   const name = data.tipperName || "Partner";
+  if (level <= 0) {
+    setDataActivityStatus(`Stop command received${data.toyId ? ` for ${data.toyId}` : ""}.`, "ok");
+    return;
+  }
   pulseFor("local", 600 + level * 5);
 
   const ok = fireLovenseTip(tip, name);
@@ -567,6 +764,17 @@ function handleIncomingToyPayload(data) {
     ? `Received: ${tip} tokens from ${name}.`
     : `Received from ${name} — Lovense: ${lovenseNotReadyMessage()}`;
   setDataActivityStatus(msg, ok ? "ok" : "err");
+}
+
+function handleIncomingToySpecialPayload(data) {
+  if (!data || typeof data !== "object" || data.type !== "toy_special") return;
+  const toyId = data.toyId || "toy";
+  const special = data.special || "special";
+  const enabled = !!data.enabled;
+  setDataActivityStatus(
+    `Received special command ${special} ${enabled ? "enabled" : "disabled"} for ${toyId}.`,
+    "ok"
+  );
 }
 
 function setupDataConnection(conn) {
@@ -680,35 +888,11 @@ els.btnConnect.addEventListener("click", async () => {
 
 els.btnHangup.addEventListener("click", () => hangup());
 
-els.btnSendToy.addEventListener("click", () => {
-  if (!dataConn || !dataConn.open) {
-    setDataActivityStatus("No data channel — connect first.", "err");
-    return;
-  }
-  const level = Number(els.toyLevel.value) || 50;
-  const tipAmount = Number(els.toyTipAmount.value) || 10;
-  const tipperName = (els.toyTipName.value || "Partner").trim() || "Partner";
-
-  try {
-    dataConn.send({
-      type: "toy",
-      level,
-      tipAmount,
-      tipperName,
-      ts: Date.now(),
-    });
-    setDataActivityStatus(`Sent: ${tipAmount} tokens to partner.`, "ok");
-  } catch (e) {
-    setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
-  }
-});
-
-document.querySelectorAll("[data-preset]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const v = btn.getAttribute("data-preset");
-    if (els.toyLevel) els.toyLevel.value = v;
+if (els.btnSendToy && els.toyLevel) {
+  els.btnSendToy.addEventListener("click", () => {
+    sendToyPayload(Number(els.toyLevel.value) || 50, "default-toy", []);
   });
-});
+}
 
 window.addEventListener("beforeunload", () => hangup());
 
@@ -918,5 +1102,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initLayoutControls();
   initLovenseIfPresent();
   initChatControls();
+  initDynamicToyControls();
   initHardwareTestControls();
 });
