@@ -65,7 +65,7 @@ Integration über die Lovense Cam Extension (nicht die Lovense-Connect-App allei
     1. Google Chrome verwenden und die Lovense Cam Extension installieren.
     2. In der Extension die Cam-Site test:Tangent-Club hinzufügen.
     3. Toys in der Extension verbinden — auf der Broadcast-Seite muss das Lovense-Widget erscheinen.
-    4. Status „Extension bereit“ abwarten, dann Fernsteuerung oder Self-Control-Slider nutzen.
+    4. Status „Extension bereit“ abwarten, dann „Test: receiveTip(25)“ oder Fernsteuerung nutzen.
     5. Die Broadcast-URL muss im Lovense Developer Dashboard als „Model Broadcasting URL Pattern“ eingetragen sein.
 
 
@@ -199,7 +199,7 @@ Use the Lovense Cam Extension (not the Lovense Connect app alone):
     1. Use Google Chrome with the Lovense Cam Extension installed.
     2. Add cam site test:Tangent-Club in the extension.
     3. Connect toys in the extension — the Lovense widget must appear on the broadcast page.
-    4. Wait for “Extension ready”, then use remote control or the self-control slider.
+    4. Wait for “Extension ready”, then use “Test: receiveTip(25)” or remote control.
     5. Register the broadcast URL in the Lovense Developer Dashboard (Model Broadcasting URL Pattern).
     5. Once connected, the remote control / impulse features in the video chat app can be used.
 Remote Control / Impulse Function

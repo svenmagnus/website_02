@@ -1,5 +1,6 @@
 /**
- * Lovense Cam Extension — receiveTip for local toys; remote commands from peer.
+ * Lovense Cam Extension — Initialisierung laut Developer-Doku:
+ * broadcast.js → new CamExtension(site, model) → on("ready") → receiveTip()
  * https://developer.lovense.com/docs/cam-solutions/cam-extension-for-chrome
  */
 (function (global) {
@@ -21,27 +22,24 @@
     while (state.pendingTips.length) {
       const tip = state.pendingTips.shift();
       try {
-        state.instance.receiveTip(tip.amount, tip.tipperName, tip.cParameter || {});
+        state.instance.receiveTip(tip.amount, tip.tipperName);
       } catch (e) {
         console.error("[Lovense] receiveTip (queued) failed:", e);
       }
     }
   }
 
-  function receiveTip(amount, tipperName, cParameter) {
+  function receiveTip(amount, tipperName) {
     const tokens = Math.round(Number(amount));
     if (!tokens || tokens < 1) return false;
-    const name = String(tipperName || "Remote").slice(0, 40);
-    const params = cParameter && typeof cParameter === "object" ? cParameter : {};
-
+    const name = String(tipperName || "Tipper").slice(0, 40);
     if (!state.instance) return false;
     if (!state.ready) {
-      state.pendingTips.push({ amount: tokens, tipperName: name, cParameter: params });
+      state.pendingTips.push({ amount: tokens, tipperName: name });
       return false;
     }
-
     try {
-      state.instance.receiveTip(tokens, name, params);
+      state.instance.receiveTip(tokens, name);
       return true;
     } catch (e) {
       console.error("[Lovense] receiveTip failed:", e);
@@ -49,61 +47,19 @@
     }
   }
 
-  function stopToys() {
-    let stopped = false;
-
-    try {
-      if (typeof global.lovense !== "undefined" && typeof global.lovense.sendCommand === "function") {
-        global.lovense.sendCommand({
-          command: "Function",
-          action: "Stop",
-          timeSec: 0,
-          apiVer: 1,
-        });
-        stopped = true;
-      }
-    } catch (e) {
-      console.warn("[Lovense] sendCommand(Stop) failed:", e);
-    }
-
-    if (!state.instance || !state.ready) return stopped;
-
-    try {
-      state.instance.receiveTip(1, "Stop", { specialType: "clear" });
-      stopped = true;
-    } catch (e) {
-      console.warn("[Lovense] receiveTip(clear) failed:", e);
-    }
-
-    return stopped;
-  }
-
-  /** Apply a toy command received from the partner over PeerJS. */
-  function applyRemoteControl(data) {
-    if (!data || typeof data !== "object") return false;
-    const level = Math.max(0, Math.min(100, Number(data.level) || 0));
-    const tokens = Math.round(Number(data.tipAmount) || 0);
-
-    if (level <= 0 || tokens <= 0) {
-      return stopToys();
-    }
-
-    return receiveTip(tokens, data.tipperName || "Remote");
-  }
-
   function init() {
-    const site = global.LOVENSE_SITE_NAME || "test:Tangent-Club";
-    const model = global.__LOVENSE_MODEL_NAME__ || "model1";
+    const site = window.LOVENSE_SITE_NAME || "test:Tangent-Club";
+    const model = window.__LOVENSE_MODEL_NAME__ || "model1";
 
-    if (typeof global.CamExtension === "undefined") {
-      state.error = { code: "NO_SDK", message: "broadcast.js not loaded" };
-      dispatch("dualpeer-lovense-error", state.error);
-      return;
+    if (typeof window.CamExtension === "undefined") {
+        state.error = { code: "NO_SDK", message: "broadcast.js nicht geladen" };
+        dispatch("dualpeer-lovense-error", state.error);
+        return;
     }
 
     try {
-      const camExtension = new global.CamExtension(site, model);
-      state.instance = camExtension;
+        const camExtension = new window.CamExtension(site, model);
+        state.instance = camExtension;
 
       camExtension.on("ready", async (ce) => {
         state.instance = ce || camExtension;
@@ -159,8 +115,6 @@
       return state.version;
     },
     receiveTip,
-    stopToys,
-    applyRemoteControl,
     getSiteName() {
       return global.LOVENSE_SITE_NAME || "test:Tangent-Club";
     },

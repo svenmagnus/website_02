@@ -1,7 +1,7 @@
 /**
  * Dual-Peer-Demo: Video + DataChannel für Fern-Befehle.
- * Lovense: If broadcast.js and direct toy API are available,
- * vibration commands are sent directly to the hardware.
+ * Lovense: Wenn broadcast.js geladen ist und CamExtension bereit ist,
+ * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
  */
 
 /** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
@@ -232,8 +232,6 @@ function hangup() {
     peer = null;
   }
   sessionRole = null;
-  partnerRemoteToys = [];
-  renderToyControls([]);
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
@@ -311,13 +309,12 @@ function setDataActivityStatus(msg, cls) {
   if (els.statusData) setStatus(els.statusData, msg, cls);
 }
 
-/** UI slider percent (value) + Lovense token amount sent to partner's toys. */
 const TOY_PRESET_LEVELS = [
-  { label: "Low", value: 20, tokens: 5 },
-  { label: "Medium", value: 45, tokens: 11 },
-  { label: "High", value: 70, tokens: 18 },
-  { label: "Max", value: 85, tokens: 25 },
-  { label: "Ultra", value: 100, tokens: 100 },
+  { label: "Low", value: 20 },
+  { label: "Medium", value: 45 },
+  { label: "High", value: 70 },
+  { label: "Max", value: 100 },
+  { label: "Ultra", value: 120 },
 ];
 
 const TOY_SPECIAL_COMMANDS = [
@@ -330,88 +327,40 @@ const TOY_SPECIAL_COMMANDS = [
 let toyControlState = {};
 const TOY_SLIDER_THROTTLE_MS = 150;
 let toyThrottleState = {};
-/** Toys shared by partner — sole source for Remote Control UI. */
-let partnerRemoteToys = [];
 
-function percentToTokens(levelPercent) {
-  const level = Math.max(0, Math.min(100, Number(levelPercent) || 0));
-  if (level <= 0) return 0;
-
-  const exact = TOY_PRESET_LEVELS.find((p) => p.value === level);
-  if (exact) return exact.tokens;
-
-  let nearest = TOY_PRESET_LEVELS[0];
-  for (const preset of TOY_PRESET_LEVELS) {
-    if (Math.abs(preset.value - level) < Math.abs(nearest.value - level)) {
-      nearest = preset;
-    }
-  }
-  return nearest.tokens;
-}
-
-function normalizeToyForPeer(toy, idx) {
-  return {
-    id: toy.id || `toy-${idx + 1}`,
-    name: (toy.name || toy.type || `Toy ${idx + 1}`).trim(),
-    type: toy.type || "toy",
-    status: toy.status || "unknown",
-  };
-}
-
-function getLocalLovenseToys() {
+function getConnectedToys() {
   const toys = window.dualPeerLovense?.toys;
-  return Array.isArray(toys) ? toys : [];
+  if (Array.isArray(toys) && toys.length) return toys;
+  return [{ id: "default-toy", type: "Toy", status: "on" }];
 }
 
-function getPartnerToysForUi() {
-  return partnerRemoteToys.length ? partnerRemoteToys : [];
-}
-
-function broadcastLocalToyInventory() {
-  const toys = getLocalLovenseToys();
-  if (!toys.length) return false;
-  if (!dataConn || !dataConn.open) return false;
-
-  try {
-    dataConn.send({
-      type: "toy_inventory",
-      toys: toys.map(normalizeToyForPeer),
-      ts: Date.now(),
-    });
-    setDataActivityStatus(`Shared ${toys.length} local toy(s) with partner.`, "ok");
-    return true;
-  } catch (e) {
-    setDataActivityStatus("Toy list send failed: " + (e && e.message ? e.message : String(e)), "err");
-    return false;
-  }
-}
-
-function sendPartnerToyCommand(toyId, levelPercent, tokensOverride) {
+function sendToyPayload(level, toyId, special) {
   if (!dataConn || !dataConn.open) {
     setDataActivityStatus("No data channel — connect first.", "err");
-    return false;
+    return;
   }
-  const level = Math.max(0, Math.min(100, Math.round(Number(levelPercent) || 0)));
-  const tipAmount = level <= 0 ? 0 : tokensOverride != null ? tokensOverride : percentToTokens(level);
+
+  const levelNum = Math.max(0, Number(level) || 0);
+  const tipAmount = levelNum <= 0 ? 0 : Math.max(1, Math.round(levelNum / 4));
+  const payload = {
+    type: "toy",
+    toyId,
+    level: levelNum,
+    tipAmount,
+    tipperName: "Partner",
+    special: Array.isArray(special) ? special : [],
+    ts: Date.now(),
+  };
 
   try {
-    dataConn.send({
-      type: "toy",
-      toyId: toyId || "default-toy",
-      level,
-      tipAmount,
-      tipperName: sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You",
-      ts: Date.now(),
-    });
-    if (level <= 0) {
-      setDataActivityStatus(`Stop sent to partner (${toyId}).`, "ok");
+    dataConn.send(payload);
+    if (levelNum <= 0) {
+      setDataActivityStatus(`Stop sent for ${toyId}.`, "ok");
     } else {
-      setDataActivityStatus(`Sent ${tipAmount} tokens to partner (${toyId}).`, "ok");
+      setDataActivityStatus(`Sent ${levelNum}% to ${toyId}.`, "ok");
     }
-    return true;
   } catch (e) {
     setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
-    return false;
   }
 }
 
@@ -437,50 +386,15 @@ function clearAllToyPendingSends() {
   Object.keys(toyThrottleState).forEach((toyId) => clearToyThrottleState(toyId));
 }
 
-function flushPartnerToyCommand(levelPercent, toyId, tokensOverride) {
-  const level = Math.max(0, Math.min(100, Math.round(Number(levelPercent) || 0)));
-  if (level === 0) {
-    clearAllToyPendingSends();
-  }
-  sendPartnerToyCommand(toyId, level, tokensOverride);
-}
-
-function applyToyIntensity(toyId, levelPercent, options) {
-  const opts = options || {};
-  const throttle = !!opts.throttle;
-  const tokensOverride = opts.tokens != null ? opts.tokens : null;
+function scheduleToyPayload(level, toyId, special) {
   const safeToyId = toyId || "default-toy";
-  const level = Math.max(0, Math.min(100, Math.round(Number(levelPercent) || 0)));
+  const levelNum = Math.max(0, Math.min(100, Number(level) || 0));
+  const specials = Array.isArray(special) ? special : [];
 
-  toyControlState[safeToyId] = toyControlState[safeToyId] || { level: 0, specials: {} };
-  toyControlState[safeToyId].level = level;
-
-  const slider = els.toyControlList?.querySelector(`.toy-slider[data-toy-id="${safeToyId}"]`);
-  if (slider instanceof HTMLInputElement) slider.value = String(level);
-  updateToyPresetActive(safeToyId, level);
-
-  if (level === 0) {
-    clearToyThrottleState(safeToyId);
-    flushPartnerToyCommand(0, safeToyId, 0);
-    return;
-  }
-
-  if (throttle) {
-    schedulePartnerToyCommand(level, safeToyId, tokensOverride);
-    return;
-  }
-
-  clearToyThrottleState(safeToyId);
-  flushPartnerToyCommand(level, safeToyId, tokensOverride);
-}
-
-function schedulePartnerToyCommand(levelPercent, toyId, tokensOverride) {
-  const safeToyId = toyId || "default-toy";
-  const level = Math.max(0, Math.min(100, Number(levelPercent) || 0));
-
-  if (level === 0) {
+  // Priority stop: cancel all pending sends and stop immediately.
+  if (levelNum === 0) {
     clearAllToyPendingSends();
-    flushPartnerToyCommand(0, safeToyId, 0);
+    sendToyPayload(0, safeToyId, specials);
     return;
   }
 
@@ -490,11 +404,11 @@ function schedulePartnerToyCommand(levelPercent, toyId, tokensOverride) {
 
   if (elapsed >= TOY_SLIDER_THROTTLE_MS) {
     state.lastSentAt = now;
-    flushPartnerToyCommand(level, safeToyId, tokensOverride);
+    sendToyPayload(levelNum, safeToyId, specials);
     return;
   }
 
-  state.pending = { level, tokens: tokensOverride };
+  state.pending = { level: levelNum, special: specials };
   if (state.trailingTimer) return;
 
   const waitMs = TOY_SLIDER_THROTTLE_MS - elapsed;
@@ -504,19 +418,21 @@ function schedulePartnerToyCommand(levelPercent, toyId, tokensOverride) {
     const pending = state.pending;
     state.pending = null;
     state.lastSentAt = Date.now();
-    flushPartnerToyCommand(pending.level, safeToyId, pending.tokens);
+    sendToyPayload(pending.level, safeToyId, pending.special);
   }, waitMs);
 }
 
-function updateToyPresetActive(toyId, activeLevelPercent) {
+function updateToyPresetActive(toyId, level) {
   if (!els.toyControlList || !toyId) return;
-  const level = Math.max(0, Math.min(100, Number(activeLevelPercent) || 0));
-  const activeValue =
-    level > 0 && TOY_PRESET_LEVELS.some((p) => Number(p.value) === level) ? level : null;
+  const numericLevel = Math.max(0, Math.min(100, Number(level) || 0));
+  const activeLevel =
+    numericLevel > 0 && TOY_PRESET_LEVELS.some((p) => Number(p.value) === numericLevel)
+      ? numericLevel
+      : null;
   const buttons = els.toyControlList.querySelectorAll(`.toy-preset-btn[data-toy-id="${toyId}"]`);
   buttons.forEach((btn) => {
     const btnLevel = Number(btn.getAttribute("data-level") || 0);
-    btn.classList.toggle("active", activeValue !== null && btnLevel === activeValue);
+    btn.classList.toggle("active", activeLevel !== null && btnLevel === activeLevel);
   });
 }
 
@@ -544,12 +460,7 @@ function renderToyControls(toys) {
   const list = els.toyControlList;
   list.innerHTML = "";
 
-  const toyList = Array.isArray(toys) && toys.length ? toys : getPartnerToysForUi();
-  if (!toyList.length) {
-    list.innerHTML =
-      '<div class="toy-empty-note">Waiting for partner toys — connect via PeerJS; partner must have Lovense toys connected.</div>';
-    return;
-  }
+  const toyList = Array.isArray(toys) && toys.length ? toys : getConnectedToys();
   toyList.forEach((toy, idx) => {
     const toyId = toy.id || `toy-${idx + 1}`;
     const toyName = toy.name || toy.type || `Toy ${idx + 1}`;
@@ -575,7 +486,6 @@ function renderToyControls(toys) {
       b.textContent = preset.label;
       b.dataset.toyId = toyId;
       b.dataset.level = String(preset.value);
-      b.dataset.tokens = String(preset.tokens);
       if ((toyControlState[toyId].level || 0) > 0 && Number(preset.value) === Number(toyControlState[toyId].level)) {
         b.classList.add("active");
       }
@@ -621,23 +531,22 @@ function renderToyControls(toys) {
 
 function initDynamicToyControls() {
   if (!els.toyControlList) return;
-  renderToyControls(partnerRemoteToys);
+  renderToyControls(getConnectedToys());
 
   els.toyControlList.addEventListener("click", (e) => {
     const target = e.target;
     if (!(target instanceof HTMLElement)) return;
     if (!target.classList.contains("toy-preset-btn")) return;
     const toyId = target.dataset.toyId;
-    const presetLevel = Math.min(100, Number(target.dataset.level || 0));
-    const presetTokens = Math.max(0, Number(target.dataset.tokens || 0));
+    const level = Number(target.dataset.level || 0);
     if (!toyId) return;
-
-    const isStop = target.classList.contains("active");
-    const level = isStop ? 0 : presetLevel;
-    applyToyIntensity(toyId, level, {
-      throttle: false,
-      tokens: isStop ? 0 : presetTokens,
-    });
+    toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
+    toyControlState[toyId].level = Math.min(100, level);
+    const slider = els.toyControlList.querySelector(`.toy-slider[data-toy-id="${toyId}"]`);
+    if (slider instanceof HTMLInputElement) slider.value = String(Math.min(100, level));
+    clearToyThrottleState(toyId);
+    sendToyPayload(Math.min(100, level), toyId, Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k]));
+    updateToyPresetActive(toyId, Math.min(100, level));
   });
 
   els.toyControlList.addEventListener("input", (e) => {
@@ -647,7 +556,14 @@ function initDynamicToyControls() {
     const toyId = target.dataset.toyId;
     if (!toyId) return;
     const level = Math.max(0, Math.min(100, Number(target.value) || 0));
-    applyToyIntensity(toyId, level, { throttle: level > 0 });
+    toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
+    toyControlState[toyId].level = level;
+    updateToyPresetActive(toyId, level);
+    scheduleToyPayload(
+      level,
+      toyId,
+      Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k])
+    );
   });
 
   els.toyControlList.addEventListener("change", (e) => {
@@ -715,10 +631,6 @@ function normalizeDataPayload(raw) {
 function handleIncomingDataMessage(raw) {
   const data = normalizeDataPayload(raw);
   if (!data) return;
-  if (data.type === "toy_inventory") {
-    handleIncomingToyInventory(data);
-    return;
-  }
   if (data.type === "toy") {
     handleIncomingToyPayload(data);
     return;
@@ -783,6 +695,14 @@ function setLovenseStatus(text) {
   if (els.lovenseStatus) els.lovenseStatus.textContent = text || "";
 }
 
+function isLovenseReady() {
+  return (
+    lovenseReady &&
+    camExtensionInstance &&
+    typeof camExtensionInstance.receiveTip === "function"
+  );
+}
+
 function syncLovenseFromBridge() {
   const bridge = window.dualPeerLovense;
   if (!bridge) return;
@@ -808,7 +728,7 @@ function onLovenseReady(detail) {
       (detail && detail.toys) || window.dualPeerLovense?.toys
     );
   }
-  broadcastLocalToyInventory();
+  renderToyControls((detail && detail.toys) || window.dualPeerLovense?.toys);
 }
 
 function onLovenseError(detail) {
@@ -825,7 +745,7 @@ function onLovenseError(detail) {
 
 function onLovenseToys(toys) {
   if (els.lovenseToyStatus) els.lovenseToyStatus.textContent = formatLovenseToys(toys);
-  broadcastLocalToyInventory();
+  renderToyControls(toys);
 }
 
 function initLovenseIfPresent() {
@@ -866,50 +786,64 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
 
-function handleIncomingToyInventory(data) {
-  if (!data || typeof data !== "object" || data.type !== "toy_inventory") return;
-  const toys = Array.isArray(data.toys) ? data.toys.map(normalizeToyForPeer) : [];
-  partnerRemoteToys = toys;
-  renderToyControls(partnerRemoteToys);
-  if (toys.length) {
-    setDataActivityStatus(`Partner shared ${toys.length} toy(s) — remote control ready.`, "ok");
-  } else {
-    setDataActivityStatus("Partner has no toys connected.", "err");
-  }
+/** Tip in Tokens (nicht 0-100 Intensität). Gibt true zurück, wenn receiveTip ausgeführt wurde. */
+function fireLovenseTip(amount, tipperName) {
+    const tokens = Math.round(Number(amount));
+    if (!tokens || tokens < 1) return false;
+
+    syncLovenseFromBridge();
+    const bridge = window.dualPeerLovense;
+
+    // HIER den try-Block öffnen: Er sichert alles ab, was danach kommt
+    try {
+        // 1. Prüfung: Gibt es die moderne Bridge-Schnittstelle?
+        if (bridge && typeof bridge.receiveTip === "function") {
+            const ok = bridge.receiveTip(tokens, tipperName || "Remote");
+            if (ok) {
+                console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
+                return true; 
+            } else {
+                console.warn("Lovense not ready — receiveTip queued or failed.");
+                return false;
+            }
+        }
+
+        // 2. Fallback: Falls 'bridge' nicht da ist, aber die alte 'camExtensionInstance' existiert
+        if (typeof camExtensionInstance !== "undefined" && typeof camExtensionInstance.receiveTip === "function") {
+            console.log(`Fallback receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
+            camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
+            return true;
+        }
+
+        // Wenn weder Bridge noch alte Instanz gefunden wurden
+        console.warn("Lovense extension is not ready or not installed.");
+        return false;
+
+    } catch (error) {
+        // HIER am Ende des Blocks den Fehler abfangen, falls beim Aufruf etwas crasht
+        console.error("Error while executing fireLovenseTip:", error);
+        return false;
+    }
 }
+
 
 function handleIncomingToyPayload(data) {
   if (!data || typeof data !== "object") return;
   if (data.type !== "toy") return;
-
-  const level = Math.max(0, Math.min(100, Number(data.level) || 0));
+  const level = Math.min(100, Math.max(0, Number(data.level) || 0));
+  const tip = Number(data.tipAmount) || Math.max(1, Math.round(level / 5));
   const name = data.tipperName || "Partner";
-  const tokens = Math.round(Number(data.tipAmount) || 0);
-
-  if (level > 0) {
-    pulseFor("local", 600 + level * 5);
-  }
-
-  syncLovenseFromBridge();
-  const bridge = window.dualPeerLovense;
-  let ok = false;
-
-  if (level <= 0 || tokens <= 0) {
-    ok = bridge && typeof bridge.stopToys === "function" ? bridge.stopToys() : false;
-    setDataActivityStatus(ok ? "Stop received — local toys halted." : "Stop received.", ok ? "ok" : "err");
+  if (level <= 0) {
+    setDataActivityStatus(`Stop command received${data.toyId ? ` for ${data.toyId}` : ""}.`, "ok");
     return;
   }
+  pulseFor("local", 600 + level * 5);
 
-  if (bridge && typeof bridge.applyRemoteControl === "function") {
-    ok = bridge.applyRemoteControl(data);
-  } else if (bridge && typeof bridge.receiveTip === "function") {
-    ok = bridge.receiveTip(tokens, name);
-  }
-
-  setDataActivityStatus(
-    ok ? `Received ${tokens} tokens from ${name}.` : `Received from ${name} — ${lovenseNotReadyMessage()}`,
-    ok ? "ok" : "err"
-  );
+  const ok = fireLovenseTip(tip, name);
+  const msg = ok
+    ? `Received: ${tip} tokens from ${name}.`
+    : `Received from ${name} — Lovense: ${lovenseNotReadyMessage()}`;
+  setDataActivityStatus(msg, ok ? "ok" : "err");
 }
 
 function handleIncomingToySpecialPayload(data) {
@@ -930,14 +864,11 @@ function setupDataConnection(conn) {
   conn.on("data", handleIncomingDataMessage);
   conn.on("close", () => {
     dataConn = null;
-    partnerRemoteToys = [];
-    renderToyControls([]);
     updateConnectionUi();
     setPeerStatus("Partner disconnected.", "err");
   });
   conn.on("open", () => {
     updateConnectionUi();
-    broadcastLocalToyInventory();
   });
   conn.on("error", (err) => {
     setDataActivityStatus(
@@ -1145,17 +1076,30 @@ function lovenseNotReadyMessage() {
   if (!lovenseReady) {
     return "Extension not ready — in Chrome select test:Tangent-Club and verify widget on this page.";
   }
-  return "receiveTip not available — extension ready?";
+  return "receiveTip not available.";
 }
 
 function initHardwareTestControls() {
+  const intensityRange = document.getElementById("intensityRange");
+  const intensityValue = document.getElementById("intensityValue");
+  if (intensityRange && intensityValue) {
+    intensityRange.addEventListener("change", (e) => {
+      const val = Number(e.target.value);
+      intensityValue.textContent = val + "%";
+      if (val <= 0) return;
+
+      const tokens = Math.max(1, Math.round(val / 4));
+      if (!fireLovenseTip(tokens, "Local-Test")) {
+        console.warn("Hardware test:", lovenseNotReadyMessage());
+      }
+    });
+  }
+
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
     testDevice.addEventListener("click", () => {
-      syncLovenseFromBridge();
-      const bridge = window.dualPeerLovense;
-      if (bridge && typeof bridge.receiveTip === "function" && bridge.receiveTip(25, "Local-Test")) {
-        alert("Local test tip (25 tokens) sent. Is your toy vibrating?");
+      if (fireLovenseTip(25, "Connection-Test")) {
+        alert("Test signal (25 tokens) sent to Lovense. Is the toy vibrating?");
       } else {
         alert("Lovense not ready: " + lovenseNotReadyMessage());
       }
