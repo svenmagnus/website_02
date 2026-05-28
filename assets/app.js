@@ -314,8 +314,10 @@ const TOY_PRESET_LEVELS = [
   { label: "Medium", value: 45 },
   { label: "High", value: 70 },
   { label: "Max", value: 100 },
-  { label: "Ultra", value: 120 },
+  { label: "Ultra", value: 100 },
 ];
+
+const TOY_VIBRATE_MAX_STRENGTH = 20;
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake" },
@@ -334,29 +336,64 @@ function getConnectedToys() {
   return [{ id: "default-toy", type: "Toy", status: "on" }];
 }
 
-function sendToyPayload(level, toyId, special) {
-  if (!dataConn || !dataConn.open) {
-    setDataActivityStatus("No data channel — connect first.", "err");
-    return;
-  }
+function percentToVibrateStrength(levelPercent) {
+  const level = Math.max(0, Math.min(100, Number(levelPercent) || 0));
+  return Math.max(0, Math.min(TOY_VIBRATE_MAX_STRENGTH, Math.round((level / 100) * TOY_VIBRATE_MAX_STRENGTH)));
+}
 
-  const levelNum = Math.max(0, Number(level) || 0);
+/**
+ * Direct hardware vibration — no virtual tips/tokens.
+ * Payload shape: { type: "toy", action: "Vibrate", strength: 0..20 }
+ */
+function sendDirectVibration(levelPercent, toyId) {
+  const strength = percentToVibrateStrength(levelPercent);
+  const modelName = (window.__LOVENSE_MODEL_NAME__ || "model1").trim() || "model1";
+  const safeToyId = toyId || "default-toy";
+
   const payload = {
     type: "toy",
-    toyId,
-    level: levelNum,
-    tipperName: "Partner",
-    special: Array.isArray(special) ? special : [],
-    ts: Date.now(),
+    action: "Vibrate",
+    strength,
+    model: modelName,
   };
+  if (safeToyId && safeToyId !== "default-toy") payload.toyId = safeToyId;
 
   try {
-    dataConn.send(payload);
-    if (levelNum <= 0) {
-      setDataActivityStatus(`Stop sent for ${toyId}.`, "ok");
-    } else {
-      setDataActivityStatus(`Sent ${levelNum}% to ${toyId}.`, "ok");
+    if (typeof window.lovense !== "undefined" && typeof window.lovense.sendAction === "function") {
+      window.lovense.sendAction(payload);
+      return true;
     }
+
+    const bridge = window.dualPeerLovense;
+    if (bridge && typeof bridge.sendVibrate === "function") {
+      return bridge.sendVibrate(strength, safeToyId !== "default-toy" ? safeToyId : undefined);
+    }
+    if (bridge && bridge.instance && typeof bridge.instance.sendAction === "function") {
+      bridge.instance.sendAction(payload);
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Direct vibrate command failed:", error);
+    return false;
+  }
+}
+
+function sendRemoteIntensity(levelPercent, toyId) {
+  if (!dataConn || !dataConn.open) {
+    setDataActivityStatus("No data channel — connect first.", "err");
+    return false;
+  }
+  const level = Math.max(0, Math.min(100, Math.round(Number(levelPercent) || 0)));
+  try {
+    dataConn.send({
+      type: "toy",
+      toyId: toyId || "default-toy",
+      level,
+      ts: Date.now(),
+    });
+    setDataActivityStatus(level <= 0 ? `Stop sent to partner (${toyId}).` : `Intensity ${level}% sent to partner.`, "ok");
   } catch (e) {
     setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
   }
@@ -384,15 +421,48 @@ function clearAllToyPendingSends() {
   Object.keys(toyThrottleState).forEach((toyId) => clearToyThrottleState(toyId));
 }
 
-function scheduleToyPayload(level, toyId, special) {
-  const safeToyId = toyId || "default-toy";
-  const levelNum = Math.max(0, Math.min(100, Number(level) || 0));
-  const specials = Array.isArray(special) ? special : [];
+function flushToyIntensity(levelPercent, toyId, remote) {
+  sendDirectVibration(levelPercent, toyId);
+  if (remote) sendRemoteIntensity(levelPercent, toyId);
+}
 
-  // Priority stop: cancel all pending sends and stop immediately.
-  if (levelNum === 0) {
+function applyToyIntensity(toyId, levelPercent, options) {
+  const opts = options || {};
+  const remote = opts.remote !== false;
+  const throttle = !!opts.throttle;
+  const safeToyId = toyId || "default-toy";
+  const level = Math.max(0, Math.min(100, Math.round(Number(levelPercent) || 0)));
+
+  toyControlState[safeToyId] = toyControlState[safeToyId] || { level: 0, specials: {} };
+  toyControlState[safeToyId].level = level;
+
+  const slider = els.toyControlList?.querySelector(`.toy-slider[data-toy-id="${safeToyId}"]`);
+  if (slider instanceof HTMLInputElement) slider.value = String(level);
+  updateToyPresetActive(safeToyId, level);
+
+  if (level === 0) {
+    clearToyThrottleState(safeToyId);
+    flushToyIntensity(0, safeToyId, remote);
+    return;
+  }
+
+  if (throttle) {
+    scheduleVibrate(level, safeToyId, remote);
+    return;
+  }
+
+  clearToyThrottleState(safeToyId);
+  flushToyIntensity(level, safeToyId, remote);
+}
+
+function scheduleVibrate(levelPercent, toyId, remote) {
+  const sendRemote = remote !== false;
+  const safeToyId = toyId || "default-toy";
+  const level = Math.max(0, Math.min(100, Number(levelPercent) || 0));
+
+  if (level === 0) {
     clearAllToyPendingSends();
-    sendToyPayload(0, safeToyId, specials);
+    flushToyIntensity(0, safeToyId, sendRemote);
     return;
   }
 
@@ -402,11 +472,11 @@ function scheduleToyPayload(level, toyId, special) {
 
   if (elapsed >= TOY_SLIDER_THROTTLE_MS) {
     state.lastSentAt = now;
-    sendToyPayload(levelNum, safeToyId, specials);
+    flushToyIntensity(level, safeToyId, sendRemote);
     return;
   }
 
-  state.pending = { level: levelNum, special: specials };
+  state.pending = { level, remote: sendRemote };
   if (state.trailingTimer) return;
 
   const waitMs = TOY_SLIDER_THROTTLE_MS - elapsed;
@@ -416,21 +486,19 @@ function scheduleToyPayload(level, toyId, special) {
     const pending = state.pending;
     state.pending = null;
     state.lastSentAt = Date.now();
-    sendToyPayload(pending.level, safeToyId, pending.special);
+    flushToyIntensity(pending.level, safeToyId, pending.remote);
   }, waitMs);
 }
 
-function updateToyPresetActive(toyId, level) {
+function updateToyPresetActive(toyId, activeLevelPercent) {
   if (!els.toyControlList || !toyId) return;
-  const numericLevel = Math.max(0, Math.min(100, Number(level) || 0));
-  const activeLevel =
-    numericLevel > 0 && TOY_PRESET_LEVELS.some((p) => Number(p.value) === numericLevel)
-      ? numericLevel
-      : null;
+  const level = Math.max(0, Math.min(100, Number(activeLevelPercent) || 0));
+  const activeValue =
+    level > 0 && TOY_PRESET_LEVELS.some((p) => Number(p.value) === level) ? level : null;
   const buttons = els.toyControlList.querySelectorAll(`.toy-preset-btn[data-toy-id="${toyId}"]`);
   buttons.forEach((btn) => {
     const btnLevel = Number(btn.getAttribute("data-level") || 0);
-    btn.classList.toggle("active", activeLevel !== null && btnLevel === activeLevel);
+    btn.classList.toggle("active", activeValue !== null && btnLevel === activeValue);
   });
 }
 
@@ -536,15 +604,11 @@ function initDynamicToyControls() {
     if (!(target instanceof HTMLElement)) return;
     if (!target.classList.contains("toy-preset-btn")) return;
     const toyId = target.dataset.toyId;
-    const level = Number(target.dataset.level || 0);
+    const presetLevel = Math.min(100, Number(target.dataset.level || 0));
     if (!toyId) return;
-    toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
-    toyControlState[toyId].level = Math.min(100, level);
-    const slider = els.toyControlList.querySelector(`.toy-slider[data-toy-id="${toyId}"]`);
-    if (slider instanceof HTMLInputElement) slider.value = String(Math.min(100, level));
-    clearToyThrottleState(toyId);
-    sendToyPayload(Math.min(100, level), toyId, Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k]));
-    updateToyPresetActive(toyId, Math.min(100, level));
+
+    const level = target.classList.contains("active") ? 0 : presetLevel;
+    applyToyIntensity(toyId, level, { throttle: false });
   });
 
   els.toyControlList.addEventListener("input", (e) => {
@@ -554,14 +618,7 @@ function initDynamicToyControls() {
     const toyId = target.dataset.toyId;
     if (!toyId) return;
     const level = Math.max(0, Math.min(100, Number(target.value) || 0));
-    toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
-    toyControlState[toyId].level = level;
-    updateToyPresetActive(toyId, level);
-    scheduleToyPayload(
-      level,
-      toyId,
-      Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k])
-    );
+    applyToyIntensity(toyId, level, { throttle: level > 0 });
   });
 
   els.toyControlList.addEventListener("change", (e) => {
@@ -776,62 +833,23 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
 
-/** Direct toy control (no virtual tips). Sends vibrate command with 0..20 intensity. */
-function sendDirectVibration(levelPercent, toyId) {
-  const level = Math.max(0, Math.min(100, Number(levelPercent) || 0));
-  const vapi = Math.max(0, Math.min(20, Math.round(level / 5)));
-  const modelName = (window.__LOVENSE_MODEL_NAME__ || "model1").trim() || "model1";
-  const bridge = window.dualPeerLovense;
-
-  try {
-    // Prefer direct local API to bypass tip reaction-time rules.
-    if (typeof window.lovense !== "undefined" && typeof window.lovense.sendAction === "function") {
-      const payload = { model: modelName, action: "vibrate", vapi };
-      if (toyId) payload.toyId = toyId;
-      window.lovense.sendAction(payload);
-      return true;
-    }
-
-    // Optional fallback if a bridge exposes direct command channel.
-    if (bridge && bridge.instance && typeof bridge.instance.sendAction === "function") {
-      const payload = { model: modelName, action: "vibrate", vapi };
-      if (toyId) payload.toyId = toyId;
-      bridge.instance.sendAction(payload);
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    console.error("Error while executing direct vibrate command:", error);
-    return false;
-  }
-}
-
-
 function handleIncomingToyPayload(data) {
   if (!data || typeof data !== "object") return;
   if (data.type !== "toy") return;
-  const level = Math.min(100, Math.max(0, Number(data.level) || 0));
+
+  const level = Math.max(0, Math.min(100, Number(data.level) || 0));
+  const toyId = data.toyId || "default-toy";
   const name = data.tipperName || "Partner";
-  const toyId = data.toyId || "toy";
 
   if (level <= 0) {
-    const stopped = sendDirectVibration(0, toyId);
-    setDataActivityStatus(
-      stopped
-        ? `Stop command applied immediately for ${toyId}.`
-        : `Stop command received for ${toyId}, but direct control is unavailable.`,
-      stopped ? "ok" : "err"
-    );
+    sendDirectVibration(0, toyId);
+    setDataActivityStatus(`Stop received for ${toyId}.`, "ok");
     return;
   }
-  pulseFor("local", 600 + level * 5);
 
-  const ok = sendDirectVibration(level, toyId);
-  const msg = ok
-    ? `Received intensity ${level}% from ${name}.`
-    : `Received from ${name} — Lovense: ${lovenseNotReadyMessage()}`;
-  setDataActivityStatus(msg, ok ? "ok" : "err");
+  pulseFor("local", 600 + level * 5);
+  sendDirectVibration(level, toyId);
+  setDataActivityStatus(`Intensity ${level}% received from ${name}.`, "ok");
 }
 
 function handleIncomingToySpecialPayload(data) {
@@ -1071,11 +1089,14 @@ function initHardwareTestControls() {
   const intensityRange = document.getElementById("intensityRange");
   const intensityValue = document.getElementById("intensityValue");
   if (intensityRange && intensityValue) {
-    intensityRange.addEventListener("change", (e) => {
-      const val = Number(e.target.value);
+    intensityRange.addEventListener("input", (e) => {
+      const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
       intensityValue.textContent = val + "%";
-      if (!sendDirectVibration(val, "local-test")) {
-        console.warn("Hardware test:", lovenseNotReadyMessage());
+      if (val === 0) {
+        clearToyThrottleState("local-test");
+        sendDirectVibration(0, "local-test");
+      } else {
+        scheduleVibrate(val, "local-test", false);
       }
     });
   }
@@ -1083,8 +1104,8 @@ function initHardwareTestControls() {
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
     testDevice.addEventListener("click", () => {
-      if (sendDirectVibration(60, "connection-test")) {
-        alert("Direct vibrate test sent (60%). Is the toy vibrating?");
+      if (sendDirectVibration(80, "connection-test")) {
+        alert("Direct vibrate test sent. Is the toy vibrating?");
       } else {
         alert("Lovense not ready: " + lovenseNotReadyMessage());
       }
