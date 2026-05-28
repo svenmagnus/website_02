@@ -47,7 +47,6 @@ const els = {
   stage: $("#stage"),
   localVideo: $("#localVideo"),
   remoteVideo: $("#remoteVideo"),
-  localPlaceholder: $("#localPlaceholder"),
   remotePlaceholder: $("#remotePlaceholder"),
   localPulse: $("#localPulse"),
   remotePulse: $("#remotePulse"),
@@ -185,29 +184,19 @@ function setStatus(el, text, cls) {
   el.className = "status-line" + (cls ? " " + cls : "");
 }
 
-function setPlaceholderVisible(local, visible) {
-  const ph = local ? els.localPlaceholder : els.remotePlaceholder;
+function setRemotePlaceholderVisible(visible) {
+  const ph = els.remotePlaceholder;
   if (!ph) return;
   ph.style.display = visible ? "flex" : "none";
   ph.hidden = !visible;
 }
 
-function showPlaceholder(local, show) {
-  setPlaceholderVisible(local, show);
-}
-
 function refreshVideoOverlays() {
-  const localActive =
-    !!getActiveLocalStream() ||
-    (els.localVideo?.srcObject instanceof MediaStream &&
-      els.localVideo.srcObject.getTracks().some((t) => t.readyState !== "ended"));
-
   const remoteActive =
     els.remoteVideo?.srcObject instanceof MediaStream &&
     els.remoteVideo.srcObject.getTracks().some((t) => t.readyState !== "ended");
 
-  setPlaceholderVisible(true, !localActive);
-  setPlaceholderVisible(false, !remoteActive);
+  setRemotePlaceholderVisible(!remoteActive);
 }
 
 function pulseFor(side, ms = 800) {
