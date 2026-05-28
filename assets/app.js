@@ -325,8 +325,8 @@ const TOY_SPECIAL_COMMANDS = [
 ];
 
 let toyControlState = {};
-const TOY_SLIDER_SEND_DELAY_MS = 120;
-let toySendTimers = {};
+const TOY_SLIDER_THROTTLE_MS = 150;
+let toyThrottleState = {};
 
 function getConnectedToys() {
   const toys = window.dualPeerLovense?.toys;
@@ -364,30 +364,76 @@ function sendToyPayload(level, toyId, special) {
   }
 }
 
-function clearToySendTimer(toyId) {
-  const timerId = toySendTimers[toyId];
-  if (timerId) {
-    clearTimeout(timerId);
-    delete toySendTimers[toyId];
+function getToyThrottleState(toyId) {
+  const id = toyId || "default-toy";
+  if (!toyThrottleState[id]) {
+    toyThrottleState[id] = { lastSentAt: 0, trailingTimer: null, pending: null };
   }
+  return toyThrottleState[id];
+}
+
+function clearToyThrottleState(toyId) {
+  const state = toyThrottleState[toyId];
+  if (!state) return;
+  if (state.trailingTimer) {
+    clearTimeout(state.trailingTimer);
+    state.trailingTimer = null;
+  }
+  state.pending = null;
+}
+
+function clearAllToyPendingSends() {
+  Object.keys(toyThrottleState).forEach((toyId) => clearToyThrottleState(toyId));
 }
 
 function scheduleToyPayload(level, toyId, special) {
   const safeToyId = toyId || "default-toy";
   const levelNum = Math.max(0, Math.min(100, Number(level) || 0));
+  const specials = Array.isArray(special) ? special : [];
 
-  // Priority stop: send intensity 0 immediately.
+  // Priority stop: cancel all pending sends and stop immediately.
   if (levelNum === 0) {
-    clearToySendTimer(safeToyId);
-    sendToyPayload(0, safeToyId, special);
+    clearAllToyPendingSends();
+    sendToyPayload(0, safeToyId, specials);
     return;
   }
 
-  clearToySendTimer(safeToyId);
-  toySendTimers[safeToyId] = setTimeout(() => {
-    sendToyPayload(levelNum, safeToyId, special);
-    delete toySendTimers[safeToyId];
-  }, TOY_SLIDER_SEND_DELAY_MS);
+  const state = getToyThrottleState(safeToyId);
+  const now = Date.now();
+  const elapsed = now - state.lastSentAt;
+
+  if (elapsed >= TOY_SLIDER_THROTTLE_MS) {
+    state.lastSentAt = now;
+    sendToyPayload(levelNum, safeToyId, specials);
+    return;
+  }
+
+  state.pending = { level: levelNum, special: specials };
+  if (state.trailingTimer) return;
+
+  const waitMs = TOY_SLIDER_THROTTLE_MS - elapsed;
+  state.trailingTimer = setTimeout(() => {
+    state.trailingTimer = null;
+    if (!state.pending) return;
+    const pending = state.pending;
+    state.pending = null;
+    state.lastSentAt = Date.now();
+    sendToyPayload(pending.level, safeToyId, pending.special);
+  }, waitMs);
+}
+
+function updateToyPresetActive(toyId, level) {
+  if (!els.toyControlList || !toyId) return;
+  const numericLevel = Math.max(0, Math.min(100, Number(level) || 0));
+  const activeLevel =
+    numericLevel > 0 && TOY_PRESET_LEVELS.some((p) => Number(p.value) === numericLevel)
+      ? numericLevel
+      : null;
+  const buttons = els.toyControlList.querySelectorAll(`.toy-preset-btn[data-toy-id="${toyId}"]`);
+  buttons.forEach((btn) => {
+    const btnLevel = Number(btn.getAttribute("data-level") || 0);
+    btn.classList.toggle("active", activeLevel !== null && btnLevel === activeLevel);
+  });
 }
 
 function sendToySpecialPayload(toyId, special, checked) {
@@ -440,6 +486,9 @@ function renderToyControls(toys) {
       b.textContent = preset.label;
       b.dataset.toyId = toyId;
       b.dataset.level = String(preset.value);
+      if ((toyControlState[toyId].level || 0) > 0 && Number(preset.value) === Number(toyControlState[toyId].level)) {
+        b.classList.add("active");
+      }
       btnRow.appendChild(b);
     });
     block.appendChild(btnRow);
@@ -495,7 +544,9 @@ function initDynamicToyControls() {
     toyControlState[toyId].level = Math.min(100, level);
     const slider = els.toyControlList.querySelector(`.toy-slider[data-toy-id="${toyId}"]`);
     if (slider instanceof HTMLInputElement) slider.value = String(Math.min(100, level));
+    clearToyThrottleState(toyId);
     sendToyPayload(Math.min(100, level), toyId, Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k]));
+    updateToyPresetActive(toyId, Math.min(100, level));
   });
 
   els.toyControlList.addEventListener("input", (e) => {
@@ -507,6 +558,7 @@ function initDynamicToyControls() {
     const level = Math.max(0, Math.min(100, Number(target.value) || 0));
     toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
     toyControlState[toyId].level = level;
+    updateToyPresetActive(toyId, level);
     scheduleToyPayload(
       level,
       toyId,

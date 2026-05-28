@@ -602,6 +602,13 @@ video {
   background: rgba(124, 92, 255, 0.16);
 }
 
+.toy-preset-btn.active {
+  background: linear-gradient(135deg, #ff6b35 0%, #c44f28 100%);
+  color: #fff;
+  border-color: rgba(255, 128, 82, 0.9);
+  box-shadow: 0 0 14px rgba(255, 107, 53, 0.35);
+}
+
 .toy-slider-row {
   display: flex;
   align-items: center;
