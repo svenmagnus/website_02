@@ -159,24 +159,17 @@
         <div class="card">
           <h2>Remote Control</h2>
           <p class="status-line" style="margin: 0 0 0.5rem">
-            Per-toy controls are generated dynamically. Slider at 0 sends a stop command.
+            Controls your partner&apos;s toys only (list comes from peer). Slider at 0 sends an immediate stop.
           </p>
           <div id="toyControlList" class="toy-control-list" aria-live="polite">
-            <div class="toy-empty-note">No connected toys detected yet.</div>
+            <div class="toy-empty-note">Waiting for partner toys — connect via PeerJS.</div>
           </div>
         </div>
       </section>
-          <!-- Test- und Steuerungsbereich -->
-<div id="test-area" class="login-overlay-row" style="margin-top: 20px; border-top: 1px solid #ccc;padding-top: 15px;">
-  <h3>Toy Self Control</h3>
-    <!-- Schieberegler für das Toy -->
-  <div class="control-group" style="margin: 15px 0;">
-      <label for="intensityRange">Intensity (Self-Pleasure Mode):</label>
-      <input type="range" id="intensityRange" min="0" max="100" value="0" style="width: 100%;">
-      <span id="intensityValue">0%</span>
-  </div>
-
-  <button type="button" class="secondary" id="testDevice">Test toy connection</button>
+          <div id="test-area" class="login-overlay-row" style="margin-top: 20px; border-top: 1px solid #ccc;padding-top: 15px;">
+  <h3>Lovense local test</h3>
+  <p class="status-line" style="margin: 0 0 0.5rem">Fires a local receiveTip(25) on this machine only — use Remote Control above to steer the partner.</p>
+  <button type="button" class="secondary" id="testDevice">Test local toy (25 tokens)</button>
 </div>
     </main>
 

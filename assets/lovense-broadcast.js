@@ -1,6 +1,5 @@
 /**
- * Lovense Cam Extension — initialization per developer docs:
- * broadcast.js → new CamExtension(site, model) → on("ready") → direct sendAction (no receiveTip).
+ * Lovense Cam Extension — receiveTip for local toys; remote commands from peer.
  * https://developer.lovense.com/docs/cam-solutions/cam-extension-for-chrome
  */
 (function (global) {
@@ -10,38 +9,86 @@
     error: null,
     toys: [],
     version: null,
+    pendingTips: [],
   };
 
   function dispatch(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail }));
   }
 
-  function sendVibrate(strength, toyId) {
-    const model = global.__LOVENSE_MODEL_NAME__ || "model1";
-    const level = Math.max(0, Math.min(20, Math.round(Number(strength) || 0)));
-    const payload = {
-      type: "toy",
-      action: "Vibrate",
-      strength: level,
-      model,
-    };
-    if (toyId) payload.toyId = toyId;
+  function flushPendingTips() {
+    if (!state.ready || !state.instance) return;
+    while (state.pendingTips.length) {
+      const tip = state.pendingTips.shift();
+      try {
+        state.instance.receiveTip(tip.amount, tip.tipperName, tip.cParameter || {});
+      } catch (e) {
+        console.error("[Lovense] receiveTip (queued) failed:", e);
+      }
+    }
+  }
+
+  function receiveTip(amount, tipperName, cParameter) {
+    const tokens = Math.round(Number(amount));
+    if (!tokens || tokens < 1) return false;
+    const name = String(tipperName || "Remote").slice(0, 40);
+    const params = cParameter && typeof cParameter === "object" ? cParameter : {};
 
     if (!state.instance) return false;
-    try {
-      if (typeof state.instance.sendAction === "function") {
-        state.instance.sendAction(payload);
-        return true;
-      }
-      if (typeof global.lovense !== "undefined" && typeof global.lovense.sendAction === "function") {
-        global.lovense.sendAction(payload);
-        return true;
-      }
-      return false;
-    } catch (e) {
-      console.error("[Lovense] sendVibrate failed:", e);
+    if (!state.ready) {
+      state.pendingTips.push({ amount: tokens, tipperName: name, cParameter: params });
       return false;
     }
+
+    try {
+      state.instance.receiveTip(tokens, name, params);
+      return true;
+    } catch (e) {
+      console.error("[Lovense] receiveTip failed:", e);
+      return false;
+    }
+  }
+
+  function stopToys() {
+    let stopped = false;
+
+    try {
+      if (typeof global.lovense !== "undefined" && typeof global.lovense.sendCommand === "function") {
+        global.lovense.sendCommand({
+          command: "Function",
+          action: "Stop",
+          timeSec: 0,
+          apiVer: 1,
+        });
+        stopped = true;
+      }
+    } catch (e) {
+      console.warn("[Lovense] sendCommand(Stop) failed:", e);
+    }
+
+    if (!state.instance || !state.ready) return stopped;
+
+    try {
+      state.instance.receiveTip(1, "Stop", { specialType: "clear" });
+      stopped = true;
+    } catch (e) {
+      console.warn("[Lovense] receiveTip(clear) failed:", e);
+    }
+
+    return stopped;
+  }
+
+  /** Apply a toy command received from the partner over PeerJS. */
+  function applyRemoteControl(data) {
+    if (!data || typeof data !== "object") return false;
+    const level = Math.max(0, Math.min(100, Number(data.level) || 0));
+    const tokens = Math.round(Number(data.tipAmount) || 0);
+
+    if (level <= 0 || tokens <= 0) {
+      return stopToys();
+    }
+
+    return receiveTip(tokens, data.tipperName || "Remote");
   }
 
   function init() {
@@ -72,6 +119,7 @@
         } catch (e) {
           console.warn("[Lovense] version/toy status:", e);
         }
+        flushPendingTips();
         dispatch("dualpeer-lovense-ready", {
           instance: state.instance,
           version: state.version,
@@ -110,7 +158,9 @@
     get version() {
       return state.version;
     },
-    sendVibrate,
+    receiveTip,
+    stopToys,
+    applyRemoteControl,
     getSiteName() {
       return global.LOVENSE_SITE_NAME || "test:Tangent-Club";
     },
