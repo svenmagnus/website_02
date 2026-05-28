@@ -337,15 +337,31 @@ function handleIncomingChatPayload(data) {
   appendChatMessage(sender, text, false, data.ts);
 }
 
-function handleIncomingDataMessage(data) {
-  if (!data || typeof data !== "object") return;
+function normalizeDataPayload(raw) {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch (_) {
+      return { type: "chat", text: raw };
+    }
+  }
+  return null;
+}
+
+function handleIncomingDataMessage(raw) {
+  const data = normalizeDataPayload(raw);
+  if (!data) return;
   if (data.type === "toy") {
     handleIncomingToyPayload(data);
     return;
   }
   if (data.type === "chat") {
     handleIncomingChatPayload(data);
+    return;
   }
+  setDataActivityStatus("Unknown data message received.", "err");
 }
 
 function sendChatMessage() {
@@ -367,6 +383,7 @@ function sendChatMessage() {
     dataConn.send(payload);
     appendChatMessage("You", text, true, payload.ts);
     els.chatInput.value = "";
+    setDataActivityStatus("Chat message sent.", "ok");
   } catch (e) {
     setDataActivityStatus("Chat send failed: " + (e && e.message ? e.message : String(e)), "err");
   }
@@ -377,6 +394,7 @@ function initChatControls() {
     appendChatMessage("System", "Data-channel chat ready. Messages appear here.", false, Date.now());
   }
   if (els.chatSend) {
+    els.chatSend.type = "button";
     els.chatSend.addEventListener("click", sendChatMessage);
   }
   if (els.chatInput) {
