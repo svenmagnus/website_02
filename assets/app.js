@@ -325,6 +325,8 @@ const TOY_SPECIAL_COMMANDS = [
 ];
 
 let toyControlState = {};
+const TOY_SLIDER_SEND_DELAY_MS = 120;
+let toySendTimers = {};
 
 function getConnectedToys() {
   const toys = window.dualPeerLovense?.toys;
@@ -360,6 +362,32 @@ function sendToyPayload(level, toyId, special) {
   } catch (e) {
     setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
   }
+}
+
+function clearToySendTimer(toyId) {
+  const timerId = toySendTimers[toyId];
+  if (timerId) {
+    clearTimeout(timerId);
+    delete toySendTimers[toyId];
+  }
+}
+
+function scheduleToyPayload(level, toyId, special) {
+  const safeToyId = toyId || "default-toy";
+  const levelNum = Math.max(0, Math.min(100, Number(level) || 0));
+
+  // Priority stop: send intensity 0 immediately.
+  if (levelNum === 0) {
+    clearToySendTimer(safeToyId);
+    sendToyPayload(0, safeToyId, special);
+    return;
+  }
+
+  clearToySendTimer(safeToyId);
+  toySendTimers[safeToyId] = setTimeout(() => {
+    sendToyPayload(levelNum, safeToyId, special);
+    delete toySendTimers[safeToyId];
+  }, TOY_SLIDER_SEND_DELAY_MS);
 }
 
 function sendToySpecialPayload(toyId, special, checked) {
@@ -479,7 +507,11 @@ function initDynamicToyControls() {
     const level = Math.max(0, Math.min(100, Number(target.value) || 0));
     toyControlState[toyId] = toyControlState[toyId] || { level: 0, specials: {} };
     toyControlState[toyId].level = level;
-    sendToyPayload(level, toyId, Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k]));
+    scheduleToyPayload(
+      level,
+      toyId,
+      Object.keys(toyControlState[toyId].specials).filter((k) => toyControlState[toyId].specials[k])
+    );
   });
 
   els.toyControlList.addEventListener("change", (e) => {
