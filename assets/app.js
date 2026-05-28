@@ -150,7 +150,7 @@ function initLayoutControls() {
   if (els.btnPipNativeRemote) els.btnPipNativeRemote.disabled = !pipOk;
   if (els.btnPipNativeLocal) els.btnPipNativeLocal.disabled = !pipOk;
   if (!pipOk) {
-    setPipNativeMessage("Browser-PiP wird hier nicht unterstützt.");
+    setPipNativeMessage("Browser PiP is not supported here.");
   }
 
   async function toggleDocumentPip(video) {
@@ -158,10 +158,10 @@ function initLayoutControls() {
     try {
       if (document.pictureInPictureElement === video) {
         await document.exitPictureInPicture();
-        setPipNativeMessage("PiP-Fenster geschlossen.");
+        setPipNativeMessage("PiP window closed.");
       } else {
         await video.requestPictureInPicture();
-        setPipNativeMessage("PiP-Fenster aktiv (Tab kann im Hintergrund bleiben).");
+        setPipNativeMessage("PiP window active (tab can stay in background).");
       }
     } catch (e) {
       setPipNativeMessage("PiP: " + (e && e.message ? e.message : String(e)));
@@ -243,8 +243,8 @@ function hangup() {
 }
 
 function resetConnectionLabels() {
-  setStatus(els.statusHost, "Host: noch nicht gestartet.");
-  setStatus(els.statusGuest, "Gast: noch nicht verbunden.");
+  setStatus(els.statusHost, "Host: not started yet.");
+  setStatus(els.statusGuest, "Guest: not connected yet.");
   updateConnectionUi();
 }
 
@@ -259,20 +259,20 @@ function updatePeerConnectionStatus() {
   if (sessionRole === "host") {
     if (!videoOk && !dataOk) return;
     if (videoOk && dataOk) {
-      setStatus(els.statusHost, "Partner verbunden (Video + Steuerung).", "ok");
+      setStatus(els.statusHost, "Partner connected (video + control).", "ok");
     } else if (videoOk) {
-      setStatus(els.statusHost, "Partner verbunden (Video).", "ok");
+      setStatus(els.statusHost, "Partner connected (video).", "ok");
     } else if (dataOk) {
-      setStatus(els.statusHost, "Partner verbunden (Steuerung).", "ok");
+      setStatus(els.statusHost, "Partner connected (control).", "ok");
     }
-    setStatus(els.statusGuest, "Partner verbunden.", "ok");
+    setStatus(els.statusGuest, "Partner connected.", "ok");
   } else if (sessionRole === "guest") {
     if (videoOk && dataOk) {
-      setStatus(els.statusGuest, "Verbunden (Video + Steuerung).", "ok");
+      setStatus(els.statusGuest, "Connected (video + control).", "ok");
     } else if (videoOk) {
-      setStatus(els.statusGuest, "Video verbunden — Steuerung: Verbindungsaufbau …", "ok");
+      setStatus(els.statusGuest, "Video connected — control: establishing …", "ok");
     } else if (peer) {
-      setStatus(els.statusGuest, "Verbindungsaufbau …", "ok");
+      setStatus(els.statusGuest, "Establishing connection …", "ok");
     }
   }
 }
@@ -282,13 +282,13 @@ function updateDataConnStatus() {
   if (dataConn && dataConn.open) {
     setStatus(
       els.statusData,
-      "Datenkanal: verbunden — Fernsteuerung aktiv (auch im Hintergrund-Tab).",
+      "Data channel: connected — remote control active (also in background tab).",
       "ok"
     );
   } else if (dataConn) {
-    setStatus(els.statusData, "Datenkanal: Verbindungsaufbau …");
+    setStatus(els.statusData, "Data channel: establishing …");
   } else {
-    setStatus(els.statusData, "Datenkanal: getrennt.");
+    setStatus(els.statusData, "Data channel: disconnected.");
   }
 }
 
@@ -406,9 +406,6 @@ function sendChatMessage() {
 }
 
 function initChatControls() {
-  if (els.chatMessages && !els.chatMessages.childElementCount) {
-    appendChatMessage("System", "Data-channel chat ready. Messages appear here.", false, Date.now());
-  }
   if (els.chatSend) {
     els.chatSend.type = "button";
     els.chatSend.addEventListener("click", sendChatMessage);
@@ -443,9 +440,9 @@ function syncLovenseFromBridge() {
 }
 
 function formatLovenseToys(toys) {
-  if (!toys || !toys.length) return "Kein Toy in der Extension verbunden.";
+  if (!toys || !toys.length) return "No toy connected in the extension.";
   return toys
-    .map((t) => `${t.type || "toy"}: ${t.status === "on" ? "an" : "aus"}${t.battery ? ` (${t.battery}%)` : ""}`)
+    .map((t) => `${t.type || "toy"}: ${t.status === "on" ? "on" : "off"}${t.battery ? ` (${t.battery}%)` : ""}`)
     .join(" · ");
 }
 
@@ -453,7 +450,7 @@ function onLovenseReady(detail) {
   syncLovenseFromBridge();
   const ver = (detail && detail.version) || window.dualPeerLovense?.version;
   setLovenseStatus(
-    `Extension bereit${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. Widget sichtbar?`
+    `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. Widget visible?`
   );
   if (els.lovenseToyStatus) {
     els.lovenseToyStatus.textContent = formatLovenseToys(
@@ -470,8 +467,8 @@ function onLovenseError(detail) {
       ? detail.message
       : detail && detail.code
         ? String(detail.code)
-        : "Unbekannter SDK-Fehler";
-  setLovenseStatus("Lovense Fehler: " + msg);
+        : "Unknown SDK error";
+  setLovenseStatus("Lovense error: " + msg);
 }
 
 function onLovenseToys(toys) {
@@ -483,21 +480,21 @@ function initLovenseIfPresent() {
 
   if (els.lovenseUrlHint) {
     els.lovenseUrlHint.textContent =
-      "Broadcast-URL (muss im Lovense-Dashboard passen): " + location.origin + location.pathname;
+      "Broadcast URL (must match Lovense dashboard): " + location.origin + location.pathname;
   }
 
   if (els.lovenseModelName) {
     els.lovenseModelName.value = window.__LOVENSE_MODEL_NAME__ || "model1";
     els.lovenseModelName.addEventListener("change", () => {
       window.__LOVENSE_MODEL_NAME__ = (els.lovenseModelName.value || "model1").trim() || "model1";
-      setLovenseStatus("Model-Name geändert — Seite neu laden, dann Extension erneut verbinden.");
+      setLovenseStatus("Model name changed — reload and reconnect the extension.");
     });
   }
 
 
 
   if (!window.dualPeerLovense) {
-    setLovenseStatus("lovense-broadcast.js fehlt — broadcast.js und lovense-broadcast.js prüfen.");
+    setLovenseStatus("lovense-broadcast.js missing — check broadcast.js and lovense-broadcast.js.");
     return;
   }
 
@@ -507,7 +504,7 @@ function initLovenseIfPresent() {
     onLovenseError(window.dualPeerLovense.error);
   } else {
     setLovenseStatus(
-      "SDK geladen — Chrome Cam Extension: test:Tangent-Club wählen, Toys koppeln, auf „bereit“ warten."
+      "SDK loaded — Chrome Cam Extension: select test:Tangent-Club, pair toys, and wait for 'ready'."
     );
   }
 
@@ -533,7 +530,7 @@ function fireLovenseTip(amount, tipperName) {
                 console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
                 return true; 
             } else {
-                console.warn("Lovense noch nicht bereit – receiveTip in Warteschlange oder fehlgeschlagen.");
+                console.warn("Lovense not ready — receiveTip queued or failed.");
                 return false;
             }
         }
@@ -546,12 +543,12 @@ function fireLovenseTip(amount, tipperName) {
         }
 
         // Wenn weder Bridge noch alte Instanz gefunden wurden
-        console.warn("Lovense-Extension ist nicht bereit oder nicht installiert.");
+        console.warn("Lovense extension is not ready or not installed.");
         return false;
 
     } catch (error) {
         // HIER am Ende des Blocks den Fehler abfangen, falls beim Aufruf etwas crasht
-        console.error("Fehler beim Ausführen von fireLovenseTip:", error);
+        console.error("Error while executing fireLovenseTip:", error);
         return false;
     }
 }
@@ -567,8 +564,8 @@ function handleIncomingToyPayload(data) {
 
   const ok = fireLovenseTip(tip, name);
   const msg = ok
-    ? `Empfangen: ${tip} Tokens von ${name}.`
-    : `Empfangen von ${name} — Lovense: ${lovenseNotReadyMessage()}`;
+    ? `Received: ${tip} tokens from ${name}.`
+    : `Received from ${name} — Lovense: ${lovenseNotReadyMessage()}`;
   setDataActivityStatus(msg, ok ? "ok" : "err");
 }
 
@@ -580,14 +577,14 @@ function setupDataConnection(conn) {
   conn.on("close", () => {
     dataConn = null;
     updateConnectionUi();
-    setPeerStatus("Partner getrennt.", "err");
+    setPeerStatus("Partner disconnected.", "err");
   });
   conn.on("open", () => {
     updateConnectionUi();
   });
   conn.on("error", (err) => {
     setDataActivityStatus(
-      "Datenkanal-Fehler: " + (err && err.message ? err.message : String(err)),
+      "Data channel error: " + (err && err.message ? err.message : String(err)),
       "err"
     );
   });
@@ -633,18 +630,18 @@ els.btnStartHost.addEventListener("click", async () => {
     peer.on("open", (id) => {
       els.peerIdOut.textContent = id;
       setupPeerHandlers(stream);
-      setStatus(els.statusHost, "Werte auf eingehende Verbindung … Peer-ID an Partner senden.", "ok");
+      setStatus(els.statusHost, "Waiting for incoming connection … share Peer ID with partner.", "ok");
       els.btnStartHost.disabled = true;
     });
   } catch (e) {
-    setStatus(els.statusHost, "Kamera/Mikro: " + e.message, "err");
+    setStatus(els.statusHost, "Camera/Microphone: " + e.message, "err");
   }
 });
 
 els.btnConnect.addEventListener("click", async () => {
   const remoteId = (els.peerIdIn.value || "").trim();
   if (!remoteId) {
-    setStatus(els.statusGuest, "Bitte Peer-ID des Hosts eintragen.", "err");
+    setStatus(els.statusGuest, "Please enter the host Peer ID.", "err");
     return;
   }
   hangup();
@@ -677,7 +674,7 @@ els.btnConnect.addEventListener("click", async () => {
       setStatus(els.statusGuest, String(err.message || err), "err");
     });
   } catch (e) {
-    setStatus(els.statusGuest, "Kamera/Mikro: " + e.message, "err");
+    setStatus(els.statusGuest, "Camera/Microphone: " + e.message, "err");
   }
 });
 
@@ -685,7 +682,7 @@ els.btnHangup.addEventListener("click", () => hangup());
 
 els.btnSendToy.addEventListener("click", () => {
   if (!dataConn || !dataConn.open) {
-    setDataActivityStatus("Kein Datenkanal — zuerst verbinden.", "err");
+    setDataActivityStatus("No data channel — connect first.", "err");
     return;
   }
   const level = Number(els.toyLevel.value) || 50;
@@ -700,9 +697,9 @@ els.btnSendToy.addEventListener("click", () => {
       tipperName,
       ts: Date.now(),
     });
-    setDataActivityStatus(`Gesendet: ${tipAmount} Tokens an Partner.`, "ok");
+    setDataActivityStatus(`Sent: ${tipAmount} tokens to partner.`, "ok");
   } catch (e) {
-    setDataActivityStatus("Senden fehlgeschlagen: " + (e && e.message ? e.message : String(e)), "err");
+    setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
   }
 });
 
@@ -768,7 +765,7 @@ function initAccessGate() {
       if (v === VIDEO_ACCESS_PASSWORD) {
         unlockFromGate();
       } else {
-        showAccessErr("Passwort ungültig.");
+        showAccessErr("Invalid password.");
         if (input) {
           input.value = "";
           input.focus();
@@ -806,22 +803,22 @@ function initLogout() {
 
 function lovenseNotReadyMessage() {
   if (typeof CamExtension === "undefined") {
-    return "broadcast.js nicht geladen.";
+    return "broadcast.js not loaded.";
   }
   if (!window.dualPeerLovense) {
-    return "lovense-broadcast.js nicht geladen.";
+    return "lovense-broadcast.js not loaded.";
   }
   if (window.dualPeerLovense.error) {
     const e = window.dualPeerLovense.error;
-    return (e.message || e.code || "SDK-Fehler") + " — URL im Lovense-Dashboard prüfen.";
+    return (e.message || e.code || "SDK error") + " — check URL in Lovense dashboard.";
   }
   if (!camExtensionInstance) {
-    return "CamExtension noch nicht initialisiert.";
+    return "CamExtension not initialized yet.";
   }
   if (!lovenseReady) {
-    return "Extension nicht bereit — Chrome: test:Tangent-Club wählen, Widget auf dieser Seite prüfen.";
+    return "Extension not ready — in Chrome select test:Tangent-Club and verify widget on this page.";
   }
-  return "receiveTip nicht verfügbar.";
+  return "receiveTip not available.";
 }
 
 function initHardwareTestControls() {
@@ -835,7 +832,7 @@ function initHardwareTestControls() {
 
       const tokens = Math.max(1, Math.round(val / 4));
       if (!fireLovenseTip(tokens, "Local-Test")) {
-        console.warn("Hardware-Test:", lovenseNotReadyMessage());
+        console.warn("Hardware test:", lovenseNotReadyMessage());
       }
     });
   }
@@ -845,9 +842,9 @@ function initHardwareTestControls() {
   if (testDevice) {
     testDevice.addEventListener("click", () => {
       if (fireLovenseTip(25, "Connection-Test")) {
-        alert("Test-Signal (25 Tokens) an Lovense gesendet! Vibriert das Toy?");
+        alert("Test signal (25 tokens) sent to Lovense. Is the toy vibrating?");
       } else {
-        alert("Lovense noch nicht bereit: " + lovenseNotReadyMessage());
+        alert("Lovense not ready: " + lovenseNotReadyMessage());
       }
     });
   

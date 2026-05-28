@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Dual-Peer — Du &amp; Gegenüber</title>
+    <title>Dual-Peer — You &amp; Partner</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -32,21 +32,21 @@
       aria-labelledby="loginOverlayTitle"
     >
       <div class="login-overlay-card">
-        <h2 id="loginOverlayTitle">Dual-Peer — Anmeldung</h2>
+        <h2 id="loginOverlayTitle">Dual-Peer — Sign in</h2>
         <p class="login-overlay-hint">
-          Passwort eingeben für Zugriff auf Video-Panels und Kamera-Verbindung.
+          Enter password to access video panels and camera connection.
         </p>
         <div class="login-overlay-row">
-          <label for="accessPassword">Passwort</label>
+          <label for="accessPassword">Password</label>
           <input
             type="password"
             id="accessPassword"
             autocomplete="current-password"
-            placeholder="Passwort …"
+            placeholder="Password …"
           />
         </div>
         <p class="login-overlay-error" id="accessError" hidden></p>
-        <button type="button" class="primary" id="accessUnlock">Anmelden</button>
+        <button type="button" class="primary" id="accessUnlock">Sign in</button>
       </div>
      </div>
      <header class="main-header">
@@ -57,93 +57,93 @@
       </div>
       
       <div class="header-copy">
-          <span class="privat-badge">PRIVAT</span>
-          <button id="logoutBtn" class="logout-link">Abmelden &times;</button>
+          <span class="privat-badge">PRIVATE</span>
+          <button id="logoutBtn" class="logout-link">Logout &times;</button>
       </div>
   </header>
     <main>
-      <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video-Bereich">
+      <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video area">
         <article class="panel">
           <div class="panel-head">
-            <span>Du</span>
-            <span class="tag you">Lokal</span>
+            <span>You</span>
+            <span class="tag you">Local</span>
           </div>
           <div class="video-wrap">
             <video id="localVideo" autoplay playsinline muted></video>
             <div id="localPulse" class="toy-pulse" aria-hidden="true"></div>
             <div id="localPlaceholder" class="video-placeholder">
-              Kamera startet mit „Als Host starten“ oder „Mit Host verbinden“.
+          Camera starts with "Start as Host" or "Connect to Host".
             </div>
           </div>
         </article>
 
         <article class="panel">
           <div class="panel-head">
-            <span>Gegenüber</span>
+            <span>Partner</span>
             <span class="tag partner">Remote</span>
           </div>
           <div class="video-wrap">
             <video id="remoteVideo" autoplay playsinline></video>
             <div id="remotePulse" class="toy-pulse" aria-hidden="true"></div>
             <div id="remotePlaceholder" class="video-placeholder">
-              Wartet auf Peer-Stream …
+              Waiting for peer stream …
             </div>
           </div>
         </article>
       </section>
 
-      <div class="layout-toolbar" aria-label="Ansicht und PiP">
-        <span class="layout-toolbar-label">Ansicht</span>
+      <div class="layout-toolbar" aria-label="View and PiP">
+        <span class="layout-toolbar-label">View</span>
         <div class="layout-toolbar-btns">
           <button type="button" class="layout-btn active" id="layoutSplit" data-layout="split">
-            Nebeneinander
+            Side by side
           </button>
           <button type="button" class="layout-btn" id="layoutPipRemote" data-layout="pip-remote">
-            PiP: Gegenüber groß
+            PiP: Partner large
           </button>
           <button type="button" class="layout-btn" id="layoutPipLocal" data-layout="pip-local">
-            PiP: Du groß
+            PiP: You large
           </button>
         </div>
-        <span class="layout-toolbar-label">Ecke (PiP)</span>
-        <select id="pipCorner" class="pip-corner-select" aria-label="Position des kleinen Videos">
-          <option value="br">Unten rechts</option>
-          <option value="bl">Unten links</option>
-          <option value="tr">Oben rechts</option>
-          <option value="tl">Oben links</option>
+        <span class="layout-toolbar-label">Corner (PiP)</span>
+        <select id="pipCorner" class="pip-corner-select" aria-label="Small video position">
+          <option value="br">Bottom right</option>
+          <option value="bl">Bottom left</option>
+          <option value="tr">Top right</option>
+          <option value="tl">Top left</option>
         </select>
         <span class="layout-toolbar-label">Browser</span>
-        <button type="button" id="btnPipNativeRemote" title="Schwebendes Fenster (Gegenüber)">
-          PiP-Fenster: Gegenüber
+        <button type="button" id="btnPipNativeRemote" title="Floating window (Partner)">
+          PiP window: Partner
         </button>
-        <button type="button" id="btnPipNativeLocal" title="Schwebendes Fenster (Du)">
-          PiP-Fenster: Du
+        <button type="button" id="btnPipNativeLocal" title="Floating window (You)">
+          PiP window: You
         </button>
         <span class="pip-native-msg" id="pipNativeMsg" role="status"></span>
       </div>
 
       <section class="controls">
         <div class="card">
-          <h2>Verbindung</h2>
+          <h2>Connection</h2>
           <div class="row">
             <button type="button" class="primary" id="btnStartHost" disabled>
-              Als Host starten
+              Start as Host
             </button>
-            <button type="button" class="secondary" id="btnConnect" disabled>Mit Host verbinden</button>
-            <button type="button" id="btnHangup">Trennen</button>
+            <button type="button" class="secondary" id="btnConnect" disabled>Connect to Host</button>
+            <button type="button" id="btnHangup">Disconnect</button>
           </div>
           <div class="row">
-            <label for="peerIdIn">Host Peer-ID</label>
-            <input type="text" id="peerIdIn" placeholder="ID vom Host einfügen …" autocomplete="off" />
+            <label for="peerIdIn">Host Peer ID</label>
+            <input type="text" id="peerIdIn" placeholder="Paste host ID …" autocomplete="off" />
           </div>
-          <p class="status-line" id="statusHost">Host: noch nicht gestartet.</p>
-          <p class="status-line" id="statusGuest">Gast: noch nicht verbunden.</p>
-          <p class="status-line" id="statusData">Datenkanal: getrennt.</p>
+          <p class="status-line" id="statusHost">Host: not started yet.</p>
+          <p class="status-line" id="statusGuest">Guest: not connected yet.</p>
+          <p class="status-line" id="statusData">Data channel: disconnected.</p>
           <div>
-            <span class="status-line">Deine aktuelle Peer-ID:</span>
+            <span class="status-line">Your Your current Peer ID:</span>
             <div class="peer-id-box" id="peerIdOut">—</div>
           </div>
-          <p class="lovense-hint" id="lovenseStatus">Lovense: initialisiere …</p>
+          <p class="lovense-hint" id="lovenseStatus">Lovense: initializing …</p>
           <p class="lovense-hint" id="lovenseToyStatus"></p>
         </div>
 
@@ -159,18 +159,18 @@
         <div class="card">
           <h2>Remote Control</h2>
           <p class="status-line" style="margin: 0 0 0.5rem">
-            Host und Gast können Impulse senden — das Toy des Empfängers reagiert über Lovense
-            <code>receiveTip</code>. Intensität steuert nur den Video-Puls; für Lovense zählt der
-            Tip-Betrag laut Extension-Setup.
+            Host and guest can send pulses — the receiver's toy reacts through Lovense
+            <code>receiveTip</code>. Intensity only controls the video pulse; for Lovense, the
+            tip amount from the extension setup is used.
           </p>
           <div class="row">
-            <label for="toyLevel">Intensität</label>
+            <label for="toyLevel">Intensity</label>
             <input type="range" id="toyLevel" min="0" max="100" value="55" />
           </div>
           <div class="preset-grid">
-            <button type="button" data-preset="15">Leicht</button>
-            <button type="button" data-preset="45">Mittel</button>
-            <button type="button" data-preset="80">Stark</button>
+            <button type="button" data-preset="15">Low</button>
+            <button type="button" data-preset="45">Medium</button>
+            <button type="button" data-preset="80">High</button>
             <button type="button" data-preset="100">Max</button>
           </div>
           <div class="row" style="margin-top: 0.75rem">
@@ -182,7 +182,7 @@
             <input type="text" id="toyTipName" value="Partner" maxlength="40" />
           </div>
           <div class="row">
-            <button type="button" class="primary" id="btnSendToy">Impuls senden</button>
+            <button type="button" class="primary" id="btnSendToy">Send Pulse</button>
           </div>
         </div>
       </section>
@@ -191,19 +191,19 @@
   <h3>Toy Self Control</h3>
     <!-- Schieberegler für das Toy -->
   <div class="control-group" style="margin: 15px 0;">
-      <label for="intensityRange">Intensität (Self-Pleasure Mode):</label>
+      <label for="intensityRange">Intensity (Self-Pleasure Mode):</label>
       <input type="range" id="intensityRange" min="0" max="100" value="0" style="width: 100%;">
       <span id="intensityValue">0%</span>
   </div>
 
-  <button type="button" class="secondary" id="testDevice">Toy Verbindung testen</button>
+  <button type="button" class="secondary" id="testDevice">Test toy connection</button>
 </div>
     </main>
 
     <footer>
-      Technische Demo — nur mit Einwilligung aller Beteiligten nutzen. PeerJS nutzt öffentliche
-      Signaling-Server; für Produktion eigenen PeerServer nutzen. TURN-ICE-Server sind in
-      <code>assets/app.js</code> konfigurierbar (Platzhalter durch echte Zugangsdaten ersetzen).
+      Technical demo — use only with consent of all participants. PeerJS uses public
+      signaling servers; use your own PeerServer in production. TURN ICE servers are
+      configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
     <script src="assets/app.js"></script>
