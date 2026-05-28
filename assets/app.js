@@ -4,7 +4,7 @@
  * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
  */
 
-/** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
+/** App access gate (video UI) — demo only, not a security boundary. */
 const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
 
@@ -52,8 +52,16 @@ const els = {
   remotePulse: $("#remotePulse"),
   btnStartHost: $("#btnStartHost"),
   btnConnect: $("#btnConnect"),
-  toggleMuteBtn: $("#toggleMuteBtn"),
-  toggleVideoBtn: $("#toggleVideoBtn"),
+  localToggleMuteBtn: $("#localToggleMuteBtn"),
+  localToggleVideoBtn: $("#localToggleVideoBtn"),
+  localMuteIcon: $("#localMuteIcon"),
+  localVideoIcon: $("#localVideoIcon"),
+  remoteToggleMuteBtn: $("#remoteToggleMuteBtn"),
+  remoteToggleVideoBtn: $("#remoteToggleVideoBtn"),
+  remoteMuteIcon: $("#remoteMuteIcon"),
+  remoteVideoIcon: $("#remoteVideoIcon"),
+  localVideoControls: document.querySelector('.video-hover-controls[data-panel="local"]'),
+  remoteVideoControls: document.querySelector('.video-hover-controls[data-panel="remote"]'),
   btnHangup: $("#btnHangup"),
   peerIdOut: $("#peerIdOut"),
   peerIdIn: $("#peerIdIn"),
@@ -197,6 +205,7 @@ function refreshVideoOverlays() {
     els.remoteVideo.srcObject.getTracks().some((t) => t.readyState !== "ended");
 
   setRemotePlaceholderVisible(!remoteActive);
+  syncRemoteMediaUi();
 }
 
 function pulseFor(side, ms = 800) {
@@ -207,14 +216,20 @@ function pulseFor(side, ms = 800) {
   pulse._t = setTimeout(() => pulse.classList.remove("active"), ms);
 }
 
+function attachLocalVideoStream(stream) {
+  if (!els.localVideo || !stream) return;
+  els.localVideo.srcObject = stream;
+  els.localVideo.muted = true;
+  els.localVideo.setAttribute("muted", "");
+  els.localVideo.defaultMuted = true;
+}
+
 async function getMedia() {
   if (localStream) {
     window.localStream = localStream;
-    if (els.localVideo && !els.localVideo.srcObject) {
-      els.localVideo.srcObject = localStream;
-    }
+    attachLocalVideoStream(localStream);
     refreshVideoOverlays();
-    syncMediaToggleUi();
+    syncLocalMediaUi();
     return localStream;
   }
   localStream = await navigator.mediaDevices.getUserMedia({
@@ -222,9 +237,9 @@ async function getMedia() {
     audio: true,
   });
   window.localStream = localStream;
-  els.localVideo.srcObject = localStream;
+  attachLocalVideoStream(localStream);
   refreshVideoOverlays();
-  syncMediaToggleUi();
+  syncLocalMediaUi();
   return localStream;
 }
 
@@ -234,7 +249,8 @@ function stopMedia() {
     localStream = null;
   }
   window.localStream = null;
-  resetMediaToggleUi();
+  resetLocalMediaUi();
+  resetRemoteMediaUi();
   els.localVideo.srcObject = null;
   els.remoteVideo.srcObject = null;
   refreshVideoOverlays();
@@ -1000,8 +1016,12 @@ function setupDataConnection(conn) {
 }
 
 function onRemoteStream(remoteStream) {
-  els.remoteVideo.srcObject = remoteStream;
+  if (els.remoteVideo) {
+    els.remoteVideo.srcObject = remoteStream;
+    els.remoteVideo.muted = false;
+  }
   refreshVideoOverlays();
+  syncRemoteMediaUi();
   updateConnectionUi();
 }
 
@@ -1013,6 +1033,7 @@ function setupPeerHandlers(stream) {
     call.on("close", () => {
       els.remoteVideo.srcObject = null;
       refreshVideoOverlays();
+      resetRemoteMediaUi();
       updateConnectionUi();
     });
   });
@@ -1068,6 +1089,7 @@ els.btnConnect.addEventListener("click", async () => {
       call.on("close", () => {
         els.remoteVideo.srcObject = null;
         refreshVideoOverlays();
+        resetRemoteMediaUi();
         updateConnectionUi();
       });
 
@@ -1218,57 +1240,149 @@ function getActiveLocalStream() {
   return null;
 }
 
-function setMediaControlsEnabled(enabled) {
-  if (els.toggleMuteBtn) els.toggleMuteBtn.disabled = !enabled;
-  if (els.toggleVideoBtn) els.toggleVideoBtn.disabled = !enabled;
+function setIconState(iconEl, baseClass, offClass, isOff) {
+  if (!iconEl) return;
+  iconEl.className = `bi ${isOff ? offClass : baseClass} video-ctrl-icon`;
 }
 
-function resetMediaToggleUi() {
-  setMediaControlsEnabled(false);
-  if (els.toggleMuteBtn) {
-    els.toggleMuteBtn.textContent = "Mic";
-    els.toggleMuteBtn.title = "Mikrofon Mute";
-    els.toggleMuteBtn.setAttribute("aria-label", "Mikrofon Mute");
-    els.toggleMuteBtn.classList.remove("btn-danger");
-    els.toggleMuteBtn.classList.add("secondary");
-  }
-  if (els.toggleVideoBtn) {
-    els.toggleVideoBtn.textContent = "Cam";
-    els.toggleVideoBtn.title = "Kamera Aus";
-    els.toggleVideoBtn.setAttribute("aria-label", "Kamera Aus");
-    els.toggleVideoBtn.classList.remove("btn-danger");
-    els.toggleVideoBtn.classList.add("secondary");
-  }
+function setControlButtonState(btn, isOff, tooltipOn, tooltipOff, labelOn, labelOff) {
+  if (!btn) return;
+  const off = !!isOff;
+  btn.classList.toggle("is-off", off);
+  const tooltip = off ? tooltipOff : tooltipOn;
+  const label = off ? labelOff : labelOn;
+  btn.dataset.tooltip = tooltip;
+  btn.setAttribute("aria-label", label);
 }
 
-function syncMediaToggleUi() {
+function setLocalControlsEnabled(enabled) {
+  if (els.localToggleMuteBtn) els.localToggleMuteBtn.disabled = !enabled;
+  if (els.localToggleVideoBtn) els.localToggleVideoBtn.disabled = !enabled;
+}
+
+function setRemoteControlsEnabled(enabled) {
+  if (els.remoteVideoControls) els.remoteVideoControls.hidden = !enabled;
+  if (els.remoteToggleMuteBtn) els.remoteToggleMuteBtn.disabled = !enabled;
+  if (els.remoteToggleVideoBtn) els.remoteToggleVideoBtn.disabled = !enabled;
+}
+
+function resetLocalMediaUi() {
+  setLocalControlsEnabled(false);
+  setIconState(els.localMuteIcon, "bi-mic-fill", "bi-mic-mute-fill", false);
+  setIconState(els.localVideoIcon, "bi-camera-video-fill", "bi-camera-video-off-fill", false);
+  setControlButtonState(
+    els.localToggleMuteBtn,
+    false,
+    "Mute Audio",
+    "Unmute Audio",
+    "Mute Audio",
+    "Unmute Audio"
+  );
+  setControlButtonState(
+    els.localToggleVideoBtn,
+    false,
+    "Stop Video",
+    "Start Video",
+    "Stop Video",
+    "Start Video"
+  );
+}
+
+function resetRemoteMediaUi() {
+  setRemoteControlsEnabled(false);
+  if (els.remoteVideo) {
+    els.remoteVideo.muted = false;
+    els.remoteVideo.style.opacity = "1";
+    delete els.remoteVideo.dataset.videoHidden;
+  }
+  setIconState(els.remoteMuteIcon, "bi-mic-fill", "bi-mic-mute-fill", false);
+  setIconState(els.remoteVideoIcon, "bi-camera-video-fill", "bi-camera-video-off-fill", false);
+  setControlButtonState(
+    els.remoteToggleMuteBtn,
+    false,
+    "Mute Audio",
+    "Unmute Audio",
+    "Mute Audio",
+    "Unmute Audio"
+  );
+  setControlButtonState(
+    els.remoteToggleVideoBtn,
+    false,
+    "Stop Video",
+    "Start Video",
+    "Stop Video",
+    "Start Video"
+  );
+}
+
+function syncLocalMediaUi() {
   const stream = getActiveLocalStream();
   if (!stream) {
-    resetMediaToggleUi();
+    resetLocalMediaUi();
     return;
   }
 
-  setMediaControlsEnabled(true);
+  setLocalControlsEnabled(true);
+  attachLocalVideoStream(stream);
 
   const audioTracks = stream.getAudioTracks();
   const videoTracks = stream.getVideoTracks();
   const isMuted = audioTracks.length > 0 && !audioTracks.every((t) => t.enabled);
   const isVideoOff = videoTracks.length > 0 && !videoTracks.every((t) => t.enabled);
 
-  if (els.toggleMuteBtn) {
-    els.toggleMuteBtn.textContent = isMuted ? "Mic an" : "Mic";
-    els.toggleMuteBtn.title = isMuted ? "Mikrofon AN" : "Mikrofon Mute";
-    els.toggleMuteBtn.setAttribute("aria-label", isMuted ? "Mikrofon AN" : "Mikrofon Mute");
-    els.toggleMuteBtn.classList.toggle("btn-danger", isMuted);
-    els.toggleMuteBtn.classList.toggle("secondary", !isMuted);
+  setIconState(els.localMuteIcon, "bi-mic-fill", "bi-mic-mute-fill", isMuted);
+  setIconState(els.localVideoIcon, "bi-camera-video-fill", "bi-camera-video-off-fill", isVideoOff);
+  setControlButtonState(
+    els.localToggleMuteBtn,
+    isMuted,
+    "Mute Audio",
+    "Unmute Audio",
+    "Mute Audio",
+    "Unmute Audio"
+  );
+  setControlButtonState(
+    els.localToggleVideoBtn,
+    isVideoOff,
+    "Stop Video",
+    "Start Video",
+    "Stop Video",
+    "Start Video"
+  );
+}
+
+function syncRemoteMediaUi() {
+  const hasRemote =
+    els.remoteVideo?.srcObject instanceof MediaStream &&
+    els.remoteVideo.srcObject.getTracks().some((t) => t.readyState !== "ended");
+
+  if (!hasRemote) {
+    resetRemoteMediaUi();
+    return;
   }
-  if (els.toggleVideoBtn) {
-    els.toggleVideoBtn.textContent = isVideoOff ? "Cam an" : "Cam";
-    els.toggleVideoBtn.title = isVideoOff ? "Kamera AN" : "Kamera Aus";
-    els.toggleVideoBtn.setAttribute("aria-label", isVideoOff ? "Kamera AN" : "Kamera Aus");
-    els.toggleVideoBtn.classList.toggle("btn-danger", isVideoOff);
-    els.toggleVideoBtn.classList.toggle("secondary", !isVideoOff);
-  }
+
+  setRemoteControlsEnabled(true);
+
+  const playbackMuted = !!els.remoteVideo?.muted;
+  const videoHidden = els.remoteVideo?.dataset.videoHidden === "1";
+
+  setIconState(els.remoteMuteIcon, "bi-mic-fill", "bi-mic-mute-fill", playbackMuted);
+  setIconState(els.remoteVideoIcon, "bi-camera-video-fill", "bi-camera-video-off-fill", videoHidden);
+  setControlButtonState(
+    els.remoteToggleMuteBtn,
+    playbackMuted,
+    "Mute Audio",
+    "Unmute Audio",
+    "Mute Audio",
+    "Unmute Audio"
+  );
+  setControlButtonState(
+    els.remoteToggleVideoBtn,
+    videoHidden,
+    "Stop Video",
+    "Start Video",
+    "Stop Video",
+    "Start Video"
+  );
 }
 
 function toggleLocalAudio() {
@@ -1283,7 +1397,7 @@ function toggleLocalAudio() {
   tracks.forEach((track) => {
     track.enabled = enable;
   });
-  syncMediaToggleUi();
+  syncLocalMediaUi();
   return true;
 }
 
@@ -1299,25 +1413,54 @@ function toggleLocalVideo() {
   tracks.forEach((track) => {
     track.enabled = enable;
   });
-  syncMediaToggleUi();
+  syncLocalMediaUi();
   refreshVideoOverlays();
   return true;
 }
 
-function initMediaToggleControls() {
-  if (els.toggleMuteBtn) {
-    els.toggleMuteBtn.addEventListener("click", () => {
+function toggleRemotePlaybackAudio() {
+  if (!els.remoteVideo?.srcObject) return false;
+  els.remoteVideo.muted = !els.remoteVideo.muted;
+  syncRemoteMediaUi();
+  return true;
+}
+
+function toggleRemotePlaybackVideo() {
+  if (!els.remoteVideo?.srcObject) return false;
+  const hidden = els.remoteVideo.dataset.videoHidden === "1";
+  els.remoteVideo.dataset.videoHidden = hidden ? "0" : "1";
+  els.remoteVideo.style.opacity = hidden ? "1" : "0";
+  syncRemoteMediaUi();
+  return true;
+}
+
+function initVideoOverlayControls() {
+  if (els.localToggleMuteBtn) {
+    els.localToggleMuteBtn.addEventListener("click", () => {
       toggleLocalAudio();
     });
   }
 
-  if (els.toggleVideoBtn) {
-    els.toggleVideoBtn.addEventListener("click", () => {
+  if (els.localToggleVideoBtn) {
+    els.localToggleVideoBtn.addEventListener("click", () => {
       toggleLocalVideo();
     });
   }
 
-  resetMediaToggleUi();
+  if (els.remoteToggleMuteBtn) {
+    els.remoteToggleMuteBtn.addEventListener("click", () => {
+      toggleRemotePlaybackAudio();
+    });
+  }
+
+  if (els.remoteToggleVideoBtn) {
+    els.remoteToggleVideoBtn.addEventListener("click", () => {
+      toggleRemotePlaybackVideo();
+    });
+  }
+
+  resetLocalMediaUi();
+  resetRemoteMediaUi();
 }
 
 function initHardwareTestControls() {
@@ -1336,7 +1479,7 @@ function initHardwareTestControls() {
 document.addEventListener("DOMContentLoaded", () => {
   initAccessGate();
   initLogout();
-  initMediaToggleControls();
+  initVideoOverlayControls();
   initLayoutControls();
   initLovenseIfPresent();
   initChatControls();
