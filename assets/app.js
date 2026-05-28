@@ -376,7 +376,10 @@ function handleIncomingDataMessage(raw) {
 }
 
 function sendChatMessage() {
-  if (!els.chatInput || !els.chatMessages) return;
+  if (!els.chatInput || !els.chatMessages) {
+    setDataActivityStatus("Chat UI not ready (#chat-input / #chat-messages).", "err");
+    return;
+  }
   const text = (els.chatInput.value || "").trim();
   if (!text) return;
   if (!dataConn || !dataConn.open) {
@@ -394,6 +397,7 @@ function sendChatMessage() {
     // Show locally immediately so messages never disappear.
     appendChatMessage("You", text, true, payload.ts);
     els.chatInput.value = "";
+    els.chatInput.focus();
     dataConn.send(payload);
     setDataActivityStatus("Chat message sent.", "ok");
   } catch (e) {
