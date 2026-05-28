@@ -53,6 +53,8 @@ const els = {
   remotePulse: $("#remotePulse"),
   btnStartHost: $("#btnStartHost"),
   btnConnect: $("#btnConnect"),
+  toggleMuteBtn: $("#toggleMuteBtn"),
+  toggleVideoBtn: $("#toggleVideoBtn"),
   btnHangup: $("#btnHangup"),
   peerIdOut: $("#peerIdOut"),
   peerIdIn: $("#peerIdIn"),
@@ -202,8 +204,10 @@ async function getMedia() {
     video: { facingMode: "user", width: { ideal: 1280 } },
     audio: true,
   });
+  window.localStream = localStream;
   els.localVideo.srcObject = localStream;
   showPlaceholder(true, false);
+  syncMediaToggleUi();
   return localStream;
 }
 
@@ -212,6 +216,8 @@ function stopMedia() {
     localStream.getTracks().forEach((t) => t.stop());
     localStream = null;
   }
+  window.localStream = null;
+  resetMediaToggleUi();
   els.localVideo.srcObject = null;
   els.remoteVideo.srcObject = null;
   showPlaceholder(true, true);
@@ -1176,6 +1182,85 @@ function lovenseNotReadyMessage() {
   return "receiveTip not available.";
 }
 
+function getActiveLocalStream() {
+  return localStream || window.localStream || null;
+}
+
+function resetMediaToggleUi() {
+  const muteBtn = els.toggleMuteBtn;
+  const videoBtn = els.toggleVideoBtn;
+  if (muteBtn) {
+    muteBtn.textContent = "Mikrofon Mute";
+    muteBtn.classList.remove("btn-danger");
+    muteBtn.classList.add("secondary");
+  }
+  if (videoBtn) {
+    videoBtn.textContent = "Kamera Aus";
+    videoBtn.classList.remove("btn-danger");
+    videoBtn.classList.add("secondary");
+  }
+}
+
+function syncMediaToggleUi() {
+  const stream = getActiveLocalStream();
+  if (!stream) {
+    resetMediaToggleUi();
+    return;
+  }
+
+  const audioTracks = stream.getAudioTracks();
+  const videoTracks = stream.getVideoTracks();
+  const muted = audioTracks.length > 0 && !audioTracks[0].enabled;
+  const videoOff = videoTracks.length > 0 && !videoTracks[0].enabled;
+
+  if (els.toggleMuteBtn) {
+    els.toggleMuteBtn.textContent = muted ? "Mikrofon AN" : "Mikrofon Mute";
+    els.toggleMuteBtn.classList.toggle("btn-danger", muted);
+    els.toggleMuteBtn.classList.toggle("secondary", !muted);
+  }
+  if (els.toggleVideoBtn) {
+    els.toggleVideoBtn.textContent = videoOff ? "Kamera AN" : "Kamera Aus";
+    els.toggleVideoBtn.classList.toggle("btn-danger", videoOff);
+    els.toggleVideoBtn.classList.toggle("secondary", !videoOff);
+  }
+}
+
+function initMediaToggleControls() {
+  if (els.toggleMuteBtn) {
+    els.toggleMuteBtn.addEventListener("click", () => {
+      const stream = getActiveLocalStream();
+      if (!stream) return;
+
+      const tracks = stream.getAudioTracks();
+      if (!tracks.length) return;
+
+      const enable = !tracks[0].enabled;
+      tracks.forEach((track) => {
+        track.enabled = enable;
+      });
+      syncMediaToggleUi();
+    });
+  }
+
+  if (els.toggleVideoBtn) {
+    els.toggleVideoBtn.addEventListener("click", () => {
+      const stream = getActiveLocalStream();
+      if (!stream) return;
+
+      const tracks = stream.getVideoTracks();
+      if (!tracks.length) return;
+
+      const enable = !tracks[0].enabled;
+      tracks.forEach((track) => {
+        track.enabled = enable;
+      });
+      syncMediaToggleUi();
+    });
+  }
+
+  resetMediaToggleUi();
+}
+
 function initHardwareTestControls() {
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
@@ -1192,6 +1277,7 @@ function initHardwareTestControls() {
 document.addEventListener("DOMContentLoaded", () => {
   initAccessGate();
   initLogout();
+  initMediaToggleControls();
   initLayoutControls();
   initLovenseIfPresent();
   initChatControls();

@@ -688,6 +688,13 @@ button.secondary {
   border: 1px solid rgba(124, 92, 255, 0.4);
 }
 
+button.btn-danger {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  color: #fff;
+  border: 1px solid rgba(231, 76, 60, 0.85);
+  box-shadow: 0 0 12px rgba(231, 76, 60, 0.35);
+}
+
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
