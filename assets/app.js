@@ -318,13 +318,24 @@ function formatChatTime(ts) {
 }
 
 function appendChatMessage(sender, text, isLocal, ts) {
-  if (!els.chatMessages) return;
+  if (!els.chatMessages) {
+    setDataActivityStatus("Chat container not found (#chat-messages).", "err");
+    return;
+  }
   const msg = document.createElement("div");
   msg.className = "chat-message" + (isLocal ? " local" : " remote");
   const safeText = String(text || "").trim();
-  msg.innerHTML = `<span class="chat-meta">${sender} • ${formatChatTime(ts)}</span><span class="chat-text"></span>`;
-  const textNode = msg.querySelector(".chat-text");
-  if (textNode) textNode.textContent = safeText;
+
+  const meta = document.createElement("span");
+  meta.className = "chat-meta";
+  meta.textContent = `${sender} • ${formatChatTime(ts)}`;
+
+  const textNode = document.createElement("span");
+  textNode.className = "chat-text";
+  textNode.textContent = safeText;
+
+  msg.appendChild(meta);
+  msg.appendChild(textNode);
   els.chatMessages.appendChild(msg);
   els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
 }
@@ -365,7 +376,7 @@ function handleIncomingDataMessage(raw) {
 }
 
 function sendChatMessage() {
-  if (!els.chatInput) return;
+  if (!els.chatInput || !els.chatMessages) return;
   const text = (els.chatInput.value || "").trim();
   if (!text) return;
   if (!dataConn || !dataConn.open) {
@@ -380,9 +391,10 @@ function sendChatMessage() {
     ts: Date.now(),
   };
   try {
-    dataConn.send(payload);
+    // Show locally immediately so messages never disappear.
     appendChatMessage("You", text, true, payload.ts);
     els.chatInput.value = "";
+    dataConn.send(payload);
     setDataActivityStatus("Chat message sent.", "ok");
   } catch (e) {
     setDataActivityStatus("Chat send failed: " + (e && e.message ? e.message : String(e)), "err");
