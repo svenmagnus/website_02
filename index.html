@@ -72,7 +72,29 @@
             <video id="localVideo" autoplay playsinline muted></video>
             <div id="localPulse" class="toy-pulse" aria-hidden="true"></div>
             <div id="localPlaceholder" class="video-placeholder">
-          Camera starts with "Start as Host" or "Connect to Host".
+              Camera starts with &quot;Start as Host&quot; or &quot;Connect to Host&quot;.
+            </div>
+            <div class="video-media-controls" aria-label="Microphone and camera">
+              <button
+                type="button"
+                class="secondary btn-sm"
+                id="toggleMuteBtn"
+                title="Mikrofon Mute"
+                aria-label="Mikrofon Mute"
+                disabled
+              >
+                Mic
+              </button>
+              <button
+                type="button"
+                class="secondary btn-sm"
+                id="toggleVideoBtn"
+                title="Kamera Aus"
+                aria-label="Kamera Aus"
+                disabled
+              >
+                Cam
+              </button>
             </div>
           </div>
         </article>
@@ -131,10 +153,6 @@
             </button>
             <button type="button" class="secondary" id="btnConnect" disabled>Connect to Host</button>
             <button type="button" id="btnHangup">Disconnect</button>
-          </div>
-          <div class="row">
-            <button type="button" class="secondary" id="toggleMuteBtn">Mikrofon Mute</button>
-            <button type="button" class="secondary" id="toggleVideoBtn">Kamera Aus</button>
           </div>
           <div class="row">
             <label for="peerIdIn">Host Peer ID</label>
