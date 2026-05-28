@@ -1,7 +1,7 @@
 /**
  * Dual-Peer-Demo: Video + DataChannel für Fern-Befehle.
- * Lovense: Wenn broadcast.js geladen ist und CamExtension bereit ist,
- * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
+ * Lovense: If broadcast.js and direct toy API are available,
+ * vibration commands are sent directly to the hardware.
  */
 
 /** Zugang zur App (Video + Kamera-Buttons) — nur Demo, nicht als alleinige Absicherung nutzen. */
@@ -341,12 +341,10 @@ function sendToyPayload(level, toyId, special) {
   }
 
   const levelNum = Math.max(0, Number(level) || 0);
-  const tipAmount = levelNum <= 0 ? 0 : Math.max(1, Math.round(levelNum / 4));
   const payload = {
     type: "toy",
     toyId,
     level: levelNum,
-    tipAmount,
     tipperName: "Partner",
     special: Array.isArray(special) ? special : [],
     ts: Date.now(),
@@ -695,14 +693,6 @@ function setLovenseStatus(text) {
   if (els.lovenseStatus) els.lovenseStatus.textContent = text || "";
 }
 
-function isLovenseReady() {
-  return (
-    lovenseReady &&
-    camExtensionInstance &&
-    typeof camExtensionInstance.receiveTip === "function"
-  );
-}
-
 function syncLovenseFromBridge() {
   const bridge = window.dualPeerLovense;
   if (!bridge) return;
@@ -786,44 +776,35 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
 
-/** Tip in Tokens (nicht 0-100 Intensität). Gibt true zurück, wenn receiveTip ausgeführt wurde. */
-function fireLovenseTip(amount, tipperName) {
-    const tokens = Math.round(Number(amount));
-    if (!tokens || tokens < 1) return false;
+/** Direct toy control (no virtual tips). Sends vibrate command with 0..20 intensity. */
+function sendDirectVibration(levelPercent, toyId) {
+  const level = Math.max(0, Math.min(100, Number(levelPercent) || 0));
+  const vapi = Math.max(0, Math.min(20, Math.round(level / 5)));
+  const modelName = (window.__LOVENSE_MODEL_NAME__ || "model1").trim() || "model1";
+  const bridge = window.dualPeerLovense;
 
-    syncLovenseFromBridge();
-    const bridge = window.dualPeerLovense;
-
-    // HIER den try-Block öffnen: Er sichert alles ab, was danach kommt
-    try {
-        // 1. Prüfung: Gibt es die moderne Bridge-Schnittstelle?
-        if (bridge && typeof bridge.receiveTip === "function") {
-            const ok = bridge.receiveTip(tokens, tipperName || "Remote");
-            if (ok) {
-                console.log(`receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
-                return true; 
-            } else {
-                console.warn("Lovense not ready — receiveTip queued or failed.");
-                return false;
-            }
-        }
-
-        // 2. Fallback: Falls 'bridge' nicht da ist, aber die alte 'camExtensionInstance' existiert
-        if (typeof camExtensionInstance !== "undefined" && typeof camExtensionInstance.receiveTip === "function") {
-            console.log(`Fallback receiveTip: ${tokens} Tokens von ${tipperName || "Remote"}`);
-            camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
-            return true;
-        }
-
-        // Wenn weder Bridge noch alte Instanz gefunden wurden
-        console.warn("Lovense extension is not ready or not installed.");
-        return false;
-
-    } catch (error) {
-        // HIER am Ende des Blocks den Fehler abfangen, falls beim Aufruf etwas crasht
-        console.error("Error while executing fireLovenseTip:", error);
-        return false;
+  try {
+    // Prefer direct local API to bypass tip reaction-time rules.
+    if (typeof window.lovense !== "undefined" && typeof window.lovense.sendAction === "function") {
+      const payload = { model: modelName, action: "vibrate", vapi };
+      if (toyId) payload.toyId = toyId;
+      window.lovense.sendAction(payload);
+      return true;
     }
+
+    // Optional fallback if a bridge exposes direct command channel.
+    if (bridge && bridge.instance && typeof bridge.instance.sendAction === "function") {
+      const payload = { model: modelName, action: "vibrate", vapi };
+      if (toyId) payload.toyId = toyId;
+      bridge.instance.sendAction(payload);
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Error while executing direct vibrate command:", error);
+    return false;
+  }
 }
 
 
@@ -831,17 +812,24 @@ function handleIncomingToyPayload(data) {
   if (!data || typeof data !== "object") return;
   if (data.type !== "toy") return;
   const level = Math.min(100, Math.max(0, Number(data.level) || 0));
-  const tip = Number(data.tipAmount) || Math.max(1, Math.round(level / 5));
   const name = data.tipperName || "Partner";
+  const toyId = data.toyId || "toy";
+
   if (level <= 0) {
-    setDataActivityStatus(`Stop command received${data.toyId ? ` for ${data.toyId}` : ""}.`, "ok");
+    const stopped = sendDirectVibration(0, toyId);
+    setDataActivityStatus(
+      stopped
+        ? `Stop command applied immediately for ${toyId}.`
+        : `Stop command received for ${toyId}, but direct control is unavailable.`,
+      stopped ? "ok" : "err"
+    );
     return;
   }
   pulseFor("local", 600 + level * 5);
 
-  const ok = fireLovenseTip(tip, name);
+  const ok = sendDirectVibration(level, toyId);
   const msg = ok
-    ? `Received: ${tip} tokens from ${name}.`
+    ? `Received intensity ${level}% from ${name}.`
     : `Received from ${name} — Lovense: ${lovenseNotReadyMessage()}`;
   setDataActivityStatus(msg, ok ? "ok" : "err");
 }
@@ -1076,7 +1064,7 @@ function lovenseNotReadyMessage() {
   if (!lovenseReady) {
     return "Extension not ready — in Chrome select test:Tangent-Club and verify widget on this page.";
   }
-  return "receiveTip not available.";
+  return "Direct vibrate API is not available.";
 }
 
 function initHardwareTestControls() {
@@ -1086,10 +1074,7 @@ function initHardwareTestControls() {
     intensityRange.addEventListener("change", (e) => {
       const val = Number(e.target.value);
       intensityValue.textContent = val + "%";
-      if (val <= 0) return;
-
-      const tokens = Math.max(1, Math.round(val / 4));
-      if (!fireLovenseTip(tokens, "Local-Test")) {
+      if (!sendDirectVibration(val, "local-test")) {
         console.warn("Hardware test:", lovenseNotReadyMessage());
       }
     });
@@ -1098,8 +1083,8 @@ function initHardwareTestControls() {
   const testDevice = document.getElementById("testDevice");
   if (testDevice) {
     testDevice.addEventListener("click", () => {
-      if (fireLovenseTip(25, "Connection-Test")) {
-        alert("Test signal (25 tokens) sent to Lovense. Is the toy vibrating?");
+      if (sendDirectVibration(60, "connection-test")) {
+        alert("Direct vibrate test sent (60%). Is the toy vibrating?");
       } else {
         alert("Lovense not ready: " + lovenseNotReadyMessage());
       }
