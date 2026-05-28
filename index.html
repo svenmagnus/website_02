@@ -73,7 +73,7 @@
           <div class="video-wrap">
             <video id="localVideo" autoplay playsinline muted></video>
             <div id="localPulse" class="toy-pulse" aria-hidden="true"></div>
-            <div id="localPlaceholder" class="video-placeholder">
+            <div id="localPlaceholder" class="video-placeholder is-visible" aria-hidden="false">
               Camera starts with &ldquo;Start as Host&rdquo; or &ldquo;Connect to Host&rdquo;.
             </div>
             <div class="video-media-overlay" data-panel="local" aria-label="Your video controls">
@@ -109,7 +109,7 @@
           <div class="video-wrap">
             <video id="remoteVideo" autoplay playsinline></video>
             <div id="remotePulse" class="toy-pulse" aria-hidden="true"></div>
-            <div id="remotePlaceholder" class="video-placeholder">
+            <div id="remotePlaceholder" class="video-placeholder is-visible" aria-hidden="false">
               Waiting for peer stream …
             </div>
             <div class="video-media-overlay" data-panel="remote" aria-label="Partner playback controls" hidden>

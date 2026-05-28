@@ -194,22 +194,59 @@ function setStatus(el, text, cls) {
 
 function setVideoPlaceholderVisible(ph, visible) {
   if (!ph) return;
-  ph.style.display = visible ? "flex" : "none";
-  ph.hidden = !visible;
+  ph.classList.toggle("is-visible", visible);
+  ph.setAttribute("aria-hidden", visible ? "false" : "true");
 }
 
-function hasLiveVideoStream(videoEl) {
-  const stream = videoEl?.srcObject;
+/** True when the video element is actually showing a live, enabled camera/stream feed. */
+function isVideoFeedActive(videoEl) {
+  if (!videoEl) return false;
+
+  const stream = videoEl.srcObject;
   if (!(stream instanceof MediaStream)) return false;
-  return stream.getVideoTracks().some((t) => t.readyState !== "ended");
+
+  const hasLiveVideoTrack = stream
+    .getVideoTracks()
+    .some((t) => t.readyState === "live" && t.enabled);
+
+  if (!hasLiveVideoTrack) return false;
+
+  return videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0;
+}
+
+function bindVideoOverlayRefresh(videoEl) {
+  if (!videoEl || videoEl._overlayRefreshBound) return;
+  videoEl._overlayRefreshBound = true;
+  const refresh = () => refreshVideoOverlays();
+  videoEl.addEventListener("loadedmetadata", refresh);
+  videoEl.addEventListener("loadeddata", refresh);
+  videoEl.addEventListener("playing", refresh);
+  videoEl.addEventListener("resize", refresh);
+  videoEl.addEventListener("emptied", refresh);
+}
+
+function bindStreamTrackRefresh(stream) {
+  if (!(stream instanceof MediaStream) || stream._overlayRefreshBound) return;
+  stream._overlayRefreshBound = true;
+  const refresh = () => refreshVideoOverlays();
+  stream.getTracks().forEach((track) => {
+    track.addEventListener("ended", refresh);
+    track.addEventListener("mute", refresh);
+    track.addEventListener("unmute", refresh);
+  });
 }
 
 function refreshVideoOverlays() {
-  const localActive = hasLiveVideoStream(els.localVideo);
-  const remoteActive = hasLiveVideoStream(els.remoteVideo);
+  const localPh = els.localPlaceholder || document.getElementById("localPlaceholder");
+  const remotePh = els.remotePlaceholder || document.getElementById("remotePlaceholder");
+  if (localPh && !els.localPlaceholder) els.localPlaceholder = localPh;
+  if (remotePh && !els.remotePlaceholder) els.remotePlaceholder = remotePh;
 
-  setVideoPlaceholderVisible(els.localPlaceholder, !localActive);
-  setVideoPlaceholderVisible(els.remotePlaceholder, !remoteActive);
+  const localActive = isVideoFeedActive(els.localVideo);
+  const remoteActive = isVideoFeedActive(els.remoteVideo);
+
+  setVideoPlaceholderVisible(localPh, !localActive);
+  setVideoPlaceholderVisible(remotePh, !remoteActive);
   syncRemoteMediaUi();
 }
 
@@ -227,6 +264,13 @@ function attachLocalVideoStream(stream) {
   els.localVideo.muted = true;
   els.localVideo.setAttribute("muted", "");
   els.localVideo.defaultMuted = true;
+  bindVideoOverlayRefresh(els.localVideo);
+  bindStreamTrackRefresh(stream);
+  const playPromise = els.localVideo.play();
+  if (playPromise && typeof playPromise.then === "function") {
+    playPromise.then(() => refreshVideoOverlays()).catch(() => refreshVideoOverlays());
+  }
+  requestAnimationFrame(() => refreshVideoOverlays());
 }
 
 async function getMedia() {
@@ -1024,8 +1068,14 @@ function onRemoteStream(remoteStream) {
   if (els.remoteVideo) {
     els.remoteVideo.srcObject = remoteStream;
     els.remoteVideo.muted = false;
+    bindVideoOverlayRefresh(els.remoteVideo);
+    bindStreamTrackRefresh(remoteStream);
+    const playPromise = els.remoteVideo.play();
+    if (playPromise && typeof playPromise.then === "function") {
+      playPromise.then(() => refreshVideoOverlays()).catch(() => refreshVideoOverlays());
+    }
   }
-  refreshVideoOverlays();
+  requestAnimationFrame(() => refreshVideoOverlays());
   syncRemoteMediaUi();
   updateConnectionUi();
 }
@@ -1509,6 +1559,8 @@ function initHardwareTestControls() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  bindVideoOverlayRefresh(els.localVideo);
+  bindVideoOverlayRefresh(els.remoteVideo);
   refreshVideoOverlays();
   initAccessGate();
   initLogout();
