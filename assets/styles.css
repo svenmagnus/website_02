@@ -235,7 +235,7 @@ main {
   }
 }
 
-/* —— Picture-in-Picture (Layout): ein großes Panel, zweites als Overlay —— */
+/* Picture-in-Picture layout: one large panel, one overlay tile */
 .stage[data-layout="pip-remote"],
 .stage[data-layout="pip-local"] {
   display: grid;
@@ -446,25 +446,27 @@ video {
   pointer-events: none;
 }
 
-.video-hover-controls {
+/* Compact corner controls (player-style), theme-aligned */
+.video-media-overlay {
   position: absolute;
-  inset: 0;
+  right: 0.5rem;
+  bottom: 0.5rem;
   z-index: 5;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0.85rem;
-  padding: 0.75rem 1rem 0.85rem;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.15) 45%, transparent 100%);
-  opacity: 0.38;
-  transition: opacity 0.22s ease;
+  align-items: center;
+  gap: 0.15rem;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
 }
 
-.video-wrap:hover .video-hover-controls,
-.video-hover-controls:focus-within {
+.video-media-overlay[hidden] {
+  display: none !important;
+}
+
+.video-wrap:hover .video-media-overlay,
+.video-media-overlay:focus-within {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .video-ctrl-btn {
@@ -472,38 +474,44 @@ video {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 1.85rem;
+  height: 1.85rem;
   padding: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: 6px;
   cursor: pointer;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
+  font-family: var(--font);
+  color: rgba(242, 242, 245, 0.92);
+  background: transparent;
+  pointer-events: auto;
   transition:
-    background 0.15s ease,
-    transform 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
-.video-ctrl-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.28);
-  transform: scale(1.06);
+.video-ctrl-btn:hover:not(:disabled),
+.video-ctrl-btn:focus-visible:not(:disabled) {
+  color: var(--accent);
+  background: rgba(255, 107, 53, 0.14);
+  outline: none;
+}
+
+.video-ctrl-btn:focus-visible:not(:disabled) {
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.45);
 }
 
 .video-ctrl-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.28;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .video-ctrl-btn.is-off {
-  color: #ff8a7a;
-  background: rgba(231, 76, 60, 0.35);
+  color: var(--accent);
 }
 
 .video-ctrl-icon {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   line-height: 1;
   pointer-events: none;
 }
@@ -511,23 +519,28 @@ video {
 .video-ctrl-btn::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: calc(100% + 0.45rem);
+  bottom: calc(100% + 0.4rem);
   left: 50%;
   transform: translateX(-50%);
-  padding: 0.28rem 0.55rem;
+  padding: 0.35rem 0.55rem;
   border-radius: 6px;
-  font-size: 0.68rem;
+  font-family: var(--font);
+  font-size: 0.72rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
   white-space: nowrap;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.88);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease;
-  z-index: 2;
+  transition: opacity 0.12s ease;
+  z-index: 6;
 }
 
-.video-ctrl-btn:hover::after {
+.video-ctrl-btn:hover::after,
+.video-ctrl-btn:focus-visible::after {
   opacity: 1;
 }
 

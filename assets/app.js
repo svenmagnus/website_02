@@ -1,14 +1,13 @@
 /**
- * Dual-Peer-Demo: Video + DataChannel für Fern-Befehle.
- * Lovense: Wenn broadcast.js geladen ist und CamExtension bereit ist,
- * wird receiveTip() für den Empfänger aufgerufen (siehe index.html).
+ * Dual-Peer demo: video + data channel for remote control.
+ * Lovense: when broadcast.js is loaded and CamExtension is ready, receiveTip() runs locally.
  */
 
 /** App access gate (video UI) — demo only, not a security boundary. */
 const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
 
-// Echte TURN-Konfiguration (Beispiel OpenRelay)
+// TURN example (OpenRelay placeholders — replace in production)
 const TURN_SERVER_HOST = "openrelay.metered.ca";
 const TURN_USERNAME_PLACEHOLDER = "openrelayproject";
 const TURN_CREDENTIAL_PLACEHOLDER = "openrelayproject";
@@ -60,8 +59,8 @@ const els = {
   remoteToggleVideoBtn: $("#remoteToggleVideoBtn"),
   remoteMuteIcon: $("#remoteMuteIcon"),
   remoteVideoIcon: $("#remoteVideoIcon"),
-  localVideoControls: document.querySelector('.video-hover-controls[data-panel="local"]'),
-  remoteVideoControls: document.querySelector('.video-hover-controls[data-panel="remote"]'),
+  localVideoControls: document.querySelector('.video-media-overlay[data-panel="local"]'),
+  remoteVideoControls: document.querySelector('.video-media-overlay[data-panel="remote"]'),
   btnHangup: $("#btnHangup"),
   peerIdOut: $("#peerIdOut"),
   peerIdIn: $("#peerIdIn"),
@@ -1063,7 +1062,7 @@ els.btnStartHost.addEventListener("click", async () => {
       els.btnStartHost.disabled = true;
     });
   } catch (e) {
-    setStatus(els.statusHost, "Camera/Microphone: " + e.message, "err");
+    setStatus(els.statusHost, "Media access: " + formatMediaAccessError(e), "err");
   }
 });
 
@@ -1105,7 +1104,7 @@ els.btnConnect.addEventListener("click", async () => {
       setStatus(els.statusGuest, String(err.message || err), "err");
     });
   } catch (e) {
-    setStatus(els.statusGuest, "Camera/Microphone: " + e.message, "err");
+    setStatus(els.statusGuest, "Media access: " + formatMediaAccessError(e), "err");
   }
 });
 
@@ -1240,9 +1239,28 @@ function getActiveLocalStream() {
   return null;
 }
 
+const MEDIA_ICON = {
+  micOn: "bi-mic",
+  micOff: "bi-mic-mute",
+  camOn: "bi-camera-video",
+  camOff: "bi-camera-video-off",
+};
+
 function setIconState(iconEl, baseClass, offClass, isOff) {
   if (!iconEl) return;
   iconEl.className = `bi ${isOff ? offClass : baseClass} video-ctrl-icon`;
+}
+
+function formatMediaAccessError(err) {
+  const raw = String(err && err.message ? err.message : err || "Unknown error");
+  const lower = raw.toLowerCase();
+  if (/denied|not allowed|permission|zugriff|verweigert/.test(lower)) {
+    return "Media access denied — allow camera and microphone in browser settings.";
+  }
+  if (/not found|unavailable|nicht gefunden|nicht verfügbar/.test(lower)) {
+    return "Camera or microphone not available — check devices and permissions.";
+  }
+  return raw;
 }
 
 function setControlButtonState(btn, isOff, tooltipOn, tooltipOff, labelOn, labelOff) {
@@ -1268,8 +1286,8 @@ function setRemoteControlsEnabled(enabled) {
 
 function resetLocalMediaUi() {
   setLocalControlsEnabled(false);
-  setIconState(els.localMuteIcon, "bi-mic-fill", "bi-mic-mute-fill", false);
-  setIconState(els.localVideoIcon, "bi-camera-video-fill", "bi-camera-video-off-fill", false);
+  setIconState(els.localMuteIcon, MEDIA_ICON.micOn, MEDIA_ICON.micOff, false);
+  setIconState(els.localVideoIcon, MEDIA_ICON.camOn, MEDIA_ICON.camOff, false);
   setControlButtonState(
     els.localToggleMuteBtn,
     false,
@@ -1295,8 +1313,8 @@ function resetRemoteMediaUi() {
     els.remoteVideo.style.opacity = "1";
     delete els.remoteVideo.dataset.videoHidden;
   }
-  setIconState(els.remoteMuteIcon, "bi-mic-fill", "bi-mic-mute-fill", false);
-  setIconState(els.remoteVideoIcon, "bi-camera-video-fill", "bi-camera-video-off-fill", false);
+  setIconState(els.remoteMuteIcon, MEDIA_ICON.micOn, MEDIA_ICON.micOff, false);
+  setIconState(els.remoteVideoIcon, MEDIA_ICON.camOn, MEDIA_ICON.camOff, false);
   setControlButtonState(
     els.remoteToggleMuteBtn,
     false,
@@ -1330,8 +1348,8 @@ function syncLocalMediaUi() {
   const isMuted = audioTracks.length > 0 && !audioTracks.every((t) => t.enabled);
   const isVideoOff = videoTracks.length > 0 && !videoTracks.every((t) => t.enabled);
 
-  setIconState(els.localMuteIcon, "bi-mic-fill", "bi-mic-mute-fill", isMuted);
-  setIconState(els.localVideoIcon, "bi-camera-video-fill", "bi-camera-video-off-fill", isVideoOff);
+  setIconState(els.localMuteIcon, MEDIA_ICON.micOn, MEDIA_ICON.micOff, isMuted);
+  setIconState(els.localVideoIcon, MEDIA_ICON.camOn, MEDIA_ICON.camOff, isVideoOff);
   setControlButtonState(
     els.localToggleMuteBtn,
     isMuted,
@@ -1365,8 +1383,8 @@ function syncRemoteMediaUi() {
   const playbackMuted = !!els.remoteVideo?.muted;
   const videoHidden = els.remoteVideo?.dataset.videoHidden === "1";
 
-  setIconState(els.remoteMuteIcon, "bi-mic-fill", "bi-mic-mute-fill", playbackMuted);
-  setIconState(els.remoteVideoIcon, "bi-camera-video-fill", "bi-camera-video-off-fill", videoHidden);
+  setIconState(els.remoteMuteIcon, MEDIA_ICON.micOn, MEDIA_ICON.micOff, playbackMuted);
+  setIconState(els.remoteVideoIcon, MEDIA_ICON.camOn, MEDIA_ICON.camOff, videoHidden);
   setControlButtonState(
     els.remoteToggleMuteBtn,
     playbackMuted,
@@ -1397,6 +1415,7 @@ function toggleLocalAudio() {
   tracks.forEach((track) => {
     track.enabled = enable;
   });
+  window.localStream = stream;
   syncLocalMediaUi();
   return true;
 }
@@ -1413,6 +1432,7 @@ function toggleLocalVideo() {
   tracks.forEach((track) => {
     track.enabled = enable;
   });
+  window.localStream = stream;
   syncLocalMediaUi();
   refreshVideoOverlays();
   return true;
