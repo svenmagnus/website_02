@@ -46,6 +46,7 @@ const els = {
   stage: $("#stage"),
   localVideo: $("#localVideo"),
   remoteVideo: $("#remoteVideo"),
+  localPlaceholder: $("#localPlaceholder"),
   remotePlaceholder: $("#remotePlaceholder"),
   localPulse: $("#localPulse"),
   remotePulse: $("#remotePulse"),
@@ -191,19 +192,24 @@ function setStatus(el, text, cls) {
   el.className = "status-line" + (cls ? " " + cls : "");
 }
 
-function setRemotePlaceholderVisible(visible) {
-  const ph = els.remotePlaceholder;
+function setVideoPlaceholderVisible(ph, visible) {
   if (!ph) return;
   ph.style.display = visible ? "flex" : "none";
   ph.hidden = !visible;
 }
 
-function refreshVideoOverlays() {
-  const remoteActive =
-    els.remoteVideo?.srcObject instanceof MediaStream &&
-    els.remoteVideo.srcObject.getTracks().some((t) => t.readyState !== "ended");
+function hasLiveVideoStream(videoEl) {
+  const stream = videoEl?.srcObject;
+  if (!(stream instanceof MediaStream)) return false;
+  return stream.getVideoTracks().some((t) => t.readyState !== "ended");
+}
 
-  setRemotePlaceholderVisible(!remoteActive);
+function refreshVideoOverlays() {
+  const localActive = hasLiveVideoStream(els.localVideo);
+  const remoteActive = hasLiveVideoStream(els.remoteVideo);
+
+  setVideoPlaceholderVisible(els.localPlaceholder, !localActive);
+  setVideoPlaceholderVisible(els.remotePlaceholder, !remoteActive);
   syncRemoteMediaUi();
 }
 
@@ -1274,12 +1280,18 @@ function setControlButtonState(btn, isOff, tooltipOn, tooltipOff, labelOn, label
 }
 
 function setLocalControlsEnabled(enabled) {
+  if (els.localVideoControls) {
+    els.localVideoControls.classList.toggle("is-ready", enabled);
+  }
   if (els.localToggleMuteBtn) els.localToggleMuteBtn.disabled = !enabled;
   if (els.localToggleVideoBtn) els.localToggleVideoBtn.disabled = !enabled;
 }
 
 function setRemoteControlsEnabled(enabled) {
-  if (els.remoteVideoControls) els.remoteVideoControls.hidden = !enabled;
+  if (els.remoteVideoControls) {
+    els.remoteVideoControls.hidden = !enabled;
+    els.remoteVideoControls.classList.toggle("is-ready", enabled);
+  }
   if (els.remoteToggleMuteBtn) els.remoteToggleMuteBtn.disabled = !enabled;
   if (els.remoteToggleVideoBtn) els.remoteToggleVideoBtn.disabled = !enabled;
 }
@@ -1497,6 +1509,7 @@ function initHardwareTestControls() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  refreshVideoOverlays();
   initAccessGate();
   initLogout();
   initVideoOverlayControls();

@@ -451,21 +451,29 @@ video {
   position: absolute;
   right: 0.5rem;
   bottom: 0.5rem;
-  z-index: 5;
+  z-index: 10;
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.2rem;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.18s ease;
+  visibility: hidden;
+  transition:
+    opacity 0.18s ease,
+    visibility 0.18s ease;
+}
+
+.video-media-overlay.is-ready {
+  opacity: 0.9;
+  visibility: visible;
 }
 
 .video-media-overlay[hidden] {
   display: none !important;
 }
 
-.video-wrap:hover .video-media-overlay,
-.video-media-overlay:focus-within {
+.video-wrap:hover .video-media-overlay.is-ready,
+.video-media-overlay.is-ready:focus-within {
   opacity: 1;
 }
 
@@ -511,9 +519,10 @@ video {
 }
 
 .video-ctrl-icon {
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   line-height: 1;
   pointer-events: none;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.85));
 }
 
 .video-ctrl-btn::after {
