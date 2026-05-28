@@ -147,23 +147,12 @@
           <p class="lovense-hint" id="lovenseToyStatus"></p>
         </div>
 
-        <div class="card lovense-setup-card">
-          <h2>Lovense Cam Extension (Integrationstest)</h2>
-          <ol class="lovense-checklist">
-            <li>Google Chrome + <strong>Lovense Cam Extension</strong> installiert</li>
-            <li>In der Extension: Cam-Site <strong>test:Tangent-Club</strong> hinzufügen</li>
-            <li>Toys in der Extension verbinden — das <strong>Widget</strong> muss auf dieser Seite sichtbar sein</li>
-            <li>Status unten muss <strong>„Extension bereit“</strong> zeigen, dann Test-Tip senden</li>
-          </ol>
-          <p class="lovense-hint lovense-url-hint" id="lovenseUrlHint"></p>
-          <div class="row" style="display: none;">
-            <label for="lovenseModelName">Model-Name (Cam Extension)</label>
-            <input type="text" id="lovenseModelName" value="model1" maxlength="40" autocomplete="off" />
-          </div>
-          <div class="row">
-            <button type="button" class="secondary" id="btnLovenseTestTip">
-              Test: receiveTip(25)
-            </button>
+        <div class="card chat-card">
+          <h2>Live Chat</h2>
+          <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+          <div class="row chat-input-row">
+            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="500" autocomplete="off" />
+            <button type="button" class="primary" id="chat-send">Send</button>
           </div>
         </div>
 

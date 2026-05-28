@@ -63,6 +63,9 @@ const els = {
   toyTipAmount: $("#toyTipAmount"),
   toyTipName: $("#toyTipName"),
   btnSendToy: $("#btnSendToy"),
+  chatMessages: $("#chat-messages"),
+  chatInput: $("#chat-input"),
+  chatSend: $("#chat-send"),
   lovenseStatus: $("#lovenseStatus"),
   lovenseToyStatus: $("#lovenseToyStatus"),
   lovenseUrlHint: $("#lovenseUrlHint"),
@@ -309,6 +312,83 @@ function setDataActivityStatus(msg, cls) {
   if (els.statusData) setStatus(els.statusData, msg, cls);
 }
 
+function formatChatTime(ts) {
+  const d = new Date(ts || Date.now());
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function appendChatMessage(sender, text, isLocal, ts) {
+  if (!els.chatMessages) return;
+  const msg = document.createElement("div");
+  msg.className = "chat-message" + (isLocal ? " local" : " remote");
+  const safeText = String(text || "").trim();
+  msg.innerHTML = `<span class="chat-meta">${sender} • ${formatChatTime(ts)}</span><span class="chat-text"></span>`;
+  const textNode = msg.querySelector(".chat-text");
+  if (textNode) textNode.textContent = safeText;
+  els.chatMessages.appendChild(msg);
+  els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+}
+
+function handleIncomingChatPayload(data) {
+  if (!data || typeof data !== "object" || data.type !== "chat") return;
+  const text = String(data.text || "").trim();
+  if (!text) return;
+  const sender = String(data.sender || "Partner");
+  appendChatMessage(sender, text, false, data.ts);
+}
+
+function handleIncomingDataMessage(data) {
+  if (!data || typeof data !== "object") return;
+  if (data.type === "toy") {
+    handleIncomingToyPayload(data);
+    return;
+  }
+  if (data.type === "chat") {
+    handleIncomingChatPayload(data);
+  }
+}
+
+function sendChatMessage() {
+  if (!els.chatInput) return;
+  const text = (els.chatInput.value || "").trim();
+  if (!text) return;
+  if (!dataConn || !dataConn.open) {
+    setDataActivityStatus("Chat unavailable — connect first.", "err");
+    return;
+  }
+  const sender = sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You";
+  const payload = {
+    type: "chat",
+    text,
+    sender,
+    ts: Date.now(),
+  };
+  try {
+    dataConn.send(payload);
+    appendChatMessage("You", text, true, payload.ts);
+    els.chatInput.value = "";
+  } catch (e) {
+    setDataActivityStatus("Chat send failed: " + (e && e.message ? e.message : String(e)), "err");
+  }
+}
+
+function initChatControls() {
+  if (els.chatMessages && !els.chatMessages.childElementCount) {
+    appendChatMessage("System", "Data-channel chat ready. Messages appear here.", false, Date.now());
+  }
+  if (els.chatSend) {
+    els.chatSend.addEventListener("click", sendChatMessage);
+  }
+  if (els.chatInput) {
+    els.chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
+  }
+}
+
 function setLovenseStatus(text) {
   if (els.lovenseStatus) els.lovenseStatus.textContent = text || "";
 }
@@ -462,7 +542,7 @@ function setupDataConnection(conn) {
   dataConn = conn;
   updateConnectionUi();
 
-  conn.on("data", handleIncomingToyPayload);
+  conn.on("data", handleIncomingDataMessage);
   conn.on("close", () => {
     dataConn = null;
     updateConnectionUi();
@@ -806,5 +886,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initLogout();
   initLayoutControls();
   initLovenseIfPresent();
+  initChatControls();
   initHardwareTestControls();
 });
