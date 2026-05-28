@@ -450,6 +450,12 @@ video {
   display: flex;
 }
 
+/* Hide placeholder as soon as the panel has a live feed (set from app.js) */
+.video-wrap[data-has-feed="true"] .video-placeholder {
+  display: none !important;
+  visibility: hidden;
+}
+
 /* Compact corner controls (player-style), theme-aligned */
 .video-media-overlay {
   position: absolute;

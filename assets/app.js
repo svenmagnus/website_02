@@ -195,23 +195,43 @@ function setStatus(el, text, cls) {
 function setVideoPlaceholderVisible(ph, visible) {
   if (!ph) return;
   ph.classList.toggle("is-visible", visible);
+  ph.toggleAttribute("hidden", !visible);
   ph.setAttribute("aria-hidden", visible ? "false" : "true");
 }
 
-/** True when the video element is actually showing a live, enabled camera/stream feed. */
+/** True when the video element is actually showing a camera/stream feed. */
 function isVideoFeedActive(videoEl) {
-  if (!videoEl) return false;
+  if (!videoEl?.srcObject) return false;
+
+  if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+    return true;
+  }
 
   const stream = videoEl.srcObject;
   if (!(stream instanceof MediaStream)) return false;
 
-  const hasLiveVideoTrack = stream
-    .getVideoTracks()
-    .some((t) => t.readyState === "live" && t.enabled);
+  return stream.getVideoTracks().some((t) => t.readyState !== "ended" && t.enabled);
+}
 
-  if (!hasLiveVideoTrack) return false;
+function setVideoWrapFeedState(videoEl, active) {
+  const wrap = videoEl?.closest(".video-wrap");
+  if (!wrap) return;
+  if (active) {
+    wrap.setAttribute("data-has-feed", "true");
+  } else {
+    wrap.removeAttribute("data-has-feed");
+  }
+}
 
-  return videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0;
+function scheduleOverlayRefreshBurst() {
+  let frames = 0;
+  const tick = () => {
+    refreshVideoOverlays();
+    if (++frames < 30) {
+      requestAnimationFrame(tick);
+    }
+  };
+  requestAnimationFrame(tick);
 }
 
 function bindVideoOverlayRefresh(videoEl) {
@@ -245,6 +265,8 @@ function refreshVideoOverlays() {
   const localActive = isVideoFeedActive(els.localVideo);
   const remoteActive = isVideoFeedActive(els.remoteVideo);
 
+  setVideoWrapFeedState(els.localVideo, localActive);
+  setVideoWrapFeedState(els.remoteVideo, remoteActive);
   setVideoPlaceholderVisible(localPh, !localActive);
   setVideoPlaceholderVisible(remotePh, !remoteActive);
   syncRemoteMediaUi();
@@ -268,9 +290,9 @@ function attachLocalVideoStream(stream) {
   bindStreamTrackRefresh(stream);
   const playPromise = els.localVideo.play();
   if (playPromise && typeof playPromise.then === "function") {
-    playPromise.then(() => refreshVideoOverlays()).catch(() => refreshVideoOverlays());
+    playPromise.then(() => scheduleOverlayRefreshBurst()).catch(() => scheduleOverlayRefreshBurst());
   }
-  requestAnimationFrame(() => refreshVideoOverlays());
+  scheduleOverlayRefreshBurst();
 }
 
 async function getMedia() {
@@ -1072,10 +1094,10 @@ function onRemoteStream(remoteStream) {
     bindStreamTrackRefresh(remoteStream);
     const playPromise = els.remoteVideo.play();
     if (playPromise && typeof playPromise.then === "function") {
-      playPromise.then(() => refreshVideoOverlays()).catch(() => refreshVideoOverlays());
+      playPromise.then(() => scheduleOverlayRefreshBurst()).catch(() => scheduleOverlayRefreshBurst());
     }
   }
-  requestAnimationFrame(() => refreshVideoOverlays());
+  scheduleOverlayRefreshBurst();
   syncRemoteMediaUi();
   updateConnectionUi();
 }
