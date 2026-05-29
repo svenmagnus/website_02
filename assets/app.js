@@ -508,11 +508,18 @@ function percentToTokens(levelPercent) {
 
 function normalizeToyForPeer(toy, idx) {
   const lovenseId = toy.id || toy.toyId || toy.deviceId || null;
+  let battery = toy.battery ?? toy.batteryLevel ?? toy.power ?? null;
+  if (battery != null && battery !== "") {
+    battery = String(battery).replace(/%/g, "").trim();
+  } else {
+    battery = null;
+  }
   return {
     id: lovenseId ? String(lovenseId) : `toy-${idx + 1}`,
     name: (toy.name || toy.nickName || toy.type || `Toy ${idx + 1}`).trim(),
     type: toy.type || toy.toyType || "toy",
     status: toy.status || "unknown",
+    battery,
   };
 }
 
@@ -644,6 +651,7 @@ function applyToyIntensity(toyId, levelPercent, options) {
   if (level === 0) {
     clearToyThrottleState(safeToyId, toyThrottleState);
     sendPartnerToyCommand(safeToyId, 0, 0);
+    updateToyActivityDisplay(safeToyId, "remote");
     return;
   }
 
@@ -654,6 +662,7 @@ function applyToyIntensity(toyId, levelPercent, options) {
 
   clearToyThrottleState(safeToyId, toyThrottleState);
   sendPartnerToyCommand(safeToyId, level, tokensOverride);
+  updateToyActivityDisplay(safeToyId, "remote");
 }
 
 function applyLocalToyIntensity(toyId, levelPercent, options) {
@@ -682,6 +691,7 @@ function applyLocalToyIntensity(toyId, levelPercent, options) {
     } else {
       stopLocalLovenseToys(safeToyId);
     }
+    updateToyActivityDisplay(safeToyId, "local", "Stopped");
     return;
   }
 
@@ -714,6 +724,7 @@ function applyLocalToyIntensity(toyId, levelPercent, options) {
 
   clearToyThrottleState(safeToyId, localToyThrottleState);
   run();
+  updateToyActivityDisplay(safeToyId, "local");
 }
 
 function schedulePartnerToyCommand(levelPercent, toyId, tokensOverride) {
@@ -741,9 +752,65 @@ function updateToyPresetActive(toyId, level, scope) {
 
 function formatToyStatusBadge(toy) {
   const name = (toy.name || toy.type || "Toy").trim();
-  const on = toy.status === "on" || toy.status === 1;
-  const battery = toy.battery != null && toy.battery !== "" ? `${toy.battery}%` : "—";
+  const on = toy.status === "on" || toy.status === 1 || toy.status === "1";
+  const rawBat = toy.battery;
+  const battery =
+    rawBat != null && rawBat !== "" && !Number.isNaN(Number(rawBat)) ? `${Math.round(Number(rawBat))}%` : null;
   return { name, on, battery };
+}
+
+function presetLabelForLevel(level) {
+  const lv = Number(level) || 0;
+  const hit = TOY_PRESET_LEVELS.find((p) => p.value === lv);
+  return hit ? hit.label : lv > 0 ? `${lv}%` : "";
+}
+
+function describeToyActivity(toyId, scope) {
+  const stateMap = scope === "local" ? localToyControlState : toyControlState;
+  const st = stateMap[toyId] || { level: 0, specials: {} };
+  const parts = [];
+
+  if (st.level > 0) {
+    const label = presetLabelForLevel(st.level);
+    const tokens = resolveTokensForToy(toyId, st.level, null);
+    parts.push(`${label} · ${tokens} tokens`);
+  }
+
+  const activeSpecials = TOY_SPECIAL_COMMANDS.filter((c) => st.specials[c.id]).map((c) => c.label);
+  if (activeSpecials.length) {
+    parts.push(`Pattern: ${activeSpecials.join(", ")}`);
+  }
+
+  if (!parts.length) return "Idle — tap a level or move the slider";
+  return parts.join(" · ");
+}
+
+function getToyPanelRoot(scope) {
+  return scope === "local" ? els.localToyTestList : els.toyControlList;
+}
+
+function updateToyActivityDisplay(toyId, scope, hint) {
+  const root = getToyPanelRoot(scope);
+  if (!root || !toyId) return;
+  const block = root.querySelector(`.toy-block[data-scope="${scope}"][data-toy-id="${toyId}"]`);
+  if (!block) return;
+
+  const stateMap = scope === "local" ? localToyControlState : toyControlState;
+  const st = stateMap[toyId] || { level: 0, specials: {} };
+  const isActive = st.level > 0 || TOY_SPECIAL_COMMANDS.some((c) => st.specials[c.id]);
+
+  block.classList.toggle("is-active", isActive);
+
+  const chip = block.querySelector(".toy-status-chip");
+  if (chip) {
+    chip.classList.toggle("is-on", isActive);
+    chip.textContent = isActive ? "Active" : "Ready";
+  }
+
+  const activity = block.querySelector(".toy-activity-line");
+  if (activity) {
+    activity.textContent = hint || describeToyActivity(toyId, scope);
+  }
 }
 
 function getToyControlContext(toyId, scope) {
@@ -788,6 +855,11 @@ function applyToySpecialLocal(toyId, special, enabled, scope) {
           : `Special ${special} off — base level restored.`
         : `Special ${special} failed — enable it in Stream Master with a token amount.`,
       ok ? "ok" : "err"
+    );
+    updateToyActivityDisplay(
+      toyId,
+      scope,
+      enabled ? `Pattern: ${special} (${result.tokens || "?"} tokens)` : undefined
     );
   });
 }
@@ -840,10 +912,30 @@ function buildToyControlBlock(toy, idx, scope, stateMap) {
   title.textContent = badge.name;
   head.appendChild(title);
 
-  const meta = document.createElement("p");
-  meta.className = "toy-block-meta";
-  meta.textContent = `${badge.on ? "Ready" : "Off"} · Battery ${badge.battery}`;
-  head.appendChild(meta);
+  const statusRow = document.createElement("div");
+  statusRow.className = "toy-status-row";
+
+  const chip = document.createElement("span");
+  chip.className = "toy-status-chip" + (badge.on ? " is-connected" : "");
+  chip.textContent = badge.on ? "Ready" : "Off";
+  statusRow.appendChild(chip);
+
+  if (badge.battery) {
+    const bat = document.createElement("span");
+    bat.className = "toy-battery";
+    bat.textContent = `Battery ${badge.battery}`;
+    bat.title = "Battery level from Lovense extension";
+    statusRow.appendChild(bat);
+  }
+
+  head.appendChild(statusRow);
+
+  const activity = document.createElement("p");
+  activity.className = "toy-activity-line";
+  activity.setAttribute("aria-live", "polite");
+  activity.textContent = describeToyActivity(toyId, scope);
+  head.appendChild(activity);
+
   block.appendChild(head);
 
   const btnRow = document.createElement("div");
@@ -941,6 +1033,7 @@ function renderLocalToyTestPanel() {
   toys.forEach((toy, idx) => {
     list.appendChild(buildToyControlBlock(toy, idx, "local", localToyControlState));
   });
+  toys.forEach((t) => updateToyActivityDisplay(t.id, "local"));
 }
 
 function updateLovenseSetupHint() {
@@ -963,6 +1056,10 @@ function handleToyPanelClick(e, scope) {
     applyLocalToyIntensity(toyId, level, { throttle: false, tokens: isStop ? 0 : presetTokens });
   } else {
     applyToyIntensity(toyId, level, { throttle: false, tokens: isStop ? 0 : presetTokens });
+  }
+  if (!isStop && level > 0) {
+    const label = presetLabelForLevel(level);
+    updateToyActivityDisplay(toyId, scope, `${label} · ${presetTokens} tokens`);
   }
 }
 
@@ -993,6 +1090,7 @@ function handleToyPanelSpecialChange(e, scope) {
   const stateMap = scope === "local" ? localToyControlState : toyControlState;
   stateMap[toyId] = stateMap[toyId] || { level: 0, specials: {} };
   stateMap[toyId].specials[special] = target.checked;
+  updateToyActivityDisplay(toyId, scope);
 
   if (scope === "local") {
     applyToySpecialLocal(toyId, special, target.checked, "local");
@@ -1208,7 +1306,11 @@ function syncLovenseFromBridge() {
 function formatLovenseToys(toys) {
   if (!toys || !toys.length) return "No toy connected in the extension.";
   return toys
-    .map((t) => `${t.type || "toy"}: ${t.status === "on" ? "on" : "off"}${t.battery ? ` (${t.battery}%)` : ""}`)
+    .map((t) => {
+      const n = normalizeToyForPeer(t, 0);
+      const bat = n.battery ? ` · ${n.battery}%` : "";
+      return `${n.type || "toy"}: ${n.status === "on" ? "on" : "off"}${bat}`;
+    })
     .join(" · ");
 }
 

@@ -703,10 +703,56 @@ video {
   gap: 0.2rem;
 }
 
-.toy-block-meta {
-  margin: 0;
-  font-size: 0.74rem;
+.toy-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+}
+
+.toy-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
   color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.toy-status-chip.is-connected {
+  border-color: rgba(76, 175, 120, 0.45);
+  color: #8fd4a8;
+}
+
+.toy-status-chip.is-on {
+  border-color: rgba(255, 107, 53, 0.65);
+  color: #ffb089;
+  background: rgba(255, 107, 53, 0.12);
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.25);
+}
+
+.toy-battery {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.toy-activity-line {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text);
+  line-height: 1.35;
+  min-height: 1.1em;
+}
+
+.toy-block.is-active {
+  border-color: rgba(255, 107, 53, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.15);
 }
 
 .toy-empty-note {
