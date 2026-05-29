@@ -961,8 +961,12 @@ function formatLovenseToys(toys) {
 function onLovenseReady(detail) {
   syncLovenseFromBridge();
   const ver = (detail && detail.version) || window.dualPeerLovense?.version;
+  const hasCmd =
+    (detail && detail.hasSendCommand) ||
+    (window.dualPeerLovense && window.dualPeerLovense.hasLovenseSendCommand?.());
   setLovenseStatus(
-    `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. Widget visible?`
+    `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
+      (hasCmd ? "Per-toy: sendCommand OK." : "Per-toy: reload page if sendCommand missing.")
   );
   if (els.lovenseToyStatus) {
     els.lovenseToyStatus.textContent = formatLovenseToys(
@@ -1036,11 +1040,9 @@ function fireLovenseTip(amount, tipperName, toyId) {
   const name = String(tipperName || "Remote").slice(0, 40);
   const tokens = Math.max(25, requested);
 
-  if (toyId && bridge && typeof bridge.receiveTipForToy === "function") {
-    return bridge.receiveTipForToy(tokens, name, toyId);
-  }
   if (toyId && bridge && typeof bridge.vibrateToy === "function") {
-    return bridge.vibrateToy(toyId, 100, tokens, name);
+    const result = bridge.vibrateToy(toyId, 100, tokens, name);
+    return !!(result && result.ok);
   }
 
   const instance = bridge?.instance || camExtensionInstance;
@@ -1105,7 +1107,8 @@ function handleIncomingToyPayload(data) {
 
   if (level <= 0) {
     if (bridge && typeof bridge.applyRemoteControl === "function") {
-      ok = bridge.applyRemoteControl({ ...data, level: 0, tipAmount: 0 });
+      const stopResult = bridge.applyRemoteControl({ ...data, level: 0, tipAmount: 0 });
+      ok = stopResult && typeof stopResult === "object" ? !!stopResult.ok : !!stopResult;
     } else {
       ok = stopLocalLovenseToys(toyId);
     }
@@ -1127,35 +1130,61 @@ function handleIncomingToyPayload(data) {
   pulseFor("local", 600 + level * 5);
 
   const tipTokens = Math.max(25, tokens);
+  let applyMethod = "none";
   if (bridge && typeof bridge.applyRemoteControl === "function") {
-    ok = bridge.applyRemoteControl({
+    const result = bridge.applyRemoteControl({
       ...data,
       level,
       tipAmount: tipTokens,
       tipperName: name,
     });
+    if (result && typeof result === "object") {
+      ok = !!result.ok;
+      applyMethod = result.method || "unknown";
+    } else {
+      ok = !!result;
+      applyMethod = ok ? "legacy" : "failed";
+    }
   } else if (toyId) {
-    ok = fireLovenseTip(tipTokens, name, toyId);
+    ok = false;
+    applyMethod = "no-bridge";
   } else {
     ok = fireLovenseTip(tipTokens, name);
+    applyMethod = ok ? "receiveTip-all" : "receiveTip-failed";
   }
 
+  const methodLabel =
+    applyMethod === "sendCommand"
+      ? "direct command"
+      : applyMethod === "tipMessage"
+        ? "targeted tip"
+        : applyMethod;
+
   if (ok) {
-    setLovenseStatus(`Remote control: ${toyLabel} — ${tipTokens} tokens from ${name}.`);
+    setLovenseStatus(`Remote control (${methodLabel}): ${toyLabel} from ${name}.`);
     sendDataChannelMessage({
       type: "toy_ack",
       ok: true,
       toyId,
       tokens: tipTokens,
       level,
+      method: applyMethod,
       ts: Date.now(),
     });
   }
 
+  let failDetail = lovenseNotReadyMessage();
+  if (!ok && applyMethod === "no-lovense-api") {
+    failDetail =
+      "lovense.sendCommand not available — hard-reload host page. Without it, tips vibrate all toys.";
+  } else if (!ok && applyMethod === "sendCommand-failed") {
+    failDetail = "sendCommand failed for this toy ID — check extension widget and toy connection.";
+  }
+
   setDataActivityStatus(
     ok
-      ? `Applied level ${level} to ${toyLabel} only (${tipTokens} tokens) from ${name}.`
-      : `Command for ${toyLabel} failed — ${lovenseNotReadyMessage()}`,
+      ? `Applied level ${level} to ${toyLabel} only (${methodLabel}, ${tipTokens} tokens) from ${name}.`
+      : `Command for ${toyLabel} failed — ${failDetail}`,
     ok ? "ok" : "err"
   );
 }
