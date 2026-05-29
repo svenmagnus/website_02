@@ -981,13 +981,15 @@ function fireLovenseTip(amount, tipperName) {
 
   syncLovenseFromBridge();
   const bridge = window.dualPeerLovense;
+  const name = String(tipperName || "Remote").slice(0, 40);
 
   try {
     if (bridge && typeof bridge.receiveTip === "function") {
-      return bridge.receiveTip(tokens, tipperName || "Remote");
+      const ok = bridge.receiveTip(tokens, name);
+      if (ok) return true;
     }
-    if (camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
-      camExtensionInstance.receiveTip(tokens, tipperName || "Remote");
+    if (lovenseReady && camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
+      camExtensionInstance.receiveTip(tokens, name);
       return true;
     }
   } catch (error) {
@@ -1026,7 +1028,7 @@ function handleIncomingToyPayload(data) {
 
   const level = Math.max(0, Math.min(100, Number(data.level) || 0));
   const name = data.tipperName || "Partner";
-  const tokens = Math.round(Number(data.tipAmount) || 0);
+  let tokens = Math.round(Number(data.tipAmount) || 0);
   const toyId = data.toyId ? String(data.toyId) : "";
   const toyLabel = toyId || "all toys";
 
@@ -1034,9 +1036,9 @@ function handleIncomingToyPayload(data) {
   const bridge = window.dualPeerLovense;
   let ok = false;
 
-  if (level <= 0 || tokens <= 0) {
+  if (level <= 0) {
     if (bridge && typeof bridge.applyRemoteControl === "function") {
-      ok = bridge.applyRemoteControl(data);
+      ok = bridge.applyRemoteControl({ ...data, level: 0, tipAmount: 0 });
     } else {
       ok = stopLocalLovenseToys(toyId);
     }
@@ -1047,17 +1049,21 @@ function handleIncomingToyPayload(data) {
     return;
   }
 
+  if (tokens < 1) {
+    tokens = percentToTokens(level);
+  }
+  if (tokens < 1) {
+    setDataActivityStatus("Invalid intensity — could not map level to tokens.", "err");
+    return;
+  }
+
   pulseFor("local", 600 + level * 5);
 
-  if (bridge && typeof bridge.applyRemoteControl === "function") {
-    ok = bridge.applyRemoteControl(data);
-  } else {
-    ok = fireLovenseTip(tokens || percentToTokens(level), name);
-  }
+  ok = fireLovenseTip(tokens, name);
 
   setDataActivityStatus(
     ok
-      ? `Applied level ${level} to ${toyLabel} (${tokens || percentToTokens(level)} tokens) from ${name}.`
+      ? `Applied level ${level} to ${toyLabel} (${tokens} tokens) from ${name}.`
       : `Command for ${toyLabel} failed — ${lovenseNotReadyMessage()}`,
     ok ? "ok" : "err"
   );

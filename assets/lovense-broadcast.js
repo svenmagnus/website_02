@@ -48,21 +48,6 @@
     }
   }
 
-  function pauseOtherToys(targetToyId) {
-    const toys = Array.isArray(state.toys) ? state.toys : [];
-    if (!targetToyId || toys.length <= 1) return;
-
-    toys.forEach((t) => {
-      if (!t?.id || String(t.id) === String(targetToyId)) return;
-      sendFunctionCommand({
-        action: "Stop",
-        timeSec: 0,
-        toyId: String(t.id),
-        stopPrevious: 1,
-      });
-    });
-  }
-
   function sendFunctionCommand({ action, timeSec, toyId, stopPrevious }) {
     if (typeof global.lovense === "undefined" || typeof global.lovense.sendCommand !== "function") {
       return false;
@@ -113,19 +98,6 @@
     return raw;
   }
 
-  function levelToVibrateStrength(level) {
-    return Math.max(0, Math.min(20, Math.round(Number(level) / 5)));
-  }
-
-  function tokensToRunSeconds(tokens, level) {
-    const tipTokens = Math.round(Number(tokens) || 0);
-    if (tipTokens > 0) {
-      return Math.max(2, Math.min(40, tipTokens));
-    }
-    const strength = levelToVibrateStrength(level);
-    return Math.max(2, Math.min(30, strength + 3));
-  }
-
   function stopToy(toyId) {
     const resolvedId = resolveToyId(toyId);
     if (!resolvedId) {
@@ -169,24 +141,14 @@
     const tokens = Math.round(Number(data.tipAmount) || 0);
     const tipperName = data.tipperName || "Remote";
     const targetToyId = resolveToyId(data.toyId);
-    const toys = Array.isArray(state.toys) ? state.toys.filter((t) => t?.id) : [];
 
-    if (level <= 0 || tokens <= 0) {
+    if (level <= 0) {
       return targetToyId ? stopToy(targetToyId) : stopToys();
     }
 
-    if (targetToyId && toys.length > 1) {
-      pauseOtherToys(targetToyId);
-
-      const strength = levelToVibrateStrength(level);
-      if (strength > 0) {
-        sendFunctionCommand({
-          action: `Vibrate:${strength}`,
-          timeSec: tokensToRunSeconds(tokens, level),
-          toyId: targetToyId,
-          stopPrevious: 1,
-        });
-      }
+    if (tokens < 1) {
+      console.warn("[Lovense] applyRemoteControl: missing tipAmount, level=", level);
+      return false;
     }
 
     return receiveTip(tokens, tipperName);
