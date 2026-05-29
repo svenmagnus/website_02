@@ -48,12 +48,27 @@
     }
   }
 
+  function pauseOtherToys(targetToyId) {
+    const toys = Array.isArray(state.toys) ? state.toys : [];
+    if (!targetToyId || toys.length <= 1) return;
+
+    toys.forEach((t) => {
+      if (!t?.id || String(t.id) === String(targetToyId)) return;
+      sendFunctionCommand({
+        action: "Stop",
+        timeSec: 0,
+        toyId: String(t.id),
+        stopPrevious: 1,
+      });
+    });
+  }
+
   function sendFunctionCommand({ action, timeSec, toyId, stopPrevious }) {
     if (typeof global.lovense === "undefined" || typeof global.lovense.sendCommand !== "function") {
       return false;
     }
 
-    const payload = {
+    const inner = {
       command: "Function",
       action: String(action || "Stop"),
       timeSec: Number.isFinite(timeSec) ? timeSec : 0,
@@ -61,18 +76,23 @@
     };
 
     if (toyId) {
-      payload.toy = String(toyId);
+      inner.toy = String(toyId);
     }
     if (stopPrevious != null) {
-      payload.stopPrevious = stopPrevious ? 1 : 0;
+      inner.stopPrevious = stopPrevious ? 1 : 0;
     }
 
     try {
-      global.lovense.sendCommand(payload);
+      global.lovense.sendCommand(inner);
       return true;
     } catch (e) {
-      console.warn("[Lovense] sendCommand failed:", e);
-      return false;
+      try {
+        global.lovense.sendCommand({ command: inner });
+        return true;
+      } catch (e2) {
+        console.warn("[Lovense] sendCommand failed:", e2);
+        return false;
+      }
     }
   }
 
@@ -112,12 +132,14 @@
       return stopToys();
     }
 
-    return sendFunctionCommand({
+    const stopped = sendFunctionCommand({
       action: "Stop",
       timeSec: 0,
       toyId: resolvedId,
       stopPrevious: 1,
     });
+
+    return stopped || stopToys();
   }
 
   function stopToys() {
@@ -145,26 +167,29 @@
     if (!data || typeof data !== "object") return false;
     const level = Math.max(0, Math.min(100, Number(data.level) || 0));
     const tokens = Math.round(Number(data.tipAmount) || 0);
-    const toyId = resolveToyId(data.toyId);
+    const tipperName = data.tipperName || "Remote";
+    const targetToyId = resolveToyId(data.toyId);
+    const toys = Array.isArray(state.toys) ? state.toys.filter((t) => t?.id) : [];
 
     if (level <= 0 || tokens <= 0) {
-      return toyId ? stopToy(toyId) : stopToys();
+      return targetToyId ? stopToy(targetToyId) : stopToys();
     }
 
-    if (toyId) {
+    if (targetToyId && toys.length > 1) {
+      pauseOtherToys(targetToyId);
+
       const strength = levelToVibrateStrength(level);
-      if (strength <= 0) {
-        return stopToy(toyId);
+      if (strength > 0) {
+        sendFunctionCommand({
+          action: `Vibrate:${strength}`,
+          timeSec: tokensToRunSeconds(tokens, level),
+          toyId: targetToyId,
+          stopPrevious: 1,
+        });
       }
-      return sendFunctionCommand({
-        action: `Vibrate:${strength}`,
-        timeSec: tokensToRunSeconds(tokens, level),
-        toyId,
-        stopPrevious: 1,
-      });
     }
 
-    return receiveTip(tokens, data.tipperName || "Remote");
+    return receiveTip(tokens, tipperName);
   }
 
   function init() {
