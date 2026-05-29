@@ -477,18 +477,17 @@ function broadcastLocalToyInventory() {
   if (!toys.length) return false;
   if (!dataConn || !dataConn.open) return false;
 
-  try {
-    dataConn.send({
-      type: "toy_inventory",
-      toys: toys.map(normalizeToyForPeer),
-      ts: Date.now(),
-    });
+  const sent = sendDataChannelMessage({
+    type: "toy_inventory",
+    toys: toys.map(normalizeToyForPeer),
+    ts: Date.now(),
+  });
+  if (sent) {
     setDataActivityStatus(`Shared ${toys.length} local toy(s) with partner.`, "ok");
-    return true;
-  } catch (e) {
-    setDataActivityStatus("Toy list send failed: " + (e && e.message ? e.message : String(e)), "err");
-    return false;
+  } else {
+    setDataActivityStatus("Toy list send failed.", "err");
   }
+  return sent;
 }
 
 function sendPartnerToyCommand(toyId, levelPercent, tokensOverride) {
@@ -500,25 +499,25 @@ function sendPartnerToyCommand(toyId, levelPercent, tokensOverride) {
   const level = Math.max(0, Math.min(100, Math.round(Number(levelPercent) || 0)));
   const tipAmount = level <= 0 ? 0 : tokensOverride != null ? tokensOverride : percentToTokens(level);
 
-  try {
-    dataConn.send({
-      type: "toy",
-      toyId: toyId || "default-toy",
-      level,
-      tipAmount,
-      tipperName: sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You",
-      ts: Date.now(),
-    });
-    if (level <= 0) {
-      setDataActivityStatus(`Stop sent to partner (${toyId}).`, "ok");
-    } else {
-      setDataActivityStatus(`Sent ${tipAmount} tokens to partner (${toyId}).`, "ok");
-    }
-    return true;
-  } catch (e) {
-    setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
+  const payload = {
+    type: "toy",
+    toyId: toyId || "default-toy",
+    level,
+    tipAmount,
+    tipperName: sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You",
+    ts: Date.now(),
+  };
+  const sent = sendDataChannelMessage(payload);
+  if (!sent) {
+    setDataActivityStatus("Send failed — data channel not open.", "err");
     return false;
   }
+  if (level <= 0) {
+    setDataActivityStatus(`Stop sent to partner (${toyId}).`, "ok");
+  } else {
+    setDataActivityStatus(`Sent ${tipAmount} tokens to partner (${toyId}).`, "ok");
+  }
+  return true;
 }
 
 function getToyThrottleState(toyId) {
@@ -625,17 +624,17 @@ function sendToySpecialPayload(toyId, special, checked) {
     setDataActivityStatus("No data channel — connect first.", "err");
     return;
   }
-  try {
-    dataConn.send({
-      type: "toy_special",
-      toyId,
-      special,
-      enabled: !!checked,
-      ts: Date.now(),
-    });
+  const sent = sendDataChannelMessage({
+    type: "toy_special",
+    toyId,
+    special,
+    enabled: !!checked,
+    ts: Date.now(),
+  });
+  if (sent) {
     setDataActivityStatus(`${special} ${checked ? "enabled" : "disabled"} for ${toyId}.`, "ok");
-  } catch (e) {
-    setDataActivityStatus("Send failed: " + (e && e.message ? e.message : String(e)), "err");
+  } else {
+    setDataActivityStatus("Send failed — data channel not open.", "err");
   }
 }
 
@@ -801,8 +800,8 @@ function handleIncomingChatPayload(data) {
 }
 
 function normalizeDataPayload(raw) {
-  if (!raw) return null;
-  if (typeof raw === "object") return raw;
+  if (raw == null) return null;
+
   if (typeof raw === "string") {
     try {
       return JSON.parse(raw);
@@ -810,14 +809,67 @@ function normalizeDataPayload(raw) {
       return { type: "chat", text: raw };
     }
   }
+
+  if (raw instanceof ArrayBuffer) {
+    try {
+      return JSON.parse(new TextDecoder().decode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  if (ArrayBuffer.isView(raw)) {
+    try {
+      return JSON.parse(new TextDecoder().decode(raw.buffer, raw.byteOffset, raw.byteLength));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  if (typeof raw === "object") {
+    if (raw.type) return raw;
+    if (raw.data && typeof raw.data === "object" && raw.data.type) return raw.data;
+  }
+
   return null;
+}
+
+function sendDataChannelMessage(payload) {
+  if (!dataConn || !dataConn.open) return false;
+  try {
+    dataConn.send(payload);
+    return true;
+  } catch (e) {
+    try {
+      dataConn.send(JSON.stringify(payload));
+      return true;
+    } catch (e2) {
+      console.error("Data channel send failed:", e2);
+      return false;
+    }
+  }
 }
 
 function handleIncomingDataMessage(raw) {
   const data = normalizeDataPayload(raw);
-  if (!data) return;
+  if (!data || !data.type) return;
+  if (data.type === "toy_inventory_request") {
+    if (sessionRole === "host") {
+      broadcastLocalToyInventory();
+    }
+    return;
+  }
   if (data.type === "toy_inventory") {
     handleIncomingToyInventory(data);
+    return;
+  }
+  if (data.type === "toy_ack") {
+    if (sessionRole === "guest") {
+      setDataActivityStatus(
+        data.ok ? "Partner applied your toy command." : "Partner could not apply the command.",
+        data.ok ? "ok" : "err"
+      );
+    }
     return;
   }
   if (data.type === "toy") {
@@ -858,7 +910,7 @@ function sendChatMessage() {
     appendChatMessage("You", text, true, payload.ts);
     els.chatInput.value = "";
     els.chatInput.focus();
-    dataConn.send(payload);
+    sendDataChannelMessage(payload);
     setDataActivityStatus("Chat message sent.", "ok");
   } catch (e) {
     setDataActivityStatus("Chat send failed: " + (e && e.message ? e.message : String(e)), "err");
@@ -976,24 +1028,33 @@ function initLovenseIfPresent() {
 }
 
 function fireLovenseTip(amount, tipperName) {
-  const tokens = Math.round(Number(amount));
-  if (!tokens || tokens < 1) return false;
+  const requested = Math.round(Number(amount) || 0);
+  if (!requested || requested < 1) return false;
 
   syncLovenseFromBridge();
   const bridge = window.dualPeerLovense;
   const name = String(tipperName || "Remote").slice(0, 40);
+  const instance = bridge?.instance || camExtensionInstance;
+
+  if (!instance || typeof instance.receiveTip !== "function") {
+    console.warn("[Lovense] receiveTip unavailable", {
+      hasBridge: !!bridge,
+      bridgeReady: !!bridge?.ready,
+      lovenseReady,
+    });
+    return false;
+  }
+
+  const tokens = Math.max(25, requested);
 
   try {
-    if (bridge && typeof bridge.receiveTip === "function") {
-      const ok = bridge.receiveTip(tokens, name);
-      if (ok) return true;
-    }
-    if (lovenseReady && camExtensionInstance && typeof camExtensionInstance.receiveTip === "function") {
-      camExtensionInstance.receiveTip(tokens, name);
-      return true;
-    }
+    instance.receiveTip(tokens, name);
+    return true;
   } catch (error) {
     console.error("fireLovenseTip failed:", error);
+    if (bridge && typeof bridge.receiveTip === "function") {
+      return bridge.receiveTip(tokens, name);
+    }
   }
   return false;
 }
@@ -1059,11 +1120,24 @@ function handleIncomingToyPayload(data) {
 
   pulseFor("local", 600 + level * 5);
 
-  ok = fireLovenseTip(tokens, name);
+  const tipTokens = Math.max(25, tokens);
+  ok = fireLovenseTip(tipTokens, name);
+
+  if (ok) {
+    setLovenseStatus(`Remote control: ${tipTokens} tokens from ${name}.`);
+    sendDataChannelMessage({
+      type: "toy_ack",
+      ok: true,
+      toyId,
+      tokens: tipTokens,
+      level,
+      ts: Date.now(),
+    });
+  }
 
   setDataActivityStatus(
     ok
-      ? `Applied level ${level} to ${toyLabel} (${tokens} tokens) from ${name}.`
+      ? `Applied level ${level} to ${toyLabel} (${tipTokens} tokens) from ${name}.`
       : `Command for ${toyLabel} failed — ${lovenseNotReadyMessage()}`,
     ok ? "ok" : "err"
   );
@@ -1081,12 +1155,18 @@ function handleIncomingToySpecialPayload(data) {
 }
 
 function setupDataConnection(conn) {
+  if (!conn) return;
+  if (conn._dualPeerWired) return;
+  conn._dualPeerWired = true;
+
   dataConn = conn;
   updateConnectionUi();
 
   conn.on("data", handleIncomingDataMessage);
   conn.on("close", () => {
-    dataConn = null;
+    if (dataConn === conn) {
+      dataConn = null;
+    }
     partnerRemoteToys = [];
     renderToyControls([]);
     updateConnectionUi();
@@ -1094,7 +1174,11 @@ function setupDataConnection(conn) {
   });
   conn.on("open", () => {
     updateConnectionUi();
-    broadcastLocalToyInventory();
+    if (sessionRole === "host") {
+      broadcastLocalToyInventory();
+    } else if (sessionRole === "guest") {
+      sendDataChannelMessage({ type: "toy_inventory_request", ts: Date.now() });
+    }
   });
   conn.on("error", (err) => {
     setDataActivityStatus(
@@ -1103,7 +1187,14 @@ function setupDataConnection(conn) {
     );
   });
 
-  if (conn.open) updateConnectionUi();
+  if (conn.open) {
+    updateConnectionUi();
+    if (sessionRole === "host") {
+      broadcastLocalToyInventory();
+    } else if (sessionRole === "guest") {
+      sendDataChannelMessage({ type: "toy_inventory_request", ts: Date.now() });
+    }
+  }
 }
 
 function onRemoteStream(remoteStream) {
@@ -1190,7 +1281,7 @@ els.btnConnect.addEventListener("click", async () => {
         updateConnectionUi();
       });
 
-      const conn = peer.connect(remoteId, { reliable: true });
+      const conn = peer.connect(remoteId, { reliable: true, serialization: "json" });
       setupDataConnection(conn);
 
       updateConnectionUi();
@@ -1300,23 +1391,30 @@ function initLogout() {
 }
 
 function lovenseNotReadyMessage() {
+  syncLovenseFromBridge();
+  const bridge = window.dualPeerLovense;
+  const instance = bridge?.instance || camExtensionInstance;
+
   if (typeof CamExtension === "undefined") {
     return "broadcast.js not loaded.";
   }
-  if (!window.dualPeerLovense) {
+  if (!bridge) {
     return "lovense-broadcast.js not loaded.";
   }
-  if (window.dualPeerLovense.error) {
-    const e = window.dualPeerLovense.error;
+  if (bridge.error) {
+    const e = bridge.error;
     return (e.message || e.code || "SDK error") + " — check URL in Lovense dashboard.";
   }
-  if (!camExtensionInstance) {
-    return "CamExtension not initialized yet.";
+  if (!instance) {
+    return "CamExtension not initialized yet — wait for Extension ready on the host page.";
   }
-  if (!lovenseReady) {
+  if (!bridge.ready && !lovenseReady) {
     return "Extension not ready — in Chrome select test:Tangent-Club and verify widget on this page.";
   }
-  return "receiveTip not available.";
+  if (typeof instance.receiveTip !== "function") {
+    return "receiveTip not available on CamExtension instance.";
+  }
+  return "receiveTip call failed — check host tab is open and extension is connected.";
 }
 
 function getActiveLocalStream() {

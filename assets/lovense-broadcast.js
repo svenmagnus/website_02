@@ -28,14 +28,18 @@
     }
   }
 
+  /** Minimum tokens that reliably trigger the Cam Extension (matches local test button). */
+  const MIN_RECEIVE_TIP_TOKENS = 25;
+
   function receiveTip(amount, tipperName) {
-    const tokens = Math.round(Number(amount));
+    const tokens = Math.max(MIN_RECEIVE_TIP_TOKENS, Math.round(Number(amount) || 0));
     if (!tokens || tokens < 1) return false;
     const name = String(tipperName || "Remote").slice(0, 40);
 
-    if (!state.instance) return false;
-    if (!state.ready) {
-      state.pendingTips.push({ amount: tokens, tipperName: name });
+    if (!state.instance) {
+      if (!state.ready) {
+        state.pendingTips.push({ amount: tokens, tipperName: name });
+      }
       return false;
     }
 
