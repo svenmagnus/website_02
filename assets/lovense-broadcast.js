@@ -21,7 +21,7 @@
     while (state.pendingTips.length) {
       const tip = state.pendingTips.shift();
       try {
-        state.instance.receiveTip(tip.amount, tip.tipperName);
+        state.instance.receiveTip(tip.amount, tip.tipperName, tip.cParameter || {});
       } catch (e) {
         console.error("[Lovense] receiveTip (queued) failed:", e);
       }
@@ -31,25 +31,101 @@
   /** Minimum tokens that reliably trigger the Cam Extension (matches local test button). */
   const MIN_RECEIVE_TIP_TOKENS = 25;
 
-  function receiveTip(amount, tipperName) {
+  function receiveTip(amount, tipperName, cParameter) {
     const tokens = Math.max(MIN_RECEIVE_TIP_TOKENS, Math.round(Number(amount) || 0));
     if (!tokens || tokens < 1) return false;
     const name = String(tipperName || "Remote").slice(0, 40);
+    const opts = cParameter && typeof cParameter === "object" ? cParameter : {};
 
     if (!state.instance) {
       if (!state.ready) {
-        state.pendingTips.push({ amount: tokens, tipperName: name });
+        state.pendingTips.push({ amount: tokens, tipperName: name, cParameter: opts });
       }
       return false;
     }
 
     try {
-      state.instance.receiveTip(tokens, name);
+      state.instance.receiveTip(tokens, name, opts);
       return true;
     } catch (e) {
       console.error("[Lovense] receiveTip failed:", e);
       return false;
     }
+  }
+
+  function lookupToyMeta(toyId) {
+    const id = String(toyId || "");
+    if (!id) return null;
+    const toys = Array.isArray(state.toys) ? state.toys : [];
+    return toys.find((t) => t && String(t.id) === id) || null;
+  }
+
+  function levelToStrength(level) {
+    const lv = Math.max(0, Math.min(100, Number(level) || 0));
+    if (lv <= 0) return 0;
+    return Math.max(1, Math.min(20, Math.round((lv / 100) * 20)));
+  }
+
+  function receiveTipForToy(amount, tipperName, toyId) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return false;
+
+    const tokens = Math.max(MIN_RECEIVE_TIP_TOKENS, Math.round(Number(amount) || 0));
+    const name = String(tipperName || "Remote").slice(0, 40);
+    const meta = lookupToyMeta(resolvedId);
+    const toyType = meta?.type || meta?.toyType || "";
+
+    return receiveTip(tokens, name, {
+      reactToys: [{ toyId: resolvedId, status: 1, toyType }],
+    });
+  }
+
+  function stopOtherToys(activeToyId) {
+    const active = String(activeToyId || "");
+    const toys = Array.isArray(state.toys) ? state.toys : [];
+    let stopped = false;
+    for (const t of toys) {
+      if (!t?.id) continue;
+      if (String(t.id) === active) continue;
+      if (
+        sendFunctionCommand({
+          action: "Stop",
+          timeSec: 0,
+          toyId: String(t.id),
+          stopPrevious: 1,
+        })
+      ) {
+        stopped = true;
+      }
+    }
+    return stopped;
+  }
+
+  function vibrateToy(toyId, level, tokens, tipperName) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return false;
+
+    const strength = levelToStrength(level);
+    if (strength < 1) return false;
+
+    const tipTokens = Math.max(MIN_RECEIVE_TIP_TOKENS, Math.round(Number(tokens) || 0));
+    const name = String(tipperName || "Remote").slice(0, 40);
+
+    if (typeof global.lovense !== "undefined" && typeof global.lovense.sendCommand === "function") {
+      stopOtherToys(resolvedId);
+      if (
+        sendFunctionCommand({
+          action: `Vibrate:${strength}`,
+          timeSec: 0,
+          toyId: resolvedId,
+          stopPrevious: 1,
+        })
+      ) {
+        return true;
+      }
+    }
+
+    return receiveTipForToy(tipTokens, name, resolvedId);
   }
 
   function sendFunctionCommand({ action, timeSec, toyId, stopPrevious }) {
@@ -155,6 +231,10 @@
       return false;
     }
 
+    if (targetToyId) {
+      return vibrateToy(targetToyId, level, tokens, tipperName);
+    }
+
     return receiveTip(tokens, tipperName);
   }
 
@@ -226,10 +306,13 @@
       return state.version;
     },
     receiveTip,
+    receiveTipForToy,
+    vibrateToy,
     stopToy,
     stopToys,
     applyRemoteControl,
     resolveToyId,
+    levelToStrength,
     getSiteName() {
       return global.LOVENSE_SITE_NAME || "test:Tangent-Club";
     },

@@ -1027,15 +1027,23 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
 }
 
-function fireLovenseTip(amount, tipperName) {
+function fireLovenseTip(amount, tipperName, toyId) {
   const requested = Math.round(Number(amount) || 0);
   if (!requested || requested < 1) return false;
 
   syncLovenseFromBridge();
   const bridge = window.dualPeerLovense;
   const name = String(tipperName || "Remote").slice(0, 40);
-  const instance = bridge?.instance || camExtensionInstance;
+  const tokens = Math.max(25, requested);
 
+  if (toyId && bridge && typeof bridge.receiveTipForToy === "function") {
+    return bridge.receiveTipForToy(tokens, name, toyId);
+  }
+  if (toyId && bridge && typeof bridge.vibrateToy === "function") {
+    return bridge.vibrateToy(toyId, 100, tokens, name);
+  }
+
+  const instance = bridge?.instance || camExtensionInstance;
   if (!instance || typeof instance.receiveTip !== "function") {
     console.warn("[Lovense] receiveTip unavailable", {
       hasBridge: !!bridge,
@@ -1044,8 +1052,6 @@ function fireLovenseTip(amount, tipperName) {
     });
     return false;
   }
-
-  const tokens = Math.max(25, requested);
 
   try {
     instance.receiveTip(tokens, name);
@@ -1121,10 +1127,21 @@ function handleIncomingToyPayload(data) {
   pulseFor("local", 600 + level * 5);
 
   const tipTokens = Math.max(25, tokens);
-  ok = fireLovenseTip(tipTokens, name);
+  if (bridge && typeof bridge.applyRemoteControl === "function") {
+    ok = bridge.applyRemoteControl({
+      ...data,
+      level,
+      tipAmount: tipTokens,
+      tipperName: name,
+    });
+  } else if (toyId) {
+    ok = fireLovenseTip(tipTokens, name, toyId);
+  } else {
+    ok = fireLovenseTip(tipTokens, name);
+  }
 
   if (ok) {
-    setLovenseStatus(`Remote control: ${tipTokens} tokens from ${name}.`);
+    setLovenseStatus(`Remote control: ${toyLabel} — ${tipTokens} tokens from ${name}.`);
     sendDataChannelMessage({
       type: "toy_ack",
       ok: true,
@@ -1137,7 +1154,7 @@ function handleIncomingToyPayload(data) {
 
   setDataActivityStatus(
     ok
-      ? `Applied level ${level} to ${toyLabel} (${tipTokens} tokens) from ${name}.`
+      ? `Applied level ${level} to ${toyLabel} only (${tipTokens} tokens) from ${name}.`
       : `Command for ${toyLabel} failed — ${lovenseNotReadyMessage()}`,
     ok ? "ok" : "err"
   );
