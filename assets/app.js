@@ -696,35 +696,50 @@ function applyLocalToyIntensity(toyId, levelPercent, options) {
   }
 
   const run = () => {
+    if (level > 0) clearToySpecialsForToy(safeToyId, "local");
     const tokens = resolveTokensForToy(safeToyId, level, tokensOverride);
+    let result = null;
     if (bridge && typeof bridge.applyRemoteControl === "function") {
-      bridge.applyRemoteControl({
+      result = bridge.applyRemoteControl({
         toyId: safeToyId,
         level,
         tipAmount: tokens,
         tipperName: "Local-Test",
       });
     }
+    updateToyActivityDisplay(
+      safeToyId,
+      "local",
+      result
+        ? formatActivityFromResult(result, level)
+        : `${presetLabelForLevel(level)} · ${tokens} tokens`
+    );
   };
 
   if (throttle) {
     scheduleThrottledToyAction(level, safeToyId, tokensOverride, localToyThrottleState, (lvl, tok) => {
+      if (lvl > 0) clearToySpecialsForToy(safeToyId, "local");
       const tokens = resolveTokensForToy(safeToyId, lvl, tok);
+      let result = null;
       if (bridge && typeof bridge.applyRemoteControl === "function") {
-        bridge.applyRemoteControl({
+        result = bridge.applyRemoteControl({
           toyId: safeToyId,
           level: lvl,
           tipAmount: tokens,
           tipperName: "Local-Test",
         });
       }
+      updateToyActivityDisplay(
+        safeToyId,
+        "local",
+        result ? formatActivityFromResult(result, lvl) : undefined
+      );
     });
     return;
   }
 
   clearToyThrottleState(safeToyId, localToyThrottleState);
   run();
-  updateToyActivityDisplay(safeToyId, "local");
 }
 
 function schedulePartnerToyCommand(levelPercent, toyId, tokensOverride) {
@@ -763,6 +778,54 @@ function presetLabelForLevel(level) {
   const lv = Number(level) || 0;
   const hit = TOY_PRESET_LEVELS.find((p) => p.value === lv);
   return hit ? hit.label : lv > 0 ? `${lv}%` : "";
+}
+
+function formatActivityFromResult(result, level) {
+  if (!result) return "Command failed — extension not ready";
+  if (!result.ok) {
+    if (result.hint) return result.hint;
+    if (result.method === "receiveTip-failed") {
+      return "Tip failed — token must match Stream Master row for this toy";
+    }
+    return "Command failed — check extension and Stream Master";
+  }
+  if (result.hint) return result.hint;
+  if (result.method === "receiveTip-hold") {
+    return `Basic · ${result.tokens} tokens (hold)`;
+  }
+  if (result.method === "sendCommand") {
+    return `Direct motor · ${result.strength}/20 (hold)`;
+  }
+  if (result.method === "special") {
+    return `Pattern ${result.special} · ${result.tokens} tokens`;
+  }
+  if (result.method && String(result.method).startsWith("special-off")) {
+    const label = presetLabelForLevel(level);
+    return result.hint || (label ? `Back to ${label}` : "Pattern off");
+  }
+  return "Active";
+}
+
+function clearToySpecialsForToy(toyId, scope) {
+  const stateMap = scope === "local" ? localToyControlState : toyControlState;
+  const st = stateMap[toyId];
+  if (!st?.specials) return;
+  let hadActive = false;
+  TOY_SPECIAL_COMMANDS.forEach((c) => {
+    if (st.specials[c.id]) {
+      st.specials[c.id] = false;
+      hadActive = true;
+    }
+  });
+  if (!hadActive) return;
+  const root = getToyPanelRoot(scope);
+  if (!root) return;
+  TOY_SPECIAL_COMMANDS.forEach((c) => {
+    const cb = root.querySelector(
+      `input[data-special="${c.id}"][data-scope="${scope}"][data-toy-id="${toyId}"]`
+    );
+    if (cb instanceof HTMLInputElement) cb.checked = false;
+  });
 }
 
 function describeToyActivity(toyId, scope) {
@@ -848,18 +911,21 @@ function applyToySpecialLocal(toyId, special, enabled, scope) {
     })
   ).then((result) => {
     const ok = result && result.ok;
-    setDataActivityStatus(
-      ok
-        ? enabled
+    const ctxAfter = getToyControlContext(toyId, scope);
+    const statusMsg = ok
+      ? result.hint ||
+        (enabled
           ? `Special ${special} on (${result.tokens || "?"} tokens).`
-          : `Special ${special} off — base level restored.`
-        : `Special ${special} failed — enable it in Stream Master with a token amount.`,
-      ok ? "ok" : "err"
-    );
+          : `Special ${special} off — base level restored.`)
+      : result?.hint ||
+        `Special ${special} failed — enable in Stream Master (unique token, no overlap with Basic Levels).`;
+    setDataActivityStatus(statusMsg, ok ? "ok" : "err");
     updateToyActivityDisplay(
       toyId,
       scope,
-      enabled ? `Pattern: ${special} (${result.tokens || "?"} tokens)` : undefined
+      ok
+        ? formatActivityFromResult(result, ctxAfter.level)
+        : result?.hint || `Special ${special} failed`
     );
   });
 }
@@ -1052,14 +1118,11 @@ function handleToyPanelClick(e, scope) {
 
   const isStop = target.classList.contains("active");
   const level = isStop ? 0 : presetLevel;
+  if (!isStop && level > 0) clearToySpecialsForToy(toyId, scope);
   if (scope === "local") {
     applyLocalToyIntensity(toyId, level, { throttle: false, tokens: isStop ? 0 : presetTokens });
   } else {
     applyToyIntensity(toyId, level, { throttle: false, tokens: isStop ? 0 : presetTokens });
-  }
-  if (!isStop && level > 0) {
-    const label = presetLabelForLevel(level);
-    updateToyActivityDisplay(toyId, scope, `${label} · ${presetTokens} tokens`);
   }
 }
 
@@ -1583,14 +1646,14 @@ function handleIncomingToySpecialPayload(data) {
     })
   ).then((result) => {
     const ok = result && result.ok;
-    setDataActivityStatus(
-      ok
-        ? enabled
+    const statusMsg = ok
+      ? result.hint ||
+        (enabled
           ? `Special ${special} on for ${toyId} (${result.tokens || tipAmount} tokens).`
-          : `Special ${special} off for ${toyId} — base vibration restored.`
-        : `Special ${special} failed for ${toyId} — check Stream Master Special Commands.`,
-      ok ? "ok" : "err"
-    );
+          : `Special ${special} off for ${toyId} — base vibration restored.`)
+      : result?.hint ||
+        `Special ${special} failed for ${toyId} — check Stream Master Special Commands.`;
+    setDataActivityStatus(statusMsg, ok ? "ok" : "err");
   });
 }
 

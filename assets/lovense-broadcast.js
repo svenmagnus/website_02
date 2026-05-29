@@ -82,6 +82,26 @@
     return Math.max(1, Math.min(20, Math.round((lv / 100) * 20)));
   }
 
+  /** Distinct motor levels per preset slider position (sendCommand fallback). */
+  function strengthForLevel(level) {
+    const lv = Math.max(0, Math.min(100, Number(level) || 0));
+    const presetMap = { 20: 5, 45: 10, 70: 15, 85: 18, 100: 20 };
+    if (presetMap[lv] != null) return presetMap[lv];
+    return levelToStrength(lv);
+  }
+
+  function stopHardwareOnly(toyId) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return false;
+    const commandToyId = getCommandToyId(resolvedId) || resolvedId;
+    return sendFunctionCommand({
+      action: "Stop",
+      timeSec: 0,
+      toyId: commandToyId,
+      stopPrevious: 1,
+    });
+  }
+
   function listLovenseCommandToys() {
     const out = [];
     const seen = new Set();
@@ -275,22 +295,31 @@
     };
   }
 
-  async function getSpecialTipTokens(specialType) {
+  async function getSpecialConfig(specialType) {
     const key = String(specialType || "").trim();
     let tokens = 100;
+    let enabled = true;
+    let configured = false;
     try {
       if (state.instance && typeof state.instance.getSettings === "function") {
         const settings = await state.instance.getSettings();
         const spec = settings?.special?.[key];
-        if (spec) {
-          if (spec.token != null && spec.token !== "") tokens = Number(spec.token);
-          else if (spec.tokens != null && spec.tokens !== "") tokens = Number(spec.tokens);
+        if (!spec) {
+          return { tokens: null, enabled: false, configured: false };
         }
+        configured = true;
+        if (spec.enable === false || spec.enabled === false) enabled = false;
+        if (spec.token != null && spec.token !== "") tokens = Number(spec.token);
+        else if (spec.tokens != null && spec.tokens !== "") tokens = Number(spec.tokens);
       }
     } catch (e) {
       console.warn("[Lovense] getSettings for special:", e);
     }
-    return Math.max(1, Math.round(tokens));
+    return {
+      tokens: Math.max(1, Math.round(tokens)),
+      enabled,
+      configured,
+    };
   }
 
   function sendSpecialTip(tokens, tipperName, specialType, toyId) {
@@ -342,7 +371,7 @@
     const resolvedId = resolveToyId(toyId);
     if (!resolvedId) return { ok: false, method: "none" };
 
-    const strength = levelToStrength(level);
+    const strength = strengthForLevel(level);
     if (strength < 1) return { ok: false, method: "none" };
 
     const tipTokens = Math.round(Number(tokens) || 0);
@@ -350,20 +379,28 @@
     const name = String(tipperName || "Remote").slice(0, 40);
 
     stopToyHold(resolvedId);
+    stopHardwareOnly(resolvedId);
 
     let result = null;
-    if (hasLovenseSendCommand() && sendVibrateCommand(resolvedId, strength, { continuous: true })) {
-      result = { ok: true, method: "sendCommand", toyId: getCommandToyId(resolvedId) };
-    } else if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
+    if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
       startTipHold(resolvedId, tipTokens, name);
       result = {
         ok: true,
         method: "receiveTip-hold",
         toyId: resolvedId,
         tokens: tipTokens,
+        strength,
+      };
+    } else if (hasLovenseSendCommand() && sendVibrateCommand(resolvedId, strength, { continuous: true })) {
+      result = {
+        ok: true,
+        method: "sendCommand",
+        toyId: getCommandToyId(resolvedId),
+        tokens: tipTokens,
+        strength,
       };
     } else if (sendTipViaCamExtension(tipTokens, name, resolvedId)) {
-      result = { ok: true, method: "tipMessage", toyId: resolvedId };
+      result = { ok: true, method: "tipMessage", toyId: resolvedId, tokens: tipTokens, strength };
     } else {
       return { ok: false, method: hasLovenseSendCommand() ? "sendCommand-failed" : "receiveTip-failed" };
     }
@@ -410,25 +447,59 @@
           ok: !!restored?.ok,
           method: restored?.ok ? "special-off-restore" : "special-off-restore-failed",
           special: specialType,
+          tokens: session.tokens,
+          hint: restored?.ok
+            ? `Back to basic · ${session.tokens} tokens`
+            : "Could not restore basic level",
         };
       }
       return { ok: true, method: "special-off", special: specialType };
     }
 
     stopToyHold(resolvedId);
-    const tokens = await getSpecialTipTokens(specialType);
+    stopHardwareOnly(resolvedId);
+
+    const specConfig = await getSpecialConfig(specialType);
     const name = session.tipperName;
 
-    if (sendSpecialTip(tokens, name, specialType, resolvedId)) {
+    if (!specConfig.configured) {
+      return {
+        ok: false,
+        method: "special-not-in-settings",
+        special: specialType,
+        hint: "Enable this command in Stream Master → Special Commands.",
+      };
+    }
+    if (!specConfig.enabled) {
+      return {
+        ok: false,
+        method: "special-disabled",
+        special: specialType,
+        hint: "Checkbox for this command is off in Stream Master.",
+      };
+    }
+
+    if (sendSpecialTip(specConfig.tokens, name, specialType, resolvedId)) {
       session.activeSpecial = specialType;
       toyBaseSessions[key] = session;
-      return { ok: true, method: "special", special: specialType, tokens };
+      return {
+        ok: true,
+        method: "special",
+        special: specialType,
+        tokens: specConfig.tokens,
+        hint: `Pattern ${specialType} · ${specConfig.tokens} tokens`,
+      };
     }
 
     if (session.level > 0 && session.tokens > 0) {
       vibrateToy(resolvedId, session.level, session.tokens, name);
     }
-    return { ok: false, method: "special-failed", special: specialType };
+    return {
+      ok: false,
+      method: "special-failed",
+      special: specialType,
+      hint: "Token amount must match Stream Master (no overlap with Basic Levels).",
+    };
   }
 
   function resolveToyId(requestedId) {
