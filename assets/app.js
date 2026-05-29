@@ -442,8 +442,8 @@ const LOVENSE_TOKEN_MAP = {
 };
 
 const LOVENSE_SETUP_HINT =
-  "Stream Master: assign each token range to one toy only (never \"Diamo, Lush\" on the same row). " +
-  "Low/Medium/etc. send mapped tokens — extension picks the row by amount, not by toy ID.";
+  "Stream Master: one toy per Basic Level row (never \"Diamo, Lush\" together). " +
+  "Hold until stop uses direct toy commands when available; tip fallback uses your level reaction times.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake" },
@@ -1207,6 +1207,8 @@ function onLovenseToys(toys) {
 
 function initLovenseIfPresent() {
   syncLovenseFromBridge();
+  updateLovenseSetupHint();
+  renderLocalToyTestPanel();
 
   if (els.lovenseUrlHint) {
     els.lovenseUrlHint.textContent =
@@ -1367,10 +1369,12 @@ function handleIncomingToyPayload(data) {
 
   const methodLabel =
     applyMethod === "sendCommand"
-      ? "direct command"
-      : applyMethod === "receiveTip"
-        ? "extension tip"
-        : applyMethod === "tipMessage"
+      ? "hold until stop"
+      : applyMethod === "receiveTip-hold"
+        ? "hold until stop"
+        : applyMethod === "receiveTip"
+          ? "extension tip"
+          : applyMethod === "tipMessage"
           ? "targeted tip"
           : applyMethod;
 

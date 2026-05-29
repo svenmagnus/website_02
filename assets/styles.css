@@ -683,8 +683,12 @@ video {
   gap: 0.8rem;
 }
 
+.controls-span-all {
+  grid-column: 1 / -1;
+}
+
 .local-test-card {
-  margin-top: 1rem;
+  margin-top: 0;
 }
 
 .local-toy-test-grid {

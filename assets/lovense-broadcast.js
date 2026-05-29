@@ -13,6 +13,10 @@
     pendingTips: [],
   };
 
+  /** Re-fire tips before Stream Master reaction time ends (receiveTip fallback only). */
+  const HOLD_REFRESH_MS = 3200;
+  const holdIntervals = Object.create(null);
+
   function dispatch(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail }));
   }
@@ -154,16 +158,19 @@
     }
   }
 
-  function sendVibrateCommand(toyId, strength) {
+  function sendVibrateCommand(toyId, strength, options) {
+    const opts = options || {};
     const commandToyId = getCommandToyId(toyId);
     if (!commandToyId || strength < 1) return false;
 
     const meta = lookupToyMeta(commandToyId) || lookupToyMeta(toyId);
     const type = String(meta?.type || meta?.toyType || "").toLowerCase();
+    /** 0 = run until an explicit Stop command (Lovense API). */
+    const timeSec = opts.continuous ? 0 : Number.isFinite(opts.timeSec) ? opts.timeSec : 0;
 
     if (sendFunctionCommand({
       action: `Vibrate:${strength}`,
-      timeSec: 2,
+      timeSec,
       toyId: commandToyId,
       stopPrevious: 1,
     })) {
@@ -174,13 +181,13 @@
       return (
         sendFunctionCommand({
           action: `Vibrate1:${strength}`,
-          timeSec: 2,
+          timeSec,
           toyId: commandToyId,
           stopPrevious: 1,
         }) ||
         sendFunctionCommand({
           action: `Vibrate2:${strength}`,
-          timeSec: 2,
+          timeSec,
           toyId: commandToyId,
           stopPrevious: 0,
         })
@@ -223,6 +230,36 @@
     }
   }
 
+  function stopToyHold(toyId) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return;
+    const key = String(resolvedId);
+    if (holdIntervals[key]) {
+      clearInterval(holdIntervals[key]);
+      delete holdIntervals[key];
+    }
+  }
+
+  function stopAllToyHolds() {
+    Object.keys(holdIntervals).forEach((key) => {
+      clearInterval(holdIntervals[key]);
+      delete holdIntervals[key];
+    });
+  }
+
+  function startTipHold(toyId, tokens, tipperName) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return;
+    stopToyHold(resolvedId);
+    const tipTokens = Math.round(Number(tokens) || 0);
+    if (!tipTokens || tipTokens < 1) return;
+    const name = String(tipperName || "Remote").slice(0, 40);
+    const key = String(resolvedId);
+    const pulse = () => receiveTip(tipTokens, name, {}, { exactTokens: true });
+    pulse();
+    holdIntervals[key] = setInterval(pulse, HOLD_REFRESH_MS);
+  }
+
   function vibrateToy(toyId, level, tokens, tipperName) {
     const resolvedId = resolveToyId(toyId);
     if (!resolvedId) return { ok: false, method: "none" };
@@ -234,12 +271,20 @@
     if (!tipTokens || tipTokens < 1) return { ok: false, method: "no-tokens" };
     const name = String(tipperName || "Remote").slice(0, 40);
 
-    if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
-      return { ok: true, method: "receiveTip", toyId: resolvedId, tokens: tipTokens };
+    stopToyHold(resolvedId);
+
+    if (hasLovenseSendCommand() && sendVibrateCommand(resolvedId, strength, { continuous: true })) {
+      return { ok: true, method: "sendCommand", toyId: getCommandToyId(resolvedId) };
     }
 
-    if (hasLovenseSendCommand() && sendVibrateCommand(resolvedId, strength)) {
-      return { ok: true, method: "sendCommand", toyId: getCommandToyId(resolvedId) };
+    if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
+      startTipHold(resolvedId, tipTokens, name);
+      return {
+        ok: true,
+        method: "receiveTip-hold",
+        toyId: resolvedId,
+        tokens: tipTokens,
+      };
     }
 
     if (sendTipViaCamExtension(tipTokens, name, resolvedId)) {
@@ -302,6 +347,8 @@
       return stopToys();
     }
 
+    stopToyHold(resolvedId);
+
     const commandToyId = getCommandToyId(resolvedId);
     const stopped = sendFunctionCommand({
       action: "Stop",
@@ -314,6 +361,7 @@
   }
 
   function stopToys() {
+    stopAllToyHolds();
     let stopped = false;
 
     stopped = sendFunctionCommand({
