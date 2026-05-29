@@ -23,6 +23,10 @@
   /** Re-send direct motor commands while level is held (direct motor mode). */
   const MOTOR_HOLD_REFRESH_MS = 3000;
   const motorHoldIntervals = Object.create(null);
+  /** Preset patterns (earthquake, …) — finite bursts, refreshed while checkbox is on. */
+  const PRESET_PATTERN_SEC = 20;
+  const PRESET_HOLD_REFRESH_MS = 17000;
+  const presetHoldIntervals = Object.create(null);
   /** Last normal intensity per toy — used to restore after a special pattern ends. */
   const toyBaseSessions = Object.create(null);
   /** Cached Stream Master settings from getSettings() — warnings only, not for token override. */
@@ -195,15 +199,7 @@
   }
 
   function stopHardwareOnly(toyId) {
-    const resolvedId = resolveToyId(toyId);
-    if (!resolvedId) return false;
-    const commandToyId = getCommandToyId(resolvedId) || resolvedId;
-    return sendFunctionCommand({
-      action: "Stop",
-      timeSec: 0,
-      toyId: commandToyId,
-      stopPrevious: 1,
-    });
+    return stopToyHardware(toyId);
   }
 
   function listLovenseCommandToys() {
@@ -293,7 +289,7 @@
     const commandToyId = getCommandToyId(toyId);
     if (!commandToyId) return false;
     const opts = options || {};
-    const timeSec = opts.continuous ? 0 : Number.isFinite(opts.timeSec) ? opts.timeSec : 0;
+    const timeSec = Number.isFinite(opts.timeSec) && opts.timeSec > 0 ? opts.timeSec : PRESET_PATTERN_SEC;
     return sendRawCommand({
       command: "Preset",
       name: String(presetName || "").toLowerCase(),
@@ -393,6 +389,81 @@
       clearInterval(holdIntervals[key]);
       delete holdIntervals[key];
     });
+  }
+
+  function stopPresetHold(toyId) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return;
+    const key = String(resolvedId);
+    if (presetHoldIntervals[key]) {
+      clearInterval(presetHoldIntervals[key]);
+      delete presetHoldIntervals[key];
+    }
+  }
+
+  function stopAllPresetHolds() {
+    Object.keys(presetHoldIntervals).forEach((key) => {
+      clearInterval(presetHoldIntervals[key]);
+      delete presetHoldIntervals[key];
+    });
+  }
+
+  function startPresetHold(toyId, presetName) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return;
+    stopPresetHold(resolvedId);
+    const name = String(presetName || "").toLowerCase();
+    const key = String(resolvedId);
+    const pulse = () => sendPresetCommand(resolvedId, name, { timeSec: PRESET_PATTERN_SEC });
+    pulse();
+    presetHoldIntervals[key] = setInterval(pulse, PRESET_HOLD_REFRESH_MS);
+  }
+
+  /** Hard stop: intervals + Stop + Vibrate:0 (Preset timeSec:0 ignores Stop on some builds). */
+  function stopToyHardware(toyId) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return false;
+
+    stopToyHold(resolvedId);
+    stopMotorHold(resolvedId);
+    stopPresetHold(resolvedId);
+
+    if (!hasToysForCommands()) return true;
+
+    const commandToyId = getCommandToyId(resolvedId);
+    if (!commandToyId) return false;
+
+    sendFunctionCommand({
+      action: "Stop",
+      timeSec: 0,
+      toyId: commandToyId,
+      stopPrevious: 1,
+    });
+    sendFunctionCommand({
+      action: "Vibrate:0",
+      timeSec: 0,
+      toyId: commandToyId,
+      stopPrevious: 1,
+    });
+
+    const meta = lookupToyMeta(resolvedId);
+    const type = String(meta?.type || meta?.toyType || "").toLowerCase();
+    if (type === "diamo") {
+      sendFunctionCommand({
+        action: "Vibrate1:0",
+        timeSec: 0,
+        toyId: commandToyId,
+        stopPrevious: 0,
+      });
+      sendFunctionCommand({
+        action: "Vibrate2:0",
+        timeSec: 0,
+        toyId: commandToyId,
+        stopPrevious: 0,
+      });
+    }
+
+    return true;
   }
 
   function stopMotorHold(toyId) {
@@ -622,49 +693,48 @@
     if (!enabled) {
       session.activeSpecial = null;
       toyBaseSessions[key] = session;
-      stopToyHold(resolvedId);
-      stopMotorHold(resolvedId);
-      if (hasToysForCommands()) {
-        sendFunctionCommand({
-          action: "Stop",
-          timeSec: 0,
-          toyId: getCommandToyId(resolvedId),
-          stopPrevious: 1,
-        });
-      }
-      if (session.level > 0) {
+      stopToyHardware(resolvedId);
+
+      const restoreLevel = Math.max(0, Math.min(100, Number(level) || 0));
+      if (restoreLevel > 0) {
+        const restoreTokens =
+          Number(tipAmount) > 0 ? Math.round(Number(tipAmount)) : session.tokens;
         const restored = vibrateToy(
           resolvedId,
-          session.level,
-          session.tokens,
+          restoreLevel,
+          restoreTokens,
           session.tipperName
         );
         return {
           ok: !!restored?.ok,
           method: restored?.ok ? "special-off-restore" : "special-off-restore-failed",
           special: specialType,
-          tokens: session.tokens,
+          tokens: restoreTokens,
           hint: restored?.ok
-            ? restored.hint || `Back to motor level`
-            : "Could not restore basic level",
+            ? restored.hint || "Pattern off — base level restored"
+            : "Pattern stopped — could not restore base level",
         };
       }
-      return { ok: true, method: "special-off", special: specialType };
+      return {
+        ok: true,
+        method: "special-off",
+        special: specialType,
+        hint: "Pattern stopped",
+      };
     }
 
-    stopToyHold(resolvedId);
-    stopMotorHold(resolvedId);
-    stopHardwareOnly(resolvedId);
+    stopToyHardware(resolvedId);
 
     if (isDirectMotorMode() && hasLovenseSendCommand() && hasToysForCommands()) {
-      if (sendPresetCommand(resolvedId, specialType, { continuous: true })) {
+      if (sendPresetCommand(resolvedId, specialType, { timeSec: PRESET_PATTERN_SEC })) {
+        startPresetHold(resolvedId, specialType);
         session.activeSpecial = specialType;
         toyBaseSessions[key] = session;
         return {
           ok: true,
           method: "preset-direct",
           special: specialType,
-          hint: `Pattern ${specialType} (direct — no Stream Master tokens)`,
+          hint: `Pattern ${specialType} (${PRESET_PATTERN_SEC}s bursts — uncheck to stop)`,
         };
       }
     }
@@ -737,31 +807,23 @@
     if (!resolvedId) {
       return stopToys();
     }
-
-    stopToyHold(resolvedId);
-    stopMotorHold(resolvedId);
-
-    if (hasToysForCommands()) {
-      const commandToyId = getCommandToyId(resolvedId);
-      return sendFunctionCommand({
-        action: "Stop",
-        timeSec: 0,
-        toyId: commandToyId,
-        stopPrevious: 1,
-      });
-    }
-
-    return true;
+    return stopToyHardware(resolvedId);
   }
 
   function stopToys() {
     stopAllToyHolds();
     stopAllMotorHolds();
+    stopAllPresetHolds();
     let stopped = false;
 
     if (hasToysForCommands()) {
       stopped = sendFunctionCommand({
         action: "Stop",
+        timeSec: 0,
+        stopPrevious: 1,
+      });
+      sendFunctionCommand({
+        action: "Vibrate:0",
         timeSec: 0,
         stopPrevious: 1,
       });

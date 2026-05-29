@@ -465,9 +465,9 @@ const LOVENSE_PRESET_TOKENS = {
 };
 
 const LOVENSE_SETUP_HINT =
-  "Direct motor mode: intensity is sent as Vibrate 1–20 per toy — Stream Master Basic Levels can stay disabled. " +
-  "Chaturbate keeps its own Stream Master; this site does not use token ranges. " +
-  "Special patterns (Earthquake, …) use direct Preset commands too. Tip fallback: set DUALPEER_DIRECT_MOTOR = false.";
+  "Direct motor mode: Vibrate 1–20 per toy — Stream Master Basic Levels optional. " +
+  "Special patterns run in ~20s bursts; uncheck the box or move slider to 0 to stop. " +
+  "Chaturbate keeps its own Stream Master settings.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake" },
@@ -737,6 +737,7 @@ function applyLocalToyIntensity(toyId, levelPercent, options) {
 
   if (level === 0) {
     clearToyThrottleState(safeToyId, localToyThrottleState);
+    clearToySpecialsForToy(safeToyId, "local");
     if (bridge && typeof bridge.stopToy === "function") {
       bridge.stopToy(safeToyId);
     } else {
@@ -863,21 +864,24 @@ function formatActivityFromResult(result, level) {
   return "Active";
 }
 
-function clearToySpecialsForToy(toyId, scope) {
+function clearToySpecialsForToy(toyId, scope, options) {
+  const opts = options || {};
   const stateMap = scope === "local" ? localToyControlState : toyControlState;
   const st = stateMap[toyId];
   if (!st?.specials) return;
-  let hadActive = false;
-  TOY_SPECIAL_COMMANDS.forEach((c) => {
-    if (st.specials[c.id]) {
-      st.specials[c.id] = false;
-      hadActive = true;
-    }
-  });
-  if (!hadActive) return;
+
   const root = getToyPanelRoot(scope);
-  if (!root) return;
   TOY_SPECIAL_COMMANDS.forEach((c) => {
+    if (!st.specials[c.id]) return;
+    if (!opts.uiOnly) {
+      if (scope === "local") {
+        applyToySpecialLocal(toyId, c.id, false, scope);
+      } else {
+        sendToySpecialPayload(toyId, c.id, false);
+      }
+    }
+    st.specials[c.id] = false;
+    if (!root) return;
     const cb = root.querySelector(
       `input[data-special="${c.id}"][data-scope="${scope}"][data-toy-id="${toyId}"]`
     );
@@ -1215,6 +1219,24 @@ function handleToyPanelSpecialChange(e, scope) {
 
   const stateMap = scope === "local" ? localToyControlState : toyControlState;
   stateMap[toyId] = stateMap[toyId] || { level: 0, specials: {} };
+
+  if (target.checked) {
+    TOY_SPECIAL_COMMANDS.forEach((c) => {
+      if (c.id === special || !stateMap[toyId].specials[c.id]) return;
+      stateMap[toyId].specials[c.id] = false;
+      const root = getToyPanelRoot(scope);
+      const cb = root?.querySelector(
+        `input[data-special="${c.id}"][data-scope="${scope}"][data-toy-id="${toyId}"]`
+      );
+      if (cb instanceof HTMLInputElement) cb.checked = false;
+      if (scope === "local") {
+        applyToySpecialLocal(toyId, c.id, false, scope);
+      } else {
+        sendToySpecialPayload(toyId, c.id, false);
+      }
+    });
+  }
+
   stateMap[toyId].specials[special] = target.checked;
   updateToyActivityDisplay(toyId, scope);
 
