@@ -458,10 +458,11 @@ function percentToTokens(levelPercent) {
 }
 
 function normalizeToyForPeer(toy, idx) {
+  const lovenseId = toy.id || toy.toyId || toy.deviceId || null;
   return {
-    id: toy.id || `toy-${idx + 1}`,
-    name: (toy.name || toy.type || `Toy ${idx + 1}`).trim(),
-    type: toy.type || "toy",
+    id: lovenseId ? String(lovenseId) : `toy-${idx + 1}`,
+    name: (toy.name || toy.nickName || toy.type || `Toy ${idx + 1}`).trim(),
+    type: toy.type || toy.toyType || "toy",
     status: toy.status || "unknown",
   };
 }
@@ -558,7 +559,6 @@ function applyToyIntensity(toyId, levelPercent, options) {
 
   if (level === 0) {
     clearToyThrottleState(safeToyId);
-    clearAllToyPendingSends();
     sendPartnerToyCommand(safeToyId, 0, 0);
     return;
   }
@@ -577,7 +577,7 @@ function schedulePartnerToyCommand(levelPercent, toyId, tokensOverride) {
   const level = Math.max(0, Math.min(100, Number(levelPercent) || 0));
 
   if (level === 0) {
-    clearAllToyPendingSends();
+    clearToyThrottleState(safeToyId);
     sendPartnerToyCommand(safeToyId, 0, 0);
     return;
   }
@@ -996,9 +996,12 @@ function fireLovenseTip(amount, tipperName) {
   return false;
 }
 
-function stopLocalLovenseToys() {
+function stopLocalLovenseToys(toyId) {
   syncLovenseFromBridge();
   const bridge = window.dualPeerLovense;
+  if (bridge && toyId && typeof bridge.stopToy === "function") {
+    return bridge.stopToy(toyId);
+  }
   if (bridge && typeof bridge.stopToys === "function") {
     return bridge.stopToys();
   }
@@ -1024,14 +1027,23 @@ function handleIncomingToyPayload(data) {
   const level = Math.max(0, Math.min(100, Number(data.level) || 0));
   const name = data.tipperName || "Partner";
   const tokens = Math.round(Number(data.tipAmount) || 0);
+  const toyId = data.toyId ? String(data.toyId) : "";
+  const toyLabel = toyId || "all toys";
 
   syncLovenseFromBridge();
   const bridge = window.dualPeerLovense;
   let ok = false;
 
   if (level <= 0 || tokens <= 0) {
-    ok = stopLocalLovenseToys();
-    setDataActivityStatus(ok ? "Stop received — local toys halted." : "Stop received.", ok ? "ok" : "err");
+    if (bridge && typeof bridge.applyRemoteControl === "function") {
+      ok = bridge.applyRemoteControl(data);
+    } else {
+      ok = stopLocalLovenseToys(toyId);
+    }
+    setDataActivityStatus(
+      ok ? `Stop received for ${toyLabel}.` : `Stop received for ${toyLabel}.`,
+      ok ? "ok" : "err"
+    );
     return;
   }
 
@@ -1044,7 +1056,9 @@ function handleIncomingToyPayload(data) {
   }
 
   setDataActivityStatus(
-    ok ? `Received ${tokens || percentToTokens(level)} tokens from ${name}.` : `Received from ${name} — ${lovenseNotReadyMessage()}`,
+    ok
+      ? `Applied level ${level} to ${toyLabel} (${tokens || percentToTokens(level)} tokens) from ${name}.`
+      : `Command for ${toyLabel} failed — ${lovenseNotReadyMessage()}`,
     ok ? "ok" : "err"
   );
 }

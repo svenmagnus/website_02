@@ -48,22 +48,86 @@
     }
   }
 
+  function sendFunctionCommand({ action, timeSec, toyId, stopPrevious }) {
+    if (typeof global.lovense === "undefined" || typeof global.lovense.sendCommand !== "function") {
+      return false;
+    }
+
+    const payload = {
+      command: "Function",
+      action: String(action || "Stop"),
+      timeSec: Number.isFinite(timeSec) ? timeSec : 0,
+      apiVer: 1,
+    };
+
+    if (toyId) {
+      payload.toy = String(toyId);
+    }
+    if (stopPrevious != null) {
+      payload.stopPrevious = stopPrevious ? 1 : 0;
+    }
+
+    try {
+      global.lovense.sendCommand(payload);
+      return true;
+    } catch (e) {
+      console.warn("[Lovense] sendCommand failed:", e);
+      return false;
+    }
+  }
+
+  function resolveToyId(requestedId) {
+    if (!requestedId) return null;
+    const raw = String(requestedId);
+    const toys = Array.isArray(state.toys) ? state.toys : [];
+
+    const match = toys.find((t) => t && String(t.id) === raw);
+    if (match?.id) return String(match.id);
+
+    const indexMatch = /^toy-(\d+)$/.exec(raw);
+    if (indexMatch) {
+      const toy = toys[Number(indexMatch[1]) - 1];
+      if (toy?.id) return String(toy.id);
+    }
+
+    return raw;
+  }
+
+  function levelToVibrateStrength(level) {
+    return Math.max(0, Math.min(20, Math.round(Number(level) / 5)));
+  }
+
+  function tokensToRunSeconds(tokens, level) {
+    const tipTokens = Math.round(Number(tokens) || 0);
+    if (tipTokens > 0) {
+      return Math.max(2, Math.min(40, tipTokens));
+    }
+    const strength = levelToVibrateStrength(level);
+    return Math.max(2, Math.min(30, strength + 3));
+  }
+
+  function stopToy(toyId) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) {
+      return stopToys();
+    }
+
+    return sendFunctionCommand({
+      action: "Stop",
+      timeSec: 0,
+      toyId: resolvedId,
+      stopPrevious: 1,
+    });
+  }
+
   function stopToys() {
     let stopped = false;
 
-    try {
-      if (typeof global.lovense !== "undefined" && typeof global.lovense.sendCommand === "function") {
-        global.lovense.sendCommand({
-          command: "Function",
-          action: "Stop",
-          timeSec: 0,
-          apiVer: 1,
-        });
-        stopped = true;
-      }
-    } catch (e) {
-      console.warn("[Lovense] sendCommand(Stop) failed:", e);
-    }
+    stopped = sendFunctionCommand({
+      action: "Stop",
+      timeSec: 0,
+      stopPrevious: 1,
+    });
 
     if (!state.instance || !state.ready) return stopped;
 
@@ -81,9 +145,23 @@
     if (!data || typeof data !== "object") return false;
     const level = Math.max(0, Math.min(100, Number(data.level) || 0));
     const tokens = Math.round(Number(data.tipAmount) || 0);
+    const toyId = resolveToyId(data.toyId);
 
     if (level <= 0 || tokens <= 0) {
-      return stopToys();
+      return toyId ? stopToy(toyId) : stopToys();
+    }
+
+    if (toyId) {
+      const strength = levelToVibrateStrength(level);
+      if (strength <= 0) {
+        return stopToy(toyId);
+      }
+      return sendFunctionCommand({
+        action: `Vibrate:${strength}`,
+        timeSec: tokensToRunSeconds(tokens, level),
+        toyId,
+        stopPrevious: 1,
+      });
     }
 
     return receiveTip(tokens, data.tipperName || "Remote");
@@ -157,8 +235,10 @@
       return state.version;
     },
     receiveTip,
+    stopToy,
     stopToys,
     applyRemoteControl,
+    resolveToyId,
     getSiteName() {
       return global.LOVENSE_SITE_NAME || "test:Tangent-Club";
     },
