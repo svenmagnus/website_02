@@ -1,6 +1,6 @@
 /**
  * Lovense Cam Extension — receiveTip for local toys; remote commands from peer.
- * Per-toy control uses lovense.sendCommand (LAN.js) when available, not global receiveTip.
+ * Presets: lovense.sendCommand when available; else receiveTip + hold (Stream Master token rows).
  * https://developer.lovense.com/docs/cam-solutions/cam-extension-for-chrome
  */
 (function (global) {
@@ -299,27 +299,38 @@
     const key = String(specialType || "").trim();
     let tokens = 100;
     let enabled = true;
-    let configured = false;
+    if (!key) {
+      return { tokens: null, enabled: false, configured: false };
+    }
+
+    if (!state.instance || typeof state.instance.getSettings !== "function") {
+      return { tokens: Math.max(1, Math.round(tokens)), enabled: true, configured: true };
+    }
+
     try {
-      if (state.instance && typeof state.instance.getSettings === "function") {
-        const settings = await state.instance.getSettings();
-        const spec = settings?.special?.[key];
-        if (!spec) {
-          return { tokens: null, enabled: false, configured: false };
-        }
-        configured = true;
-        if (spec.enable === false || spec.enabled === false) enabled = false;
-        if (spec.token != null && spec.token !== "") tokens = Number(spec.token);
-        else if (spec.tokens != null && spec.tokens !== "") tokens = Number(spec.tokens);
+      const settings = await state.instance.getSettings();
+      const specials = settings?.special;
+      let spec = specials?.[key];
+      if (!spec && specials && typeof specials === "object") {
+        const lower = key.toLowerCase();
+        const matchKey = Object.keys(specials).find((k) => String(k).toLowerCase() === lower);
+        if (matchKey) spec = specials[matchKey];
       }
+      if (!spec) {
+        return { tokens: null, enabled: false, configured: false };
+      }
+      if (spec.enable === false || spec.enabled === false) enabled = false;
+      if (spec.token != null && spec.token !== "") tokens = Number(spec.token);
+      else if (spec.tokens != null && spec.tokens !== "") tokens = Number(spec.tokens);
+      return {
+        tokens: Math.max(1, Math.round(tokens)),
+        enabled,
+        configured: true,
+      };
     } catch (e) {
       console.warn("[Lovense] getSettings for special:", e);
+      return { tokens: Math.max(1, Math.round(tokens)), enabled: true, configured: true };
     }
-    return {
-      tokens: Math.max(1, Math.round(tokens)),
-      enabled,
-      configured,
-    };
   }
 
   function sendSpecialTip(tokens, tipperName, specialType, toyId) {
@@ -379,23 +390,23 @@
     const name = String(tipperName || "Remote").slice(0, 40);
 
     stopToyHold(resolvedId);
-    stopHardwareOnly(resolvedId);
 
     let result = null;
-    if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
+    // sendCommand first when LAN API exists — receiveTip returns true even when no Stream Master row matches.
+    if (hasLovenseSendCommand() && sendVibrateCommand(resolvedId, strength, { continuous: true })) {
+      result = {
+        ok: true,
+        method: "sendCommand",
+        toyId: getCommandToyId(resolvedId),
+        tokens: tipTokens,
+        strength,
+      };
+    } else if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
       startTipHold(resolvedId, tipTokens, name);
       result = {
         ok: true,
         method: "receiveTip-hold",
         toyId: resolvedId,
-        tokens: tipTokens,
-        strength,
-      };
-    } else if (hasLovenseSendCommand() && sendVibrateCommand(resolvedId, strength, { continuous: true })) {
-      result = {
-        ok: true,
-        method: "sendCommand",
-        toyId: getCommandToyId(resolvedId),
         tokens: tipTokens,
         strength,
       };
