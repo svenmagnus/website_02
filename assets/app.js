@@ -442,8 +442,9 @@ const LOVENSE_TOKEN_MAP = {
 };
 
 const LOVENSE_SETUP_HINT =
-  "Stream Master: one toy per Basic Level row; enable Special Commands (Pulse, Wave, …) with their own token amounts. " +
-  "Unchecking a special restores your last Low/Medium level — it does not stop the toy.";
+  "Stream Master: one toy per Basic Level row; set vibration strength (vLevel) > 0 on each level. " +
+  "Special Commands need their own token amounts (no overlap with Basic Levels). " +
+  "Unchecking a special restores your last preset — it does not stop the toy.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake" },
@@ -784,8 +785,8 @@ function formatActivityFromResult(result, level) {
   if (!result) return "Command failed — extension not ready";
   if (!result.ok) {
     if (result.hint) return result.hint;
-    if (result.method === "receiveTip-failed") {
-      return "Tip failed — token must match Stream Master row for this toy";
+    if (result.method === "motor-failed" || result.method === "receiveTip-failed") {
+      return "Tip failed — open Lovense widget, set Stream Master levels (vLevel > 0), one toy per row";
     }
     return "Command failed — check extension and Stream Master";
   }
@@ -1377,15 +1378,28 @@ function formatLovenseToys(toys) {
     .join(" · ");
 }
 
+function formatLovenseMotorStatus(detail) {
+  const bridge = window.dualPeerLovense;
+  const lanOnline =
+    (detail && detail.lanToysOnline) ||
+    (bridge && typeof bridge.isLovenseLanOnline === "function" && bridge.isLovenseLanOnline());
+  const warnings =
+    (detail && detail.streamWarnings) ||
+    (bridge && typeof bridge.getStreamMasterWarnings === "function" && bridge.getStreamMasterWarnings()) ||
+    [];
+  const motor = lanOnline
+    ? "Motor: LAN sendCommand + Stream Master tips."
+    : "Motor: Stream Master tips only (normal with Cam Extension).";
+  const warn = warnings.length ? ` ⚠ ${warnings[0]}` : "";
+  return `${motor}${warn}`;
+}
+
 function onLovenseReady(detail) {
   syncLovenseFromBridge();
   const ver = (detail && detail.version) || window.dualPeerLovense?.version;
-  const hasCmd =
-    (detail && detail.hasSendCommand) ||
-    (window.dualPeerLovense && window.dualPeerLovense.hasLovenseSendCommand?.());
   setLovenseStatus(
     `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
-      (hasCmd ? "Per-toy: sendCommand OK." : "Per-toy: reload page if sendCommand missing.")
+      formatLovenseMotorStatus(detail)
   );
   if (els.lovenseToyStatus) {
     els.lovenseToyStatus.textContent = formatLovenseToys(
@@ -1452,6 +1466,14 @@ function initLovenseIfPresent() {
   document.addEventListener("dualpeer-lovense-ready", (e) => onLovenseReady(e.detail));
   document.addEventListener("dualpeer-lovense-error", (e) => onLovenseError(e.detail));
   document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
+  document.addEventListener("dualpeer-lovense-settings", (e) => {
+    syncLovenseFromBridge();
+    const ver = window.dualPeerLovense?.version;
+    setLovenseStatus(
+      `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
+        formatLovenseMotorStatus(e.detail)
+    );
+  });
 }
 
 function fireLovenseTip(amount, tipperName, toyId) {

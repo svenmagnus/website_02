@@ -18,6 +18,10 @@
   const holdIntervals = Object.create(null);
   /** Last normal intensity per toy — used to restore after a special pattern ends. */
   const toyBaseSessions = Object.create(null);
+  /** Cached Stream Master settings from getSettings(). */
+  let cachedStreamSettings = null;
+  /** UI preset % → Stream Master level index (level1 … level5). */
+  const PRESET_PERCENT_TO_LEVEL_INDEX = { 20: 1, 45: 2, 70: 3, 85: 4, 100: 5 };
 
   function dispatch(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail }));
@@ -44,6 +48,62 @@
 
   function hasLovenseSendCommand() {
     return typeof global.lovense !== "undefined" && typeof global.lovense.sendCommand === "function";
+  }
+
+  /** True only when LAN/Connect toyMap has online toys — otherwise sendCommand is a no-op. */
+  function isLovenseLanOnline() {
+    if (!hasLovenseSendCommand()) return false;
+    try {
+      return typeof global.lovense.isToyOnline === "function" && global.lovense.isToyOnline();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function refreshStreamSettings() {
+    if (!state.instance || typeof state.instance.getSettings !== "function") {
+      cachedStreamSettings = null;
+      return null;
+    }
+    try {
+      cachedStreamSettings = await state.instance.getSettings();
+      return cachedStreamSettings;
+    } catch (e) {
+      console.warn("[Lovense] getSettings failed:", e);
+      return null;
+    }
+  }
+
+  function tokensFromStreamSettings(levelPercent) {
+    const idx = PRESET_PERCENT_TO_LEVEL_INDEX[Math.round(Number(levelPercent) || 0)];
+    if (!idx || !cachedStreamSettings?.levels) return null;
+    const row = cachedStreamSettings.levels[`level${idx}`];
+    if (!row) return null;
+    const min = Math.max(1, Math.round(Number(row.min) || 1));
+    const max = Math.max(min, Math.round(Number(row.max) || min));
+    return {
+      tokens: min,
+      vLevel: Number(row.vLevel),
+      time: Number(row.time),
+      levelKey: `level${idx}`,
+    };
+  }
+
+  function getStreamMasterWarnings() {
+    const warnings = [];
+    if (!cachedStreamSettings?.levels) {
+      warnings.push("Stream Master settings not loaded — open Lovense widget once.");
+      return warnings;
+    }
+    Object.keys(cachedStreamSettings.levels).forEach((key) => {
+      const row = cachedStreamSettings.levels[key];
+      if (!row) return;
+      const v = Number(row.vLevel);
+      if (v === 0) {
+        warnings.push(`${key}: vibration strength (vLevel) is 0 — tips will not move the toy.`);
+      }
+    });
+    return warnings;
   }
 
   function receiveTip(amount, tipperName, cParameter, options) {
@@ -151,6 +211,7 @@
 
   function sendFunctionCommand({ action, timeSec, toyId, stopPrevious }) {
     if (!hasLovenseSendCommand()) return false;
+    if (!isLovenseLanOnline()) return false;
 
     const payload = {
       command: "Function",
@@ -222,14 +283,17 @@
   /**
    * Tip payload with reactToys on the tip object (not only cParameter) — extension may honor this.
    */
-  function sendTipViaCamExtension(amount, tipperName, toyId) {
+  function sendTipViaCamExtension(amount, tipperName, toyId, options) {
     const instance = state.instance;
     if (!instance || typeof instance.sendMessage !== "function") return false;
 
     const resolvedId = resolveToyId(toyId);
     if (!resolvedId) return false;
 
-    const tokens = Math.max(MIN_RECEIVE_TIP_TOKENS, Math.round(Number(amount) || 0));
+    const raw = Math.round(Number(amount) || 0);
+    const tokens = options?.exactTokens
+      ? Math.max(1, raw)
+      : Math.max(MIN_RECEIVE_TIP_TOKENS, raw);
     const name = String(tipperName || "Remote").slice(0, 40);
     const meta = lookupToyMeta(resolvedId);
     const toyType = meta?.type || meta?.toyType || "";
@@ -385,23 +449,23 @@
     const strength = strengthForLevel(level);
     if (strength < 1) return { ok: false, method: "none" };
 
-    const tipTokens = Math.round(Number(tokens) || 0);
+    let tipTokens = Math.round(Number(tokens) || 0);
     if (!tipTokens || tipTokens < 1) return { ok: false, method: "no-tokens" };
     const name = String(tipperName || "Remote").slice(0, 40);
+
+    const streamRow = tokensFromStreamSettings(level);
+    if (streamRow?.tokens) tipTokens = streamRow.tokens;
 
     stopToyHold(resolvedId);
 
     let result = null;
-    // sendCommand first when LAN API exists — receiveTip returns true even when no Stream Master row matches.
-    if (hasLovenseSendCommand() && sendVibrateCommand(resolvedId, strength, { continuous: true })) {
-      result = {
-        ok: true,
-        method: "sendCommand",
-        toyId: getCommandToyId(resolvedId),
-        tokens: tipTokens,
-        strength,
-      };
-    } else if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
+    let streamWarning = null;
+    if (streamRow && streamRow.vLevel === 0) {
+      streamWarning = `Stream Master ${streamRow.levelKey} has vLevel 0 — set strength in Lovense widget`;
+    }
+
+    // Cam Extension: receiveTip + Stream Master (primary). LAN sendCommand only when Connect toyMap is online.
+    if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
       startTipHold(resolvedId, tipTokens, name);
       result = {
         ok: true,
@@ -409,11 +473,32 @@
         toyId: resolvedId,
         tokens: tipTokens,
         strength,
+        hint: streamWarning || `Stream Master · ${tipTokens} tokens (hold)`,
       };
-    } else if (sendTipViaCamExtension(tipTokens, name, resolvedId)) {
-      result = { ok: true, method: "tipMessage", toyId: resolvedId, tokens: tipTokens, strength };
+    } else if (sendTipViaCamExtension(tipTokens, name, resolvedId, { exactTokens: true })) {
+      result = {
+        ok: true,
+        method: "tipMessage",
+        toyId: resolvedId,
+        tokens: tipTokens,
+        strength,
+        hint: `Targeted tip · ${tipTokens} tokens`,
+      };
+    } else if (isLovenseLanOnline() && sendVibrateCommand(resolvedId, strength, { continuous: true })) {
+      result = {
+        ok: true,
+        method: "sendCommand",
+        toyId: getCommandToyId(resolvedId),
+        tokens: tipTokens,
+        strength,
+        hint: `LAN direct · motor ${strength}/20`,
+      };
     } else {
-      return { ok: false, method: hasLovenseSendCommand() ? "sendCommand-failed" : "receiveTip-failed" };
+      return {
+        ok: false,
+        method: "motor-failed",
+        hint: streamWarning || "No motor path — open Lovense widget, set Stream Master levels, reload page.",
+      };
     }
 
     if (result?.ok) {
@@ -621,6 +706,7 @@
           if (typeof state.instance.getToyStatus === "function") {
             state.toys = (await state.instance.getToyStatus()) || [];
           }
+          await refreshStreamSettings();
         } catch (e) {
           console.warn("[Lovense] version/toy status:", e);
         }
@@ -630,6 +716,15 @@
           version: state.version,
           toys: state.toys,
           hasSendCommand: hasLovenseSendCommand(),
+          lanToysOnline: isLovenseLanOnline(),
+          streamWarnings: getStreamMasterWarnings(),
+        });
+      });
+
+      camExtension.on("settingsChange", async () => {
+        await refreshStreamSettings();
+        dispatch("dualpeer-lovense-settings", {
+          warnings: getStreamMasterWarnings(),
         });
       });
 
@@ -665,6 +760,9 @@
       return state.version;
     },
     hasLovenseSendCommand,
+    isLovenseLanOnline,
+    refreshStreamSettings,
+    getStreamMasterWarnings,
     receiveTip,
     vibrateToy,
     stopToy,
