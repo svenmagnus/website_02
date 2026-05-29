@@ -683,6 +683,28 @@ video {
   gap: 0.8rem;
 }
 
+.local-test-card {
+  margin-top: 1rem;
+}
+
+.local-toy-test-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.85rem;
+}
+
+.toy-block-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.toy-block-meta {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
 .toy-empty-note {
   font-size: 0.78rem;
   color: var(--muted);

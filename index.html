@@ -206,18 +206,20 @@
         <div class="card">
           <h2>Remote Control</h2>
           <p class="status-line" style="margin: 0 0 0.5rem">
-            Controls your partner&apos;s toys only (list from peer). Buttons and slider; 0 = immediate stop.
+            Controls your partner&apos;s toys (host and guest share lists). Low/Medium/High use mapped tip tokens; 0 = stop.
           </p>
           <div id="toyControlList" class="toy-control-list" aria-live="polite">
             <div class="toy-empty-note">Waiting for partner toys — connect via PeerJS.</div>
           </div>
         </div>
       </section>
-          <div id="test-area" class="login-overlay-row" style="margin-top: 20px; border-top: 1px solid #ccc;padding-top: 15px;">
-  <h3>Lovense local test</h3>
-  <p class="status-line" style="margin: 0 0 0.5rem">Tests receiveTip(25) on this machine only — use Remote Control to steer the partner.</p>
-  <button type="button" class="secondary" id="testDevice">Test local toy (25 tokens)</button>
-</div>
+      <section class="card local-test-card">
+        <h2>Local Test (your toys)</h2>
+        <p class="status-line" id="lovenseSetupHint" style="margin: 0 0 0.75rem"></p>
+        <div id="localToyTestList" class="local-toy-test-grid" aria-live="polite">
+          <div class="toy-empty-note">Waiting for Lovense extension and connected toys…</div>
+        </div>
+      </section>
     </main>
 
     <footer>

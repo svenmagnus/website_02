@@ -40,9 +40,10 @@
     return typeof global.lovense !== "undefined" && typeof global.lovense.sendCommand === "function";
   }
 
-  function receiveTip(amount, tipperName, cParameter) {
-    const tokens = Math.max(MIN_RECEIVE_TIP_TOKENS, Math.round(Number(amount) || 0));
-    if (!tokens || tokens < 1) return false;
+  function receiveTip(amount, tipperName, cParameter, options) {
+    const raw = Math.round(Number(amount) || 0);
+    if (!raw || raw < 1) return false;
+    const tokens = options?.exactTokens ? raw : Math.max(MIN_RECEIVE_TIP_TOKENS, raw);
     const name = String(tipperName || "Remote").slice(0, 40);
     const opts = cParameter && typeof cParameter === "object" ? cParameter : {};
 
@@ -229,8 +230,13 @@
     const strength = levelToStrength(level);
     if (strength < 1) return { ok: false, method: "none" };
 
-    const tipTokens = Math.max(MIN_RECEIVE_TIP_TOKENS, Math.round(Number(tokens) || 0));
+    const tipTokens = Math.round(Number(tokens) || 0);
+    if (!tipTokens || tipTokens < 1) return { ok: false, method: "no-tokens" };
     const name = String(tipperName || "Remote").slice(0, 40);
+
+    if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
+      return { ok: true, method: "receiveTip", toyId: resolvedId, tokens: tipTokens };
+    }
 
     if (hasLovenseSendCommand() && sendVibrateCommand(resolvedId, strength)) {
       return { ok: true, method: "sendCommand", toyId: getCommandToyId(resolvedId) };
@@ -240,7 +246,37 @@
       return { ok: true, method: "tipMessage", toyId: resolvedId };
     }
 
-    return { ok: false, method: hasLovenseSendCommand() ? "sendCommand-failed" : "no-lovense-api" };
+    return { ok: false, method: hasLovenseSendCommand() ? "sendCommand-failed" : "receiveTip-failed" };
+  }
+
+  async function applyToySpecial({ toyId, special, enabled, tipperName }) {
+    const resolvedId = resolveToyId(toyId);
+    const name = String(tipperName || "Remote").slice(0, 40);
+    const specialType = String(special || "").trim();
+    if (!specialType) return { ok: false, method: "no-special" };
+
+    if (!enabled) {
+      const stopped = resolvedId ? stopToy(resolvedId) : stopToys();
+      return { ok: stopped, method: stopped ? "stop" : "stop-failed" };
+    }
+
+    let tokens = 100;
+    try {
+      if (state.instance && typeof state.instance.getSettings === "function") {
+        const settings = await state.instance.getSettings();
+        const spec = settings?.special?.[specialType];
+        if (spec?.token) tokens = Math.max(1, Math.round(Number(spec.token)));
+        else if (spec?.tokens) tokens = Math.max(1, Math.round(Number(spec.tokens)));
+      }
+    } catch (e) {
+      console.warn("[Lovense] getSettings for special:", e);
+    }
+
+    const cParameter = { specialType };
+    if (receiveTip(tokens, name, cParameter, { exactTokens: true })) {
+      return { ok: true, method: "special", special: specialType, tokens };
+    }
+    return { ok: false, method: "special-failed" };
   }
 
   function resolveToyId(requestedId) {
@@ -397,6 +433,7 @@
     stopToy,
     stopToys,
     applyRemoteControl,
+    applyToySpecial,
     resolveToyId,
     getCommandToyId,
     levelToStrength,
