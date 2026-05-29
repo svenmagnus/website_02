@@ -1,7 +1,11 @@
 /**
- * Lovense Cam Extension — receiveTip for local toys; remote commands from peer.
- * Presets: lovense.sendCommand when available; else receiveTip + hold (Stream Master token rows).
- * https://developer.lovense.com/docs/cam-solutions/cam-extension-for-chrome
+ * Lovense Cam Extension bridge for Dual-Peer remote control.
+ *
+ * Default: DIRECT MOTOR mode (window.DUALPEER_DIRECT_MOTOR !== false)
+ *   → lovense.sendCommand Vibrate/Preset/Stop per toy — independent of Stream Master Basic Levels.
+ *   → Basic Levels in Stream Master can stay disabled (fine for Chaturbate + this site multistreaming).
+ *
+ * Fallback: receiveTip + token ranges when direct motor fails (set DUALPEER_DIRECT_MOTOR = false).
  */
 (function (global) {
   const state = {
@@ -13,15 +17,16 @@
     pendingTips: [],
   };
 
-  /** Re-fire tips before Stream Master reaction time ends (receiveTip fallback only). */
+  /** Re-fire tips before Stream Master reaction time ends (tip fallback only). */
   const HOLD_REFRESH_MS = 3200;
   const holdIntervals = Object.create(null);
+  /** Re-send direct motor commands while level is held (direct motor mode). */
+  const MOTOR_HOLD_REFRESH_MS = 3000;
+  const motorHoldIntervals = Object.create(null);
   /** Last normal intensity per toy — used to restore after a special pattern ends. */
   const toyBaseSessions = Object.create(null);
-  /** Cached Stream Master settings from getSettings(). */
+  /** Cached Stream Master settings from getSettings() — warnings only, not for token override. */
   let cachedStreamSettings = null;
-  /** UI preset % → Stream Master level index (level1 … level5). */
-  const PRESET_PERCENT_TO_LEVEL_INDEX = { 20: 1, 45: 2, 70: 3, 85: 4, 100: 5 };
 
   function dispatch(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail }));
@@ -50,7 +55,40 @@
     return typeof global.lovense !== "undefined" && typeof global.lovense.sendCommand === "function";
   }
 
-  /** True only when LAN/Connect toyMap has online toys — otherwise sendCommand is a no-op. */
+  function isDirectMotorMode() {
+    return global.DUALPEER_DIRECT_MOTOR !== false;
+  }
+
+  /** Toys available for sendCommand (extension list or LAN toyMap). */
+  function hasToysForCommands() {
+    const extToys = Array.isArray(state.toys) ? state.toys : [];
+    const extOnline = extToys.some(
+      (t) => t && (t.status === "on" || t.status === 1 || t.status === "1")
+    );
+    if (extOnline) return true;
+    return isLovenseLanOnline();
+  }
+
+  /** Help lan.js isToyOnline() when toys come from Cam Extension only. */
+  function syncLovenseToyMapFromExtension() {
+    if (!hasLovenseSendCommand() || typeof global.lovense.setConnectCallbackData !== "function") {
+      return;
+    }
+    const toys = {};
+    (Array.isArray(state.toys) ? state.toys : []).forEach((t) => {
+      if (!t?.id) return;
+      const on = t.status === "on" || t.status === 1 || t.status === "1";
+      toys[String(t.id)] = {
+        id: String(t.id),
+        name: t.type || t.name || "",
+        status: on ? 1 : 0,
+      };
+    });
+    if (Object.keys(toys).length) {
+      global.lovense.setConnectCallbackData({ toys });
+    }
+  }
+
   function isLovenseLanOnline() {
     if (!hasLovenseSendCommand()) return false;
     try {
@@ -74,19 +112,25 @@
     }
   }
 
-  function tokensFromStreamSettings(levelPercent) {
-    const idx = PRESET_PERCENT_TO_LEVEL_INDEX[Math.round(Number(levelPercent) || 0)];
-    if (!idx || !cachedStreamSettings?.levels) return null;
-    const row = cachedStreamSettings.levels[`level${idx}`];
-    if (!row) return null;
-    const min = Math.max(1, Math.round(Number(row.min) || 1));
-    const max = Math.max(min, Math.round(Number(row.max) || min));
-    return {
-      tokens: min,
-      vLevel: Number(row.vLevel),
-      time: Number(row.time),
-      levelKey: `level${idx}`,
-    };
+  /**
+   * Send a preset tip to the Cam Extension widget.
+   * Uses token values inside Stream Master von-bis ranges (LOVENSE_PRESET_TOKENS in app.js).
+   * Per-toy: sendMessage with reactToys first, then global receiveTip.
+   */
+  function firePresetTip(tokens, tipperName, toyId) {
+    const tipTokens = Math.round(Number(tokens) || 0);
+    if (!tipTokens || tipTokens < 1) return { ok: false, method: "no-tokens" };
+
+    const name = String(tipperName || "Remote").slice(0, 40);
+    const resolvedId = toyId ? resolveToyId(toyId) : null;
+
+    if (resolvedId && sendTipViaCamExtension(tipTokens, name, resolvedId, { exactTokens: true })) {
+      return { ok: true, method: "tipMessage", toyId: resolvedId, tokens: tipTokens };
+    }
+    if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
+      return { ok: true, method: "receiveTip", tokens: tipTokens };
+    }
+    return { ok: false, method: "tip-failed" };
   }
 
   function getStreamMasterWarnings() {
@@ -209,10 +253,25 @@
     return resolved;
   }
 
-  function sendFunctionCommand({ action, timeSec, toyId, stopPrevious }) {
-    if (!hasLovenseSendCommand()) return false;
-    if (!isLovenseLanOnline()) return false;
+  function sendRawCommand(payload) {
+    if (!hasLovenseSendCommand() || !payload) return false;
+    if (!hasToysForCommands()) return false;
+    syncLovenseToyMapFromExtension();
+    try {
+      global.lovense.sendCommand(payload);
+      return true;
+    } catch (e) {
+      try {
+        global.lovense.sendCommand({ command: payload });
+        return true;
+      } catch (e2) {
+        console.warn("[Lovense] sendCommand failed:", e2, payload);
+        return false;
+      }
+    }
+  }
 
+  function sendFunctionCommand({ action, timeSec, toyId, stopPrevious }) {
     const payload = {
       command: "Function",
       action: String(action || "Stop"),
@@ -227,18 +286,21 @@
       payload.stopPrevious = stopPrevious ? 1 : 0;
     }
 
-    try {
-      global.lovense.sendCommand(payload);
-      return true;
-    } catch (e) {
-      try {
-        global.lovense.sendCommand({ command: payload });
-        return true;
-      } catch (e2) {
-        console.warn("[Lovense] sendCommand failed:", e2, payload);
-        return false;
-      }
-    }
+    return sendRawCommand(payload);
+  }
+
+  function sendPresetCommand(toyId, presetName, options) {
+    const commandToyId = getCommandToyId(toyId);
+    if (!commandToyId) return false;
+    const opts = options || {};
+    const timeSec = opts.continuous ? 0 : Number.isFinite(opts.timeSec) ? opts.timeSec : 0;
+    return sendRawCommand({
+      command: "Preset",
+      name: String(presetName || "").toLowerCase(),
+      timeSec,
+      toy: commandToyId,
+      apiVer: 1,
+    });
   }
 
   function sendVibrateCommand(toyId, strength, options) {
@@ -333,6 +395,34 @@
     });
   }
 
+  function stopMotorHold(toyId) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return;
+    const key = String(resolvedId);
+    if (motorHoldIntervals[key]) {
+      clearInterval(motorHoldIntervals[key]);
+      delete motorHoldIntervals[key];
+    }
+  }
+
+  function stopAllMotorHolds() {
+    Object.keys(motorHoldIntervals).forEach((key) => {
+      clearInterval(motorHoldIntervals[key]);
+      delete motorHoldIntervals[key];
+    });
+  }
+
+  function startMotorHold(toyId, strength) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return;
+    stopMotorHold(resolvedId);
+    const str = Math.max(1, Math.min(20, Number(strength) || 1));
+    const key = String(resolvedId);
+    const pulse = () => sendVibrateCommand(resolvedId, str, { continuous: true });
+    pulse();
+    motorHoldIntervals[key] = setInterval(pulse, MOTOR_HOLD_REFRESH_MS);
+  }
+
   function startTipHold(toyId, tokens, tipperName) {
     const resolvedId = resolveToyId(toyId);
     if (!resolvedId) return;
@@ -341,8 +431,7 @@
     if (!tipTokens || tipTokens < 1) return;
     const name = String(tipperName || "Remote").slice(0, 40);
     const key = String(resolvedId);
-    const pulse = () => receiveTip(tipTokens, name, {}, { exactTokens: true });
-    pulse();
+    const pulse = () => firePresetTip(tipTokens, name, resolvedId);
     holdIntervals[key] = setInterval(pulse, HOLD_REFRESH_MS);
   }
 
@@ -449,56 +538,57 @@
     const strength = strengthForLevel(level);
     if (strength < 1) return { ok: false, method: "none" };
 
-    let tipTokens = Math.round(Number(tokens) || 0);
-    if (!tipTokens || tipTokens < 1) return { ok: false, method: "no-tokens" };
+    const tipTokens = Math.round(Number(tokens) || 0);
     const name = String(tipperName || "Remote").slice(0, 40);
 
-    const streamRow = tokensFromStreamSettings(level);
-    if (streamRow?.tokens) tipTokens = streamRow.tokens;
-
     stopToyHold(resolvedId);
+    stopMotorHold(resolvedId);
 
     let result = null;
-    let streamWarning = null;
-    if (streamRow && streamRow.vLevel === 0) {
-      streamWarning = `Stream Master ${streamRow.levelKey} has vLevel 0 — set strength in Lovense widget`;
+
+    if (isDirectMotorMode() && hasLovenseSendCommand() && hasToysForCommands()) {
+      if (sendVibrateCommand(resolvedId, strength, { continuous: true })) {
+        startMotorHold(resolvedId, strength);
+        result = {
+          ok: true,
+          method: "sendCommand",
+          toyId: getCommandToyId(resolvedId),
+          tokens: tipTokens || null,
+          strength,
+          hint: `Motor ${strength}/20 (direct — no Stream Master Basic Levels)`,
+        };
+      }
     }
 
-    // Cam Extension: receiveTip + Stream Master (primary). LAN sendCommand only when Connect toyMap is online.
-    if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
-      startTipHold(resolvedId, tipTokens, name);
-      result = {
-        ok: true,
-        method: "receiveTip-hold",
-        toyId: resolvedId,
-        tokens: tipTokens,
-        strength,
-        hint: streamWarning || `Stream Master · ${tipTokens} tokens (hold)`,
-      };
-    } else if (sendTipViaCamExtension(tipTokens, name, resolvedId, { exactTokens: true })) {
-      result = {
-        ok: true,
-        method: "tipMessage",
-        toyId: resolvedId,
-        tokens: tipTokens,
-        strength,
-        hint: `Targeted tip · ${tipTokens} tokens`,
-      };
-    } else if (isLovenseLanOnline() && sendVibrateCommand(resolvedId, strength, { continuous: true })) {
-      result = {
-        ok: true,
-        method: "sendCommand",
-        toyId: getCommandToyId(resolvedId),
-        tokens: tipTokens,
-        strength,
-        hint: `LAN direct · motor ${strength}/20`,
-      };
-    } else {
-      return {
-        ok: false,
-        method: "motor-failed",
-        hint: streamWarning || "No motor path — open Lovense widget, set Stream Master levels, reload page.",
-      };
+    if (!result?.ok) {
+      if (tipTokens < 1) {
+        return {
+          ok: false,
+          method: "motor-failed",
+          hint: isDirectMotorMode()
+            ? "Direct motor failed — reload page, check extension widget and toy connection."
+            : "No token amount — enable direct motor or configure Stream Master tokens.",
+        };
+      }
+
+      const fired = firePresetTip(tipTokens, name, resolvedId);
+      if (fired.ok) {
+        startTipHold(resolvedId, tipTokens, name);
+        result = {
+          ok: true,
+          method: fired.method === "tipMessage" ? "tipMessage-hold" : "receiveTip-hold",
+          toyId: resolvedId,
+          tokens: tipTokens,
+          strength,
+          hint: `${tipTokens} tokens · Stream Master fallback (hold)`,
+        };
+      } else {
+        return {
+          ok: false,
+          method: "tip-failed",
+          hint: `Token ${tipTokens} must fall in Stream Master range for this toy (tip fallback).`,
+        };
+      }
     }
 
     if (result?.ok) {
@@ -532,7 +622,17 @@
     if (!enabled) {
       session.activeSpecial = null;
       toyBaseSessions[key] = session;
-      if (session.level > 0 && session.tokens > 0) {
+      stopToyHold(resolvedId);
+      stopMotorHold(resolvedId);
+      if (hasToysForCommands()) {
+        sendFunctionCommand({
+          action: "Stop",
+          timeSec: 0,
+          toyId: getCommandToyId(resolvedId),
+          stopPrevious: 1,
+        });
+      }
+      if (session.level > 0) {
         const restored = vibrateToy(
           resolvedId,
           session.level,
@@ -545,7 +645,7 @@
           special: specialType,
           tokens: session.tokens,
           hint: restored?.ok
-            ? `Back to basic · ${session.tokens} tokens`
+            ? restored.hint || `Back to motor level`
             : "Could not restore basic level",
         };
       }
@@ -553,37 +653,54 @@
     }
 
     stopToyHold(resolvedId);
+    stopMotorHold(resolvedId);
     stopHardwareOnly(resolvedId);
+
+    if (isDirectMotorMode() && hasLovenseSendCommand() && hasToysForCommands()) {
+      if (sendPresetCommand(resolvedId, specialType, { continuous: true })) {
+        session.activeSpecial = specialType;
+        toyBaseSessions[key] = session;
+        return {
+          ok: true,
+          method: "preset-direct",
+          special: specialType,
+          hint: `Pattern ${specialType} (direct — no Stream Master tokens)`,
+        };
+      }
+    }
 
     const specConfig = await getSpecialConfig(specialType);
     const name = session.tipperName;
 
-    if (!specConfig.configured) {
-      return {
-        ok: false,
-        method: "special-not-in-settings",
-        special: specialType,
-        hint: "Enable this command in Stream Master → Special Commands.",
-      };
-    }
-    if (!specConfig.enabled) {
-      return {
-        ok: false,
-        method: "special-disabled",
-        special: specialType,
-        hint: "Checkbox for this command is off in Stream Master.",
-      };
+    if (!isDirectMotorMode()) {
+      if (!specConfig.configured) {
+        return {
+          ok: false,
+          method: "special-not-in-settings",
+          special: specialType,
+          hint: "Enable this command in Stream Master → Special Commands.",
+        };
+      }
+      if (!specConfig.enabled) {
+        return {
+          ok: false,
+          method: "special-disabled",
+          special: specialType,
+          hint: "Checkbox for this command is off in Stream Master.",
+        };
+      }
     }
 
-    if (sendSpecialTip(specConfig.tokens, name, specialType, resolvedId)) {
+    const specialTokens = specConfig.tokens || tipAmount || 100;
+    if (sendSpecialTip(specialTokens, name, specialType, resolvedId)) {
       session.activeSpecial = specialType;
       toyBaseSessions[key] = session;
       return {
         ok: true,
         method: "special",
         special: specialType,
-        tokens: specConfig.tokens,
-        hint: `Pattern ${specialType} · ${specConfig.tokens} tokens`,
+        tokens: specConfig.tokens || specialTokens,
+        hint: `Pattern ${specialType} · ${specConfig.tokens || specialTokens} tokens (Stream Master fallback)`,
       };
     }
 
@@ -622,35 +739,41 @@
     }
 
     stopToyHold(resolvedId);
+    stopMotorHold(resolvedId);
 
-    const commandToyId = getCommandToyId(resolvedId);
-    const stopped = sendFunctionCommand({
-      action: "Stop",
-      timeSec: 0,
-      toyId: commandToyId,
-      stopPrevious: 1,
-    });
+    if (hasToysForCommands()) {
+      const commandToyId = getCommandToyId(resolvedId);
+      return sendFunctionCommand({
+        action: "Stop",
+        timeSec: 0,
+        toyId: commandToyId,
+        stopPrevious: 1,
+      });
+    }
 
-    return stopped || stopToys();
+    return true;
   }
 
   function stopToys() {
     stopAllToyHolds();
+    stopAllMotorHolds();
     let stopped = false;
 
-    stopped = sendFunctionCommand({
-      action: "Stop",
-      timeSec: 0,
-      stopPrevious: 1,
-    });
+    if (hasToysForCommands()) {
+      stopped = sendFunctionCommand({
+        action: "Stop",
+        timeSec: 0,
+        stopPrevious: 1,
+      });
+    }
 
-    if (!state.instance || !state.ready) return stopped;
-
-    try {
-      state.instance.receiveTip(1, "Stop", { specialType: "clear" });
-      stopped = true;
-    } catch (e) {
-      console.warn("[Lovense] receiveTip(clear) failed:", e);
+    if (!isDirectMotorMode() && state.instance && state.ready) {
+      try {
+        state.instance.receiveTip(1, "Stop", { specialType: "clear" });
+        stopped = true;
+      } catch (e) {
+        console.warn("[Lovense] receiveTip(clear) failed:", e);
+      }
     }
 
     return stopped;
@@ -668,7 +791,7 @@
       return { ok: stopped, method: stopped ? "stop" : "stop-failed" };
     }
 
-    if (tokens < 1) {
+    if (tokens < 1 && !isDirectMotorMode()) {
       console.warn("[Lovense] applyRemoteControl: missing tipAmount, level=", level);
       return { ok: false, method: "no-tokens" };
     }
@@ -707,6 +830,7 @@
             state.toys = (await state.instance.getToyStatus()) || [];
           }
           await refreshStreamSettings();
+          syncLovenseToyMapFromExtension();
         } catch (e) {
           console.warn("[Lovense] version/toy status:", e);
         }
@@ -717,7 +841,8 @@
           toys: state.toys,
           hasSendCommand: hasLovenseSendCommand(),
           lanToysOnline: isLovenseLanOnline(),
-          streamWarnings: getStreamMasterWarnings(),
+          directMotor: isDirectMotorMode(),
+          streamWarnings: isDirectMotorMode() ? [] : getStreamMasterWarnings(),
         });
       });
 
@@ -735,6 +860,7 @@
 
       camExtension.on("toyStatusChange", (data) => {
         state.toys = data || [];
+        syncLovenseToyMapFromExtension();
         dispatch("dualpeer-lovense-toys", state.toys);
       });
     } catch (e) {
@@ -761,6 +887,8 @@
     },
     hasLovenseSendCommand,
     isLovenseLanOnline,
+    isDirectMotorMode,
+    hasToysForCommands,
     refreshStreamSettings,
     getStreamMasterWarnings,
     receiveTip,

@@ -431,20 +431,43 @@ const TOY_PRESET_LEVELS = [
 ];
 
 /**
- * Exact tip tokens per toy type + preset. Must match Stream Master Basic Levels:
- * each token value must land in ONE row with ONLY that toy in the "Toy" column.
- * Adjust if you change extension levels (see #lovenseSetupHint).
+ * Stream Master uses von-bis ranges only — the app sends one fixed token INSIDE each range.
+ * Each row in Stream Master must list ONE toy only (Diamo row + Lush row per preset).
+ *
+ * Your current Stream Master (screenshot):
+ *   Low    1–9    → send 5
+ *   Medium 10–50  → send 35
+ *   High   51–100 → send 75
+ *   Ultra  101–500 → send 200
  */
-const LOVENSE_TOKEN_MAP = {
-  lush: { Low: 25, Medium: 55, High: 75, Max: 150, Ultra: 350 },
-  diamo: { Low: 5, Medium: 35, High: 65, Max: 120, Ultra: 350 },
-  default: { Low: 25, Medium: 55, High: 75, Max: 150, Ultra: 350 },
+const LOVENSE_PRESET_TOKENS = {
+  lush: {
+    Low: { min: 1, max: 9, send: 5 },
+    Medium: { min: 10, max: 50, send: 35 },
+    High: { min: 51, max: 100, send: 75 },
+    Max: { min: 51, max: 100, send: 85 },
+    Ultra: { min: 101, max: 500, send: 200 },
+  },
+  diamo: {
+    Low: { min: 1, max: 9, send: 5 },
+    Medium: { min: 10, max: 50, send: 35 },
+    High: { min: 51, max: 100, send: 75 },
+    Max: { min: 51, max: 100, send: 85 },
+    Ultra: { min: 101, max: 500, send: 200 },
+  },
+  default: {
+    Low: { min: 1, max: 9, send: 5 },
+    Medium: { min: 10, max: 50, send: 35 },
+    High: { min: 51, max: 100, send: 75 },
+    Max: { min: 51, max: 100, send: 85 },
+    Ultra: { min: 101, max: 500, send: 200 },
+  },
 };
 
 const LOVENSE_SETUP_HINT =
-  "Stream Master: one toy per Basic Level row; set vibration strength (vLevel) > 0 on each level. " +
-  "Special Commands need their own token amounts (no overlap with Basic Levels). " +
-  "Unchecking a special restores your last preset — it does not stop the toy.";
+  "Direct motor mode: intensity is sent as Vibrate 1–20 per toy — Stream Master Basic Levels can stay disabled. " +
+  "Chaturbate keeps its own Stream Master; this site does not use token ranges. " +
+  "Special patterns (Earthquake, …) use direct Preset commands too. Tip fallback: set DUALPEER_DIRECT_MOTOR = false.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake" },
@@ -492,15 +515,42 @@ function presetForLevel(levelPercent) {
   return nearest;
 }
 
+function isDirectMotorMode() {
+  return window.DUALPEER_DIRECT_MOTOR !== false;
+}
+
+function presetMotorStrength(levelValue) {
+  const bridge = window.dualPeerLovense;
+  if (bridge && typeof bridge.levelToStrength === "function") {
+    const map = { 20: 5, 45: 10, 70: 15, 85: 18, 100: 20 };
+    if (map[levelValue] != null) return map[levelValue];
+    return bridge.levelToStrength(levelValue);
+  }
+  return Math.max(1, Math.round((Number(levelValue) / 100) * 20));
+}
+
+function presetTokenEntry(toyId, presetLabel) {
+  const toy = findToyRecord(toyId);
+  const map = LOVENSE_PRESET_TOKENS[toyTypeKey(toy)] || LOVENSE_PRESET_TOKENS.default;
+  return map[presetLabel] || LOVENSE_PRESET_TOKENS.default[presetLabel] || { min: 1, max: 9, send: 5 };
+}
+
+function presetTokenSend(toyId, presetLabel) {
+  return presetTokenEntry(toyId, presetLabel).send;
+}
+
+function presetTokenRangeLabel(toyId, presetLabel) {
+  const e = presetTokenEntry(toyId, presetLabel);
+  return `${e.send} (range ${e.min}–${e.max})`;
+}
+
 function resolveTokensForToy(toyId, levelPercent, tokensOverride) {
   if (tokensOverride != null && Number(tokensOverride) > 0) {
     return Math.round(Number(tokensOverride));
   }
   const preset = presetForLevel(levelPercent);
   if (!preset) return 0;
-  const toy = findToyRecord(toyId);
-  const map = LOVENSE_TOKEN_MAP[toyTypeKey(toy)] || LOVENSE_TOKEN_MAP.default;
-  return map[preset.label] ?? LOVENSE_TOKEN_MAP.default[preset.label] ?? 25;
+  return presetTokenSend(toyId, preset.label);
 }
 
 function percentToTokens(levelPercent) {
@@ -791,11 +841,17 @@ function formatActivityFromResult(result, level) {
     return "Command failed — check extension and Stream Master";
   }
   if (result.hint) return result.hint;
-  if (result.method === "receiveTip-hold") {
-    return `Basic · ${result.tokens} tokens (hold)`;
+  if (result.method === "receiveTip-hold" || result.method === "tipMessage-hold") {
+    return result.hint || `${result.tokens} tokens (hold)`;
+  }
+  if (result.method === "tipMessage") {
+    return `${result.tokens} tokens · per-toy tip`;
   }
   if (result.method === "sendCommand") {
-    return `Direct motor · ${result.strength}/20 (hold)`;
+    return result.hint || `Motor ${result.strength || "?"}/20 (direct)`;
+  }
+  if (result.method === "preset-direct") {
+    return result.hint || `Pattern ${result.special} (direct)`;
   }
   if (result.method === "special") {
     return `Pattern ${result.special} · ${result.tokens} tokens`;
@@ -961,7 +1017,7 @@ function buildToyControlBlock(toy, idx, scope, stateMap) {
   const toyId = toy.id || `toy-${idx + 1}`;
   const badge = formatToyStatusBadge(toy);
   const typeKey = toyTypeKey(toy);
-  const tokenMap = LOVENSE_TOKEN_MAP[typeKey] || LOVENSE_TOKEN_MAP.default;
+  const tokenMap = LOVENSE_PRESET_TOKENS[typeKey] || LOVENSE_PRESET_TOKENS.default;
 
   if (!stateMap[toyId]) {
     stateMap[toyId] = { level: 0, specials: {} };
@@ -1008,7 +1064,8 @@ function buildToyControlBlock(toy, idx, scope, stateMap) {
   const btnRow = document.createElement("div");
   btnRow.className = "toy-preset-row";
   TOY_PRESET_LEVELS.forEach((preset) => {
-    const tokens = tokenMap[preset.label] ?? 25;
+    const entry = tokenMap[preset.label] || LOVENSE_PRESET_TOKENS.default[preset.label];
+    const tokens = entry?.send ?? 5;
     const b = document.createElement("button");
     b.type = "button";
     b.className = "toy-preset-btn";
@@ -1017,7 +1074,12 @@ function buildToyControlBlock(toy, idx, scope, stateMap) {
     b.dataset.toyId = toyId;
     b.dataset.level = String(preset.value);
     b.dataset.tokens = String(tokens);
-    b.title = `${tokens} tokens`;
+    const motor = presetMotorStrength(preset.value);
+    b.title = isDirectMotorMode()
+      ? `Motor ${motor}/20 · direct (no Stream Master tokens)`
+      : entry
+        ? `${tokens} tokens · Stream Master range ${entry.min}–${entry.max}`
+        : `${tokens} tokens`;
     if ((stateMap[toyId].level || 0) > 0 && Number(preset.value) === Number(stateMap[toyId].level)) {
       b.classList.add("active");
     }
@@ -1379,19 +1441,20 @@ function formatLovenseToys(toys) {
 }
 
 function formatLovenseMotorStatus(detail) {
-  const bridge = window.dualPeerLovense;
-  const lanOnline =
-    (detail && detail.lanToysOnline) ||
-    (bridge && typeof bridge.isLovenseLanOnline === "function" && bridge.isLovenseLanOnline());
+  const direct =
+    (detail && detail.directMotor) ||
+    isDirectMotorMode();
+  if (direct) {
+    return "Motor: direct Vibrate/Preset (Stream Master Basic Levels optional — fine for multistream).";
+  }
   const warnings =
     (detail && detail.streamWarnings) ||
-    (bridge && typeof bridge.getStreamMasterWarnings === "function" && bridge.getStreamMasterWarnings()) ||
+    (window.dualPeerLovense &&
+      typeof window.dualPeerLovense.getStreamMasterWarnings === "function" &&
+      window.dualPeerLovense.getStreamMasterWarnings()) ||
     [];
-  const motor = lanOnline
-    ? "Motor: LAN sendCommand + Stream Master tips."
-    : "Motor: Stream Master tips only (normal with Cam Extension).";
   const warn = warnings.length ? ` ⚠ ${warnings[0]}` : "";
-  return `${motor}${warn}`;
+  return `Motor: Stream Master token tips (set DUALPEER_DIRECT_MOTOR = true to skip).${warn}`;
 }
 
 function onLovenseReady(detail) {
