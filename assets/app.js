@@ -442,8 +442,8 @@ const LOVENSE_TOKEN_MAP = {
 };
 
 const LOVENSE_SETUP_HINT =
-  "Stream Master: one toy per Basic Level row (never \"Diamo, Lush\" together). " +
-  "Hold until stop uses direct toy commands when available; tip fallback uses your level reaction times.";
+  "Stream Master: one toy per Basic Level row; enable Special Commands (Pulse, Wave, …) with their own token amounts. " +
+  "Unchecking a special restores your last Low/Medium level — it does not stop the toy.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake" },
@@ -746,20 +746,73 @@ function formatToyStatusBadge(toy) {
   return { name, on, battery };
 }
 
+function getToyControlContext(toyId, scope) {
+  const stateMap = scope === "local" ? localToyControlState : toyControlState;
+  const st = stateMap[toyId] || { level: 0 };
+  const level = Math.max(0, Math.min(100, Number(st.level) || 0));
+  const tipAmount = level > 0 ? resolveTokensForToy(toyId, level, null) : 0;
+  const tipperName =
+    scope === "local"
+      ? "Local-Test"
+      : sessionRole === "host"
+        ? "Host"
+        : sessionRole === "guest"
+          ? "Guest"
+          : "You";
+  return { level, tipAmount, tipperName };
+}
+
+function applyToySpecialLocal(toyId, special, enabled, scope) {
+  syncLovenseFromBridge();
+  const bridge = window.dualPeerLovense;
+  if (!bridge || typeof bridge.applyToySpecial !== "function") {
+    setDataActivityStatus(`Special ${special} failed — Lovense not ready.`, "err");
+    return;
+  }
+  const ctx = getToyControlContext(toyId, scope);
+  Promise.resolve(
+    bridge.applyToySpecial({
+      toyId,
+      special,
+      enabled,
+      level: ctx.level,
+      tipAmount: ctx.tipAmount,
+      tipperName: ctx.tipperName,
+    })
+  ).then((result) => {
+    const ok = result && result.ok;
+    setDataActivityStatus(
+      ok
+        ? enabled
+          ? `Special ${special} on (${result.tokens || "?"} tokens).`
+          : `Special ${special} off — base level restored.`
+        : `Special ${special} failed — enable it in Stream Master with a token amount.`,
+      ok ? "ok" : "err"
+    );
+  });
+}
+
 function sendToySpecialPayload(toyId, special, checked) {
   if (!dataConn || !dataConn.open) {
     setDataActivityStatus("No data channel — connect first.", "err");
     return;
   }
+  const ctx = getToyControlContext(toyId, "remote");
   const sent = sendDataChannelMessage({
     type: "toy_special",
     toyId,
     special,
     enabled: !!checked,
+    level: ctx.level,
+    tipAmount: ctx.tipAmount,
+    tipperName: ctx.tipperName,
     ts: Date.now(),
   });
   if (sent) {
-    setDataActivityStatus(`${special} ${checked ? "enabled" : "disabled"} for ${toyId}.`, "ok");
+    setDataActivityStatus(
+      `${special} ${checked ? "on" : "off"} sent to partner (${ctx.tipAmount || 0} base tokens saved).`,
+      "ok"
+    );
   } else {
     setDataActivityStatus("Send failed — data channel not open.", "err");
   }
@@ -942,16 +995,7 @@ function handleToyPanelSpecialChange(e, scope) {
   stateMap[toyId].specials[special] = target.checked;
 
   if (scope === "local") {
-    syncLovenseFromBridge();
-    const bridge = window.dualPeerLovense;
-    if (bridge && typeof bridge.applyToySpecial === "function") {
-      bridge.applyToySpecial({
-        toyId,
-        special,
-        enabled: target.checked,
-        tipperName: "Local-Test",
-      });
-    }
+    applyToySpecialLocal(toyId, special, target.checked, "local");
     return;
   }
   sendToySpecialPayload(toyId, special, target.checked);
@@ -1413,6 +1457,11 @@ function handleIncomingToySpecialPayload(data) {
   const special = data.special || "special";
   const enabled = !!data.enabled;
   const name = data.tipperName || "Partner";
+  const level = Math.max(0, Math.min(100, Number(data.level) || 0));
+  let tipAmount = Math.round(Number(data.tipAmount) || 0);
+  if (enabled && tipAmount < 1 && level > 0) {
+    tipAmount = resolveTokensForToy(toyId, level, null);
+  }
 
   syncLovenseFromBridge();
   const bridge = window.dualPeerLovense;
@@ -1422,13 +1471,22 @@ function handleIncomingToySpecialPayload(data) {
   }
 
   Promise.resolve(
-    bridge.applyToySpecial({ toyId, special, enabled, tipperName: name })
+    bridge.applyToySpecial({
+      toyId,
+      special,
+      enabled,
+      tipperName: name,
+      level,
+      tipAmount,
+    })
   ).then((result) => {
     const ok = result && result.ok;
     setDataActivityStatus(
       ok
-        ? `Special ${special} ${enabled ? "on" : "off"} for ${toyId}.`
-        : `Special ${special} failed for ${toyId}.`,
+        ? enabled
+          ? `Special ${special} on for ${toyId} (${result.tokens || tipAmount} tokens).`
+          : `Special ${special} off for ${toyId} — base vibration restored.`
+        : `Special ${special} failed for ${toyId} — check Stream Master Special Commands.`,
       ok ? "ok" : "err"
     );
   });
