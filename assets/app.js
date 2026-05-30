@@ -54,7 +54,6 @@ const els = {
   remotePulse: $("#remotePulse"),
   btnStartHost: $("#btnStartHost"),
   btnConnect: $("#btnConnect"),
-  btnPreviewCamera: $("#btnPreviewCamera"),
   videoSourceSelect: $("#videoSourceSelect"),
   audioSourceSelect: $("#audioSourceSelect"),
   mediaSourceStatus: $("#mediaSourceStatus"),
@@ -966,7 +965,7 @@ async function refreshMediaDeviceLists() {
   saveMediaDeviceSelection();
 
   if (obsCamera) {
-    setMediaSourceStatus("OBS Virtual Camera detected — select Preview or Start as Host.", "ok");
+    setMediaSourceStatus("OBS Virtual Camera detected — select it above, then Start as Host.", "ok");
   } else if (videoInputs.length) {
     setMediaSourceStatus(`${videoInputs.length} camera(s) available.`, "ok");
   } else {
@@ -974,6 +973,15 @@ async function refreshMediaDeviceLists() {
   }
 
   return true;
+}
+
+function replaceTracksInPeerConnection(stream) {
+  const pc = mediaConn?.peerConnection;
+  if (!pc || !stream) return;
+  stream.getTracks().forEach((track) => {
+    const sender = pc.getSenders().find((s) => s.track?.kind === track.kind);
+    if (sender) sender.replaceTrack(track).catch(() => {});
+  });
 }
 
 function replaceTrackInPeerConnection(newTrack) {
@@ -1051,19 +1059,34 @@ async function applySelectedMediaDevices() {
 }
 
 function setMediaSourceControlsEnabled(enabled) {
-  [els.videoSourceSelect, els.audioSourceSelect, els.btnPreviewCamera].forEach((el) => {
+  [els.videoSourceSelect, els.audioSourceSelect].forEach((el) => {
     if (el) el.disabled = !enabled;
   });
 }
 
-async function previewSelectedCamera() {
-  try {
-    await refreshMediaDeviceLists();
-    await getMedia({ forceNew: true });
-    setMediaSourceStatus("Preview active — choose Start as Host or Connect when ready.", "ok");
-  } catch (e) {
-    setMediaSourceStatus(formatMediaAccessError(e), "err");
+async function startSessionMedia() {
+  await refreshMediaDeviceLists();
+  await getMedia({ forceNew: true });
+  if (isObsDeviceSelected()) {
+    scheduleObsCaptureRetry();
   }
+  return getActiveLocalStream();
+}
+
+let obsCaptureRetryTimer = null;
+
+function scheduleObsCaptureRetry() {
+  clearTimeout(obsCaptureRetryTimer);
+  obsCaptureRetryTimer = setTimeout(async () => {
+    if (!sessionRole || !isObsDeviceSelected()) return;
+    try {
+      await getMedia({ forceNew: true });
+      replaceTracksInPeerConnection(getActiveLocalStream());
+      setMediaSourceStatus("OBS stream refreshed.", "ok");
+    } catch (_) {
+      /* keep first capture */
+    }
+  }, 1200);
 }
 
 function initMediaSourceControls() {
@@ -1072,18 +1095,14 @@ function initMediaSourceControls() {
       if (!videoAccessUnlocked) return;
       refreshMediaDeviceLists()
         .then(() => {
-          if (localStream && isObsDeviceSelected()) {
-            return getMedia({ forceNew: true });
+          if (localStream && isObsDeviceSelected() && sessionRole) {
+            return getMedia({ forceNew: true }).then(() => {
+              replaceTracksInPeerConnection(getActiveLocalStream());
+            });
           }
           return null;
         })
         .catch(() => {});
-    });
-  }
-
-  if (els.btnPreviewCamera) {
-    els.btnPreviewCamera.addEventListener("click", () => {
-      previewSelectedCamera().catch(() => {});
     });
   }
 
@@ -1153,6 +1172,7 @@ function hangup() {
   sessionRole = null;
   partnerRemoteToys = [];
   renderToyControls([]);
+  clearTimeout(obsCaptureRetryTimer);
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
@@ -2626,9 +2646,10 @@ function onRemoteStream(remoteStream) {
   updateConnectionUi();
 }
 
-function setupPeerHandlers(stream) {
+function setupPeerHandlers() {
   peer.on("call", (call) => {
-    call.answer(stream);
+    const stream = getActiveLocalStream();
+    if (stream) call.answer(stream);
     mediaConn = call;
     call.on("stream", onRemoteStream);
     call.on("close", () => {
@@ -2654,13 +2675,12 @@ els.btnStartHost.addEventListener("click", async () => {
   hangup();
   sessionRole = "host";
   try {
-    await refreshMediaDeviceLists();
-    const stream = await getMedia({ forceNew: true });
+    await startSessionMedia();
     peer = new Peer(undefined, PEER_OPTIONS);
 
     peer.on("open", (id) => {
       els.peerIdOut.textContent = id;
-      setupPeerHandlers(stream);
+      setupPeerHandlers();
       setStatus(els.statusHost, "Waiting for incoming connection … share Peer ID with partner.", "ok");
       els.btnStartHost.disabled = true;
     });
@@ -2678,23 +2698,25 @@ els.btnConnect.addEventListener("click", async () => {
   hangup();
   sessionRole = "guest";
   try {
-    await refreshMediaDeviceLists();
-    const stream = await getMedia({ forceNew: true });
+    await startSessionMedia();
     peer = new Peer(undefined, PEER_OPTIONS);
 
     peer.on("open", (myId) => {
       els.peerIdOut.textContent = myId;
-      setupPeerHandlers(stream);
+      setupPeerHandlers();
 
-      const call = peer.call(remoteId, stream);
-      mediaConn = call;
-      call.on("stream", onRemoteStream);
-      call.on("close", () => {
-        els.remoteVideo.srcObject = null;
-        refreshVideoOverlays();
-        resetRemoteMediaUi();
-        updateConnectionUi();
-      });
+      const stream = getActiveLocalStream();
+      const call = stream ? peer.call(remoteId, stream) : null;
+      if (call) {
+        mediaConn = call;
+        call.on("stream", onRemoteStream);
+        call.on("close", () => {
+          els.remoteVideo.srcObject = null;
+          refreshVideoOverlays();
+          resetRemoteMediaUi();
+          updateConnectionUi();
+        });
+      }
 
       const conn = peer.connect(remoteId, { reliable: true, serialization: "json" });
       setupDataConnection(conn);
