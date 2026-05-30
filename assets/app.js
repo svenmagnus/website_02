@@ -119,8 +119,61 @@ function normalizeLayoutMode(mode) {
   return "split";
 }
 
+function getGuestFullscreenTarget() {
+  return document.getElementById("guestFsTarget") || document.querySelector(".panel-guest .video-wrap");
+}
+
 function getGuestFullscreenRoot() {
   return document.querySelector(".panel-guest");
+}
+
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function isGuestFullscreenActive() {
+  const target = getGuestFullscreenTarget();
+  const video = els.remoteVideo;
+  const fsEl = getFullscreenElement();
+  if (fsEl && target && (fsEl === target || fsEl === video || target.contains(fsEl))) {
+    return true;
+  }
+  if (video && video.webkitDisplayingFullscreen) return true;
+  return false;
+}
+
+function showFullscreenError(message) {
+  const msg = message || "Fullscreen not available in this browser.";
+  setPipNativeMessage(msg);
+  console.warn("[fullscreen]", msg);
+}
+
+function requestElementFullscreen(el) {
+  if (!el) throw new Error("No fullscreen target");
+  if (typeof el.requestFullscreen === "function") {
+    return el.requestFullscreen();
+  }
+  if (typeof el.webkitRequestFullscreen === "function") {
+    return el.webkitRequestFullscreen();
+  }
+  throw new Error("Fullscreen API not supported");
+}
+
+function exitDocumentFullscreen() {
+  if (typeof document.exitFullscreen === "function") {
+    return document.exitFullscreen();
+  }
+  if (typeof document.webkitExitFullscreen === "function") {
+    return document.webkitExitFullscreen();
+  }
+  return Promise.resolve();
+}
+
+function syncGuestFullscreenUi(active) {
+  syncFullscreenButtons(active);
+  const hint = document.getElementById("guestFsHint");
+  if (hint) hint.hidden = !active;
+  document.body.classList.toggle("guest-fullscreen-active", active);
 }
 
 function syncFullscreenButtons(active) {
@@ -141,32 +194,60 @@ function syncLayoutButtons(mode) {
 }
 
 async function exitGuestFullscreenIfActive() {
-  const root = getGuestFullscreenRoot();
-  if (root && document.fullscreenElement === root) {
-    try {
-      await document.exitFullscreen();
-    } catch (_) {
-      /* ignore */
-    }
+  if (!isGuestFullscreenActive()) return;
+  try {
+    await exitDocumentFullscreen();
+  } catch (_) {
+    /* ignore */
   }
+  syncGuestFullscreenUi(false);
 }
 
-async function toggleGuestFullscreen() {
-  const root = getGuestFullscreenRoot();
-  if (!root) return;
+function toggleGuestFullscreen() {
+  const target = getGuestFullscreenTarget();
+  const video = els.remoteVideo;
 
-  try {
-    if (document.fullscreenElement === root) {
-      await document.exitFullscreen();
-    } else if (document.fullscreenElement) {
-      await document.exitFullscreen();
-      await root.requestFullscreen();
-    } else {
-      await root.requestFullscreen();
-    }
-  } catch (e) {
-    setPipNativeMessage("Fullscreen: " + (e && e.message ? e.message : String(e)));
+  if (isGuestFullscreenActive()) {
+    exitDocumentFullscreen()
+      .then(() => syncGuestFullscreenUi(false))
+      .catch((e) => showFullscreenError(e.message));
+    return;
   }
+
+  // iOS: native video fullscreen
+  if (video && typeof video.webkitEnterFullscreen === "function") {
+    try {
+      video.webkitEnterFullscreen();
+      syncGuestFullscreenUi(true);
+    } catch (e) {
+      showFullscreenError(e.message);
+    }
+    return;
+  }
+
+  if (!target) {
+    showFullscreenError("Partner video area not found.");
+    return;
+  }
+
+  if (document.fullscreenEnabled === false && document.webkitFullscreenEnabled === false) {
+    showFullscreenError("Fullscreen is disabled in this browser.");
+    return;
+  }
+
+  const tryTarget = (el, isFallback) => {
+    requestElementFullscreen(el)
+      .then(() => syncGuestFullscreenUi(true))
+      .catch((err) => {
+        if (!isFallback && video) {
+          tryTarget(video, true);
+          return;
+        }
+        showFullscreenError(err && err.message ? err.message : String(err));
+      });
+  };
+
+  tryTarget(target, false);
 }
 
 function applyLayout(mode) {
@@ -406,15 +487,29 @@ function initStageViewControls() {
 }
 
 function initGuestFullscreen() {
-  const root = getGuestFullscreenRoot();
-  const hint = document.getElementById("guestFsHint");
+  const onFullscreenChange = () => {
+    syncGuestFullscreenUi(isGuestFullscreenActive());
+  };
 
-  document.addEventListener("fullscreenchange", () => {
-    const active = !!root && document.fullscreenElement === root;
-    syncFullscreenButtons(active);
-    if (hint) hint.hidden = !active;
-    document.body.classList.toggle("guest-fullscreen-active", active);
-  });
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+
+  if (els.remoteVideo) {
+    els.remoteVideo.addEventListener("webkitbeginfullscreen", () => syncGuestFullscreenUi(true));
+    els.remoteVideo.addEventListener("webkitendfullscreen", () => syncGuestFullscreenUi(false));
+  }
+
+  document.addEventListener(
+    "click",
+    (e) => {
+      const btn = e.target instanceof Element ? e.target.closest('[data-action="fullscreen-guest"]') : null;
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      toggleGuestFullscreen();
+    },
+    true
+  );
 }
 
 function initLayoutControls() {
@@ -438,13 +533,6 @@ function initLayoutControls() {
   document.querySelectorAll(".layout-btn[data-layout]").forEach((btn) => {
     btn.addEventListener("click", () => {
       applyLayout(btn.getAttribute("data-layout") || DEFAULT_LAYOUT);
-    });
-  });
-
-  document.querySelectorAll('[data-action="fullscreen-guest"]').forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      toggleGuestFullscreen();
     });
   });
 

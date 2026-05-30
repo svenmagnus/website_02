@@ -1668,6 +1668,33 @@ main.layout-cb[data-chat-dock="bottom-center"] .chat-card .chat-messages {
 }
 
 /* Guest browser fullscreen (Esc to exit) */
+#guestFsTarget:fullscreen,
+#guestFsTarget:-webkit-full-screen,
+.panel-guest:fullscreen,
+.panel-guest:-webkit-full-screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: 0;
+  pointer-events: auto;
+}
+
+#guestFsTarget:fullscreen video,
+#guestFsTarget:-webkit-full-screen video,
+.panel-guest:fullscreen video {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#guestFsTarget:fullscreen .guest-fs-hint,
+#guestFsTarget:-webkit-full-screen .guest-fs-hint {
+  display: block;
+}
+
 .panel-guest:fullscreen {
   display: flex;
   flex-direction: column;
