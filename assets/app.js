@@ -310,6 +310,7 @@ function applyLayout(mode) {
   } else {
     applyChatDock("right");
     applyStageHeight(undefined, { skipStorage: true });
+    applyPipCorner("br");
   }
 
   syncLayoutButtons(m);
@@ -603,7 +604,9 @@ function initLayoutControls() {
   }
 
   applyLayout(saved);
-  applyPipCorner(corner);
+  if (normalizeLayoutMode(saved) === "split") {
+    applyPipCorner(corner);
+  }
   applyChatWidth(undefined, { skipStorage: true });
   initChatResize();
   initStageRowResize();
