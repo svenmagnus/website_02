@@ -728,6 +728,9 @@ function attachLocalVideoStream(stream) {
   els.localVideo.defaultMuted = true;
   bindVideoOverlayRefresh(els.localVideo);
   bindStreamTrackRefresh(stream);
+  stream.getVideoTracks().forEach((track) => {
+    track.addEventListener("unmute", () => scheduleOverlayRefreshBurst());
+  });
   const playPromise = els.localVideo.play();
   if (playPromise && typeof playPromise.then === "function") {
     playPromise.then(() => scheduleOverlayRefreshBurst()).catch(() => scheduleOverlayRefreshBurst());
@@ -768,15 +771,135 @@ function isObsVirtualCameraLabel(label) {
   return /obs(\s*virtual\s*camera|\s*camera)?/i.test(String(label || ""));
 }
 
+function isObsDevice(device) {
+  return !!(device && isObsVirtualCameraLabel(device.label));
+}
+
+function isObsDeviceSelected() {
+  const select = els.videoSourceSelect;
+  if (!(select instanceof HTMLSelectElement)) return false;
+  const opt = select.selectedOptions[0];
+  return isObsVirtualCameraLabel(opt?.textContent || "") || isObsVirtualCameraLabel(opt?.label);
+}
+
+function setObsVideoWrapFlag(isObs) {
+  const wrap = els.localVideo?.closest(".video-wrap");
+  if (!wrap) return;
+  if (isObs) wrap.setAttribute("data-obs-source", "true");
+  else wrap.removeAttribute("data-obs-source");
+}
+
+async function findSelectedVideoDevice() {
+  if (!navigator.mediaDevices?.enumerateDevices) return null;
+  await ensureMediaPermission();
+  const videoInputs = (await navigator.mediaDevices.enumerateDevices()).filter(
+    (d) => d.kind === "videoinput"
+  );
+  const selectedId = els.videoSourceSelect?.value || getSavedMediaDeviceId(VIDEO_DEVICE_STORAGE_KEY);
+
+  if (selectedId) {
+    const byId = videoInputs.find((d) => d.deviceId === selectedId);
+    if (byId) return byId;
+  }
+
+  const obs = videoInputs.find((d) => isObsVirtualCameraLabel(d.label));
+  if (obs) {
+    if (els.videoSourceSelect instanceof HTMLSelectElement) {
+      els.videoSourceSelect.value = obs.deviceId;
+      saveMediaDeviceSelection();
+    }
+    return obs;
+  }
+
+  return null;
+}
+
+function buildVideoConstraints(device) {
+  if (!device) {
+    return { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } };
+  }
+  if (isObsDevice(device)) {
+    return {
+      deviceId: { ideal: device.deviceId },
+      width: { ideal: 1920, max: 1920 },
+      height: { ideal: 1080, max: 1080 },
+      frameRate: { ideal: 30, max: 60 },
+    };
+  }
+  return {
+    deviceId: { ideal: device.deviceId },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  };
+}
+
+function buildAudioConstraints() {
+  const audioId = els.audioSourceSelect?.value || getSavedMediaDeviceId(AUDIO_DEVICE_STORAGE_KEY);
+  return audioId ? { deviceId: { ideal: audioId } } : true;
+}
+
+async function acquireUserMediaStream() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Camera access not supported in this browser.");
+  }
+
+  const videoDevice = await findSelectedVideoDevice();
+  const isObs = isObsDevice(videoDevice);
+  const videoBase = buildVideoConstraints(videoDevice);
+  const audio = buildAudioConstraints();
+
+  const attempts = [
+    { video: videoBase, audio },
+    isObs && videoDevice
+      ? { video: { deviceId: { ideal: videoDevice.deviceId } }, audio }
+      : null,
+    videoDevice
+      ? { video: { deviceId: { exact: videoDevice.deviceId } }, audio }
+      : null,
+    isObs && videoDevice
+      ? { video: { deviceId: { ideal: videoDevice.deviceId } }, audio: false }
+      : null,
+  ].filter(Boolean);
+
+  let lastErr = null;
+  for (const constraints of attempts) {
+    try {
+      let stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      if (constraints.audio === false) {
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
+          audioStream.getAudioTracks().forEach((track) => stream.addTrack(track));
+        } catch (_) {
+          /* video-only OBS stream is still usable */
+        }
+      }
+
+      setObsVideoWrapFlag(isObs);
+      if (isObs) {
+        setMediaSourceStatus(
+          "OBS Virtual Camera active — your scene should appear in the You/Host panel.",
+          "ok"
+        );
+      }
+      return stream;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  throw lastErr || new Error("Could not open the selected camera.");
+}
+
 function buildMediaConstraints() {
   const videoId = els.videoSourceSelect?.value || getSavedMediaDeviceId(VIDEO_DEVICE_STORAGE_KEY);
   const audioId = els.audioSourceSelect?.value || getSavedMediaDeviceId(AUDIO_DEVICE_STORAGE_KEY);
 
   const video = videoId
-    ? { deviceId: { exact: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    ? { deviceId: { ideal: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } }
     : { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } };
 
-  const audio = audioId ? { deviceId: { exact: audioId } } : true;
+  const audio = audioId ? { deviceId: { ideal: audioId } } : true;
   return { video, audio };
 }
 
@@ -866,12 +989,22 @@ function replaceTrackInPeerConnection(newTrack) {
 async function swapLocalMediaTrack(kind, deviceId) {
   if (!localStream) return;
 
-  const constraints =
-    kind === "video"
-      ? { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false }
-      : { video: false, audio: deviceId ? { deviceId: { exact: deviceId } } : true };
+  let fresh;
+  if (kind === "video") {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const device =
+      devices.find((d) => d.kind === "videoinput" && d.deviceId === deviceId) ||
+      devices.find((d) => d.kind === "videoinput" && isObsVirtualCameraLabel(d.label));
+    const constraints = { video: buildVideoConstraints(device || null), audio: false };
+    fresh = await navigator.mediaDevices.getUserMedia(constraints);
+    setObsVideoWrapFlag(isObsDevice(device));
+  } else {
+    fresh = await navigator.mediaDevices.getUserMedia({
+      video: false,
+      audio: deviceId ? { deviceId: { ideal: deviceId } } : true,
+    });
+  }
 
-  const fresh = await navigator.mediaDevices.getUserMedia(constraints);
   const newTrack = fresh.getTracks()[0];
   if (!newTrack) {
     fresh.getTracks().forEach((track) => track.stop());
@@ -937,7 +1070,14 @@ function initMediaSourceControls() {
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", () => {
       if (!videoAccessUnlocked) return;
-      refreshMediaDeviceLists().catch(() => {});
+      refreshMediaDeviceLists()
+        .then(() => {
+          if (localStream && isObsDeviceSelected()) {
+            return getMedia({ forceNew: true });
+          }
+          return null;
+        })
+        .catch(() => {});
     });
   }
 
@@ -974,7 +1114,7 @@ async function getMedia(options = {}) {
     window.localStream = null;
   }
 
-  localStream = await navigator.mediaDevices.getUserMedia(buildMediaConstraints());
+  localStream = await acquireUserMediaStream();
   window.localStream = localStream;
   attachLocalVideoStream(localStream);
   refreshVideoOverlays();
@@ -989,6 +1129,7 @@ function stopMedia() {
     localStream = null;
   }
   window.localStream = null;
+  setObsVideoWrapFlag(false);
   resetLocalMediaUi();
   resetRemoteMediaUi();
   els.localVideo.srcObject = null;
@@ -2513,7 +2654,8 @@ els.btnStartHost.addEventListener("click", async () => {
   hangup();
   sessionRole = "host";
   try {
-    const stream = await getMedia();
+    await refreshMediaDeviceLists();
+    const stream = await getMedia({ forceNew: true });
     peer = new Peer(undefined, PEER_OPTIONS);
 
     peer.on("open", (id) => {
@@ -2536,7 +2678,8 @@ els.btnConnect.addEventListener("click", async () => {
   hangup();
   sessionRole = "guest";
   try {
-    const stream = await getMedia();
+    await refreshMediaDeviceLists();
+    const stream = await getMedia({ forceNew: true });
     peer = new Peer(undefined, PEER_OPTIONS);
 
     peer.on("open", (myId) => {

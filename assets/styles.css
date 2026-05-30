@@ -1039,6 +1039,11 @@ video {
   visibility: hidden;
 }
 
+.video-wrap[data-obs-source="true"] > video {
+  object-fit: contain;
+  background: #000;
+}
+
 /* Compact corner controls (player-style), theme-aligned */
 .video-media-overlay {
   position: absolute;
