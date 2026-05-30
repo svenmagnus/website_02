@@ -537,18 +537,24 @@ main {
   flex-direction: column;
   min-width: 0;
   gap: 0;
+  align-self: start;
+  width: 100%;
 }
 
 .stage-toolbar {
   display: flex;
+  width: 100%;
+  box-sizing: border-box;
   justify-content: flex-end;
   align-items: center;
   flex: 0 0 auto;
-  padding: 0.35rem 0.15rem 0;
+  padding: 0.3rem 0.35rem 0.1rem;
   min-height: 0;
 }
 
 .stage > .stage-chrome {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
   position: absolute;
   inset: 0;
   z-index: 50;
@@ -583,10 +589,24 @@ body.main-fullscreen-active .stage-toolbar {
   }
 }
 
-/* Equal: height follows video aspect ratio — no forced empty band */
+/* Equal: compact — height from 16:10 video boxes only */
 .stage[data-layout="split"] {
   height: auto;
   min-height: 0;
+  align-items: start;
+}
+
+.stage[data-layout="split"] .panel {
+  align-self: start;
+  width: 100%;
+  height: auto;
+}
+
+.stage[data-layout="split"] .video-wrap {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  height: auto;
+  flex: 0 0 auto;
 }
 
 /* Partner large: user-resizable stage height */
@@ -918,6 +938,15 @@ html[data-theme="cb-light"] .panel-head .tag.partner {
   background: #000;
   border-radius: var(--video-radius);
   overflow: hidden;
+}
+
+.video-wrap > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 video {

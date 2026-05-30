@@ -306,8 +306,10 @@ function applyLayout(mode) {
 
   if (m === "split") {
     applyChatDock("bottom-center");
+    applyStageHeight(0, { skipStorage: true });
   } else {
     applyChatDock("right");
+    applyStageHeight(undefined, { skipStorage: true });
   }
 
   syncLayoutButtons(m);
