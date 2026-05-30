@@ -920,6 +920,24 @@ html[data-theme="cb-light"] button.layout-btn.active {
   color: var(--muted);
 }
 
+.whip-panel {
+  margin: 0 0 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.whip-field {
+  margin-bottom: 0.5rem;
+}
+
+.whip-field .peer-id-box {
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
 .layout-toolbar > button#btnPipNativeRemote,
 .layout-toolbar > button#btnPipNativeLocal {
   font-size: 0.76rem;

@@ -1,0 +1,19 @@
+{
+  "name": "tangent-club-whip-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WHIP ingest + WHEP playback for OBS → Dual-Peer host bridge",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "@roamhq/wrtc": "^0.8.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

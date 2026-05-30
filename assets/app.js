@@ -38,6 +38,9 @@ const PEER_OPTIONS = {
   config: PEER_CONNECTION_CONFIG,
 };
 
+/** WHIP/WHEP server — set window.DUALPEER_WHIP_URL in index.html for production */
+const WHIP_API_BASE = String(window.DUALPEER_WHIP_URL || "http://localhost:8787").replace(/\/$/, "");
+
 const $ = (sel) => document.querySelector(sel);
 
 let videoAccessUnlocked = false;
@@ -104,6 +107,8 @@ let camExtensionInstance = null;
 let lovenseReady = false;
 /** @type {"host"|"guest"|null} */
 let sessionRole = null;
+let whipBroadcast = null;
+let whipPollTimer = null;
 
 const LAYOUT_STORAGE_KEY = "dualpeer-layout";
 const CHAT_DOCK_STORAGE_KEY = "dualpeer-chat-dock";
@@ -1059,12 +1064,180 @@ async function applySelectedMediaDevices() {
 }
 
 function setMediaSourceControlsEnabled(enabled) {
-  [els.videoSourceSelect, els.audioSourceSelect].forEach((el) => {
+  [els.videoSourceSelect, els.audioSourceSelect, document.getElementById("broadcastMode")].forEach((el) => {
     if (el) el.disabled = !enabled;
+  });
+  syncBroadcastModeUi();
+}
+
+function getBroadcastMode() {
+  const sel = document.getElementById("broadcastMode");
+  return sel instanceof HTMLSelectElement && sel.value === "whip" ? "whip" : "camera";
+}
+
+function syncBroadcastModeUi() {
+  const mode = getBroadcastMode();
+  const whipPanel = document.getElementById("whipBroadcastPanel");
+  const hint = document.getElementById("mediaSourceHint");
+  document.querySelectorAll(".media-source-row").forEach((row) => {
+    if (row.querySelector("#broadcastMode")) return;
+    row.hidden = mode === "whip";
+  });
+  if (whipPanel) whipPanel.hidden = mode !== "whip";
+  if (hint) {
+    hint.textContent =
+      mode === "whip"
+        ? "Use OBS WHIP for full scene output (no Virtual Camera logo). Start as Host, paste URL in OBS, then Start Streaming."
+        : "Start OBS Virtual Camera while your scene is live, select it above, then Start as Host. If only the OBS logo appears, stop and restart Virtual Camera in OBS.";
+  }
+}
+
+function updateWhipBroadcastUi(message, cls) {
+  const endpoint = document.getElementById("whipEndpointOut");
+  const key = document.getElementById("whipStreamKeyOut");
+  const status = document.getElementById("whipBroadcastStatus");
+  if (endpoint) endpoint.textContent = whipBroadcast?.whipUrl || "—";
+  if (key) key.textContent = whipBroadcast?.streamKey || "—";
+  if (status && message) {
+    status.textContent = message;
+    status.className = "status-line" + (cls ? " " + cls : "");
+  }
+}
+
+async function registerWhipBroadcast(peerId) {
+  const resp = await fetch(`${WHIP_API_BASE}/api/broadcast/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ peerId: peerId || "" }),
+  });
+  if (!resp.ok) {
+    throw new Error("WHIP server unreachable — run: cd server && npm install && npm start");
+  }
+  whipBroadcast = await resp.json();
+  updateWhipBroadcastUi("Paste WHIP URL in OBS, then Start Streaming. Waiting for OBS…", "ok");
+  return whipBroadcast;
+}
+
+function waitForWhipLive(streamKey, timeoutMs = 180000) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    clearInterval(whipPollTimer);
+    whipPollTimer = setInterval(async () => {
+      try {
+        const resp = await fetch(`${WHIP_API_BASE}/api/broadcast/${encodeURIComponent(streamKey)}/status`);
+        const data = await resp.json();
+        if (data.live && data.videoTracks > 0) {
+          clearInterval(whipPollTimer);
+          updateWhipBroadcastUi("OBS connected — loading stream into Host panel…", "ok");
+          resolve(data);
+          return;
+        }
+        updateWhipBroadcastUi("Waiting for OBS WHIP stream… (Start Streaming in OBS)", "");
+        if (Date.now() - started > timeoutMs) {
+          clearInterval(whipPollTimer);
+          reject(new Error("Timed out waiting for OBS WHIP stream."));
+        }
+      } catch (err) {
+        clearInterval(whipPollTimer);
+        reject(err);
+      }
+    }, 1500);
   });
 }
 
+function waitIceGatheringCompleteBrowser(pc, timeoutMs = 4000) {
+  if (pc.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      pc.removeEventListener("icegatheringstatechange", onChange);
+      resolve();
+    }
+    function onChange() {
+      if (pc.iceGatheringState === "complete") finish();
+    }
+    pc.addEventListener("icegatheringstatechange", onChange);
+  });
+}
+
+async function subscribeWhepStream(whepUrl) {
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  pc.addTransceiver("video", { direction: "recvonly" });
+  pc.addTransceiver("audio", { direction: "recvonly" });
+
+  const stream = new MediaStream();
+  pc.ontrack = (event) => {
+    if (event.track) stream.addTrack(event.track);
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await waitIceGatheringCompleteBrowser(pc);
+
+  const resp = await fetch(whepUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/sdp" },
+    body: pc.localDescription.sdp,
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text || "WHEP subscribe failed");
+  }
+
+  const answerSdp = await resp.text();
+  await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+  if (!stream.getVideoTracks().length) {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("No video track from OBS WHIP.")), 10000);
+      pc.ontrack = (event) => {
+        if (event.track) stream.addTrack(event.track);
+        if (stream.getVideoTracks().length) {
+          clearTimeout(timer);
+          resolve();
+        }
+      };
+    });
+  }
+
+  stream._whepPc = pc;
+  return stream;
+}
+
+async function startWhipSessionMedia() {
+  if (!whipBroadcast?.streamKey) {
+    await registerWhipBroadcast("");
+  }
+  await waitForWhipLive(whipBroadcast.streamKey);
+
+  if (localStream) {
+    if (localStream._whepPc) {
+      try {
+        localStream._whepPc.close();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    localStream.getTracks().forEach((track) => track.stop());
+    localStream = null;
+  }
+
+  localStream = await subscribeWhepStream(whipBroadcast.whepUrl);
+  window.localStream = localStream;
+  attachLocalVideoStream(localStream);
+  refreshVideoOverlays();
+  syncLocalMediaUi();
+  setObsVideoWrapFlag(false);
+  setMediaSourceStatus("OBS WHIP scene active in Host panel.", "ok");
+  updateWhipBroadcastUi("Live — guest receives your OBS scene via PeerJS.", "ok");
+  return localStream;
+}
+
 async function startSessionMedia() {
+  if (getBroadcastMode() === "whip") {
+    return startWhipSessionMedia();
+  }
   await refreshMediaDeviceLists();
   await getMedia({ forceNew: true });
   if (isObsDeviceSelected()) {
@@ -1115,6 +1288,12 @@ function initMediaSourceControls() {
 
   if (els.videoSourceSelect) els.videoSourceSelect.addEventListener("change", onDeviceChange);
   if (els.audioSourceSelect) els.audioSourceSelect.addEventListener("change", onDeviceChange);
+
+  const broadcastMode = document.getElementById("broadcastMode");
+  if (broadcastMode) {
+    broadcastMode.addEventListener("change", syncBroadcastModeUi);
+  }
+  syncBroadcastModeUi();
 }
 
 async function getMedia(options = {}) {
@@ -1173,6 +1352,16 @@ function hangup() {
   partnerRemoteToys = [];
   renderToyControls([]);
   clearTimeout(obsCaptureRetryTimer);
+  clearInterval(whipPollTimer);
+  whipPollTimer = null;
+  whipBroadcast = null;
+  if (localStream?._whepPc) {
+    try {
+      localStream._whepPc.close();
+    } catch (_) {
+      /* ignore */
+    }
+  }
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
@@ -2674,15 +2863,37 @@ function setupPeerHandlers() {
 els.btnStartHost.addEventListener("click", async () => {
   hangup();
   sessionRole = "host";
+  const whipMode = getBroadcastMode() === "whip";
+
   try {
-    await startSessionMedia();
     peer = new Peer(undefined, PEER_OPTIONS);
 
-    peer.on("open", (id) => {
+    peer.on("open", async (id) => {
       els.peerIdOut.textContent = id;
       setupPeerHandlers();
-      setStatus(els.statusHost, "Waiting for incoming connection … share Peer ID with partner.", "ok");
       els.btnStartHost.disabled = true;
+
+      try {
+        if (whipMode) {
+          await registerWhipBroadcast(id);
+          setStatus(
+            els.statusHost,
+            "Paste WHIP URL into OBS and click Start Streaming. Waiting for OBS…",
+            "ok"
+          );
+          await startWhipSessionMedia();
+        } else {
+          await startSessionMedia();
+        }
+        setStatus(els.statusHost, "Waiting for incoming connection … share Peer ID with partner.", "ok");
+      } catch (err) {
+        setStatus(els.statusHost, String(err.message || err), "err");
+        els.btnStartHost.disabled = !videoAccessUnlocked;
+      }
+    });
+
+    peer.on("error", (err) => {
+      setStatus(els.statusHost, String(err.message || err), "err");
     });
   } catch (e) {
     setStatus(els.statusHost, "Media access: " + formatMediaAccessError(e), "err");

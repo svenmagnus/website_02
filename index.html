@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8398" />
+    <link rel="stylesheet" href="assets/styles.css?v=8399" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -35,7 +35,7 @@
       // Direct motor via lovense.sendCommand — no Stream Master Basic Levels needed
       window.DUALPEER_DIRECT_MOTOR = true;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8398"></script>
+    <script src="assets/lovense-broadcast.js?v=8399"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -252,6 +252,27 @@
             <button type="button" id="btnHangup">Disconnect</button>
           </div>
           <div class="row media-source-row">
+            <label for="broadcastMode">Broadcast</label>
+            <select id="broadcastMode" class="media-source-select" disabled>
+              <option value="camera">Camera / Virtual Camera</option>
+              <option value="whip">OBS Studio (WHIP)</option>
+            </select>
+          </div>
+          <div id="whipBroadcastPanel" class="whip-panel" hidden>
+            <p class="status-line" style="margin: 0 0 0.35rem">
+              External encoder — paste into OBS (Settings → Stream → WHIP):
+            </p>
+            <div class="whip-field">
+              <span class="status-line">WHIP URL</span>
+              <div class="peer-id-box" id="whipEndpointOut">—</div>
+            </div>
+            <div class="whip-field">
+              <span class="status-line">Stream key (in URL path)</span>
+              <div class="peer-id-box" id="whipStreamKeyOut">—</div>
+            </div>
+            <p class="status-line" id="whipBroadcastStatus">Click Start as Host to generate your WHIP URL.</p>
+          </div>
+          <div class="row media-source-row">
             <label for="videoSourceSelect">Video source</label>
             <select id="videoSourceSelect" class="media-source-select" disabled>
               <option value="">Default camera</option>
@@ -339,7 +360,10 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/ui-shell.js?v=8398"></script>
-    <script src="assets/app.js?v=8398"></script>
+    <script>
+      window.DUALPEER_WHIP_URL = window.DUALPEER_WHIP_URL || "http://localhost:8787";
+    </script>
+    <script src="assets/ui-shell.js?v=8399"></script>
+    <script src="assets/app.js?v=8399"></script>
   </body>
 </html>
