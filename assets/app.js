@@ -41,6 +41,7 @@ const PEER_OPTIONS = {
 const $ = (sel) => document.querySelector(sel);
 
 let videoAccessUnlocked = false;
+let mediaPermissionGranted = false;
 
 const els = {
   appMain: $("#appMain"),
@@ -53,6 +54,11 @@ const els = {
   remotePulse: $("#remotePulse"),
   btnStartHost: $("#btnStartHost"),
   btnConnect: $("#btnConnect"),
+  btnPreviewCamera: $("#btnPreviewCamera"),
+  videoSourceSelect: $("#videoSourceSelect"),
+  audioSourceSelect: $("#audioSourceSelect"),
+  mediaSourceStatus: $("#mediaSourceStatus"),
+  mediaSourceHint: $("#mediaSourceHint"),
   localToggleMuteBtn: $("#localToggleMuteBtn"),
   localToggleVideoBtn: $("#localToggleVideoBtn"),
   localMuteIcon: $("#localMuteIcon"),
@@ -104,6 +110,8 @@ const LAYOUT_STORAGE_KEY = "dualpeer-layout";
 const CHAT_DOCK_STORAGE_KEY = "dualpeer-chat-dock";
 const CHAT_WIDTH_STORAGE_KEY = "dualpeer-chat-width";
 const STAGE_HEIGHT_STORAGE_KEY = "dualpeer-stage-height";
+const VIDEO_DEVICE_STORAGE_KEY = "dualpeer-video-device";
+const AUDIO_DEVICE_STORAGE_KEY = "dualpeer-audio-device";
 const DEFAULT_LAYOUT = "split";
 const CHAT_WIDTH_MIN = 260;
 const CHAT_WIDTH_MAX = 720;
@@ -727,22 +735,251 @@ function attachLocalVideoStream(stream) {
   scheduleOverlayRefreshBurst();
 }
 
-async function getMedia() {
-  if (localStream) {
+function setMediaSourceStatus(msg, cls) {
+  if (!els.mediaSourceStatus) return;
+  const text = msg || "";
+  els.mediaSourceStatus.textContent = text;
+  els.mediaSourceStatus.hidden = !text;
+  els.mediaSourceStatus.className = "status-line" + (cls ? " " + cls : "");
+}
+
+function getSavedMediaDeviceId(key) {
+  try {
+    return localStorage.getItem(key) || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function saveMediaDeviceSelection() {
+  const videoId = els.videoSourceSelect?.value || "";
+  const audioId = els.audioSourceSelect?.value || "";
+  try {
+    if (videoId) localStorage.setItem(VIDEO_DEVICE_STORAGE_KEY, videoId);
+    else localStorage.removeItem(VIDEO_DEVICE_STORAGE_KEY);
+    if (audioId) localStorage.setItem(AUDIO_DEVICE_STORAGE_KEY, audioId);
+    else localStorage.removeItem(AUDIO_DEVICE_STORAGE_KEY);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function isObsVirtualCameraLabel(label) {
+  return /obs(\s*virtual\s*camera|\s*camera)?/i.test(String(label || ""));
+}
+
+function buildMediaConstraints() {
+  const videoId = els.videoSourceSelect?.value || getSavedMediaDeviceId(VIDEO_DEVICE_STORAGE_KEY);
+  const audioId = els.audioSourceSelect?.value || getSavedMediaDeviceId(AUDIO_DEVICE_STORAGE_KEY);
+
+  const video = videoId
+    ? { deviceId: { exact: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    : { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } };
+
+  const audio = audioId ? { deviceId: { exact: audioId } } : true;
+  return { video, audio };
+}
+
+async function ensureMediaPermission() {
+  if (mediaPermissionGranted || !navigator.mediaDevices?.getUserMedia) return mediaPermissionGranted;
+  try {
+    const probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    probe.getTracks().forEach((track) => track.stop());
+    mediaPermissionGranted = true;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function populateDeviceSelect(selectEl, devices, savedId, emptyLabel) {
+  if (!(selectEl instanceof HTMLSelectElement)) return "";
+  const prev = selectEl.value || savedId || "";
+  selectEl.innerHTML = "";
+
+  const defaultOpt = document.createElement("option");
+  defaultOpt.value = "";
+  defaultOpt.textContent = emptyLabel;
+  selectEl.appendChild(defaultOpt);
+
+  devices.forEach((device) => {
+    const opt = document.createElement("option");
+    opt.value = device.deviceId;
+    opt.textContent = device.label || `${device.kind} (${device.deviceId.slice(0, 8)}…)`;
+    if (isObsVirtualCameraLabel(device.label)) {
+      opt.textContent = device.label ? `${device.label} (OBS)` : "OBS Virtual Camera";
+    }
+    selectEl.appendChild(opt);
+  });
+
+  if (prev && [...selectEl.options].some((opt) => opt.value === prev)) {
+    selectEl.value = prev;
+  }
+  return selectEl.value;
+}
+
+async function refreshMediaDeviceLists() {
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    setMediaSourceStatus("Device list not supported in this browser.", "err");
+    return false;
+  }
+
+  const permitted = await ensureMediaPermission();
+  if (!permitted) {
+    setMediaSourceStatus("Allow camera and microphone to list video sources (incl. OBS).", "err");
+    return false;
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const videoInputs = devices.filter((d) => d.kind === "videoinput");
+  const audioInputs = devices.filter((d) => d.kind === "audioinput");
+  const savedVideoId = getSavedMediaDeviceId(VIDEO_DEVICE_STORAGE_KEY);
+  const savedAudioId = getSavedMediaDeviceId(AUDIO_DEVICE_STORAGE_KEY);
+  const obsCamera = videoInputs.find((d) => isObsVirtualCameraLabel(d.label));
+
+  populateDeviceSelect(els.videoSourceSelect, videoInputs, savedVideoId, "Default camera");
+  populateDeviceSelect(els.audioSourceSelect, audioInputs, savedAudioId, "Default microphone");
+
+  saveMediaDeviceSelection();
+
+  if (obsCamera) {
+    setMediaSourceStatus("OBS Virtual Camera detected — select Preview or Start as Host.", "ok");
+  } else if (videoInputs.length) {
+    setMediaSourceStatus(`${videoInputs.length} camera(s) available.`, "ok");
+  } else {
+    setMediaSourceStatus("No cameras found — start OBS Virtual Camera first.", "err");
+  }
+
+  return true;
+}
+
+function replaceTrackInPeerConnection(newTrack) {
+  const pc = mediaConn?.peerConnection;
+  if (!pc || !newTrack) return;
+  pc.getSenders().forEach((sender) => {
+    if (sender.track?.kind === newTrack.kind) {
+      sender.replaceTrack(newTrack).catch(() => {});
+    }
+  });
+}
+
+async function swapLocalMediaTrack(kind, deviceId) {
+  if (!localStream) return;
+
+  const constraints =
+    kind === "video"
+      ? { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false }
+      : { video: false, audio: deviceId ? { deviceId: { exact: deviceId } } : true };
+
+  const fresh = await navigator.mediaDevices.getUserMedia(constraints);
+  const newTrack = fresh.getTracks()[0];
+  if (!newTrack) {
+    fresh.getTracks().forEach((track) => track.stop());
+    return;
+  }
+
+  const oldTrack = localStream.getTracks().find((track) => track.kind === kind);
+  if (oldTrack) {
+    localStream.removeTrack(oldTrack);
+    oldTrack.stop();
+  }
+  localStream.addTrack(newTrack);
+  fresh.getTracks().forEach((track) => {
+    if (track !== newTrack) track.stop();
+  });
+
+  replaceTrackInPeerConnection(newTrack);
+  window.localStream = localStream;
+  attachLocalVideoStream(localStream);
+  refreshVideoOverlays();
+  syncLocalMediaUi();
+}
+
+async function applySelectedMediaDevices() {
+  saveMediaDeviceSelection();
+  if (!localStream) return;
+
+  const videoId = els.videoSourceSelect?.value || "";
+  const audioId = els.audioSourceSelect?.value || "";
+  const currentVideoId = localStream.getVideoTracks()[0]?.getSettings()?.deviceId || "";
+  const currentAudioId = localStream.getAudioTracks()[0]?.getSettings()?.deviceId || "";
+
+  try {
+    if (videoId !== currentVideoId) {
+      await swapLocalMediaTrack("video", videoId);
+    }
+    if (audioId !== currentAudioId) {
+      await swapLocalMediaTrack("audio", audioId);
+    }
+    setMediaSourceStatus("Media source updated.", "ok");
+  } catch (e) {
+    setMediaSourceStatus(formatMediaAccessError(e), "err");
+  }
+}
+
+function setMediaSourceControlsEnabled(enabled) {
+  [els.videoSourceSelect, els.audioSourceSelect, els.btnPreviewCamera].forEach((el) => {
+    if (el) el.disabled = !enabled;
+  });
+}
+
+async function previewSelectedCamera() {
+  try {
+    await refreshMediaDeviceLists();
+    await getMedia({ forceNew: true });
+    setMediaSourceStatus("Preview active — choose Start as Host or Connect when ready.", "ok");
+  } catch (e) {
+    setMediaSourceStatus(formatMediaAccessError(e), "err");
+  }
+}
+
+function initMediaSourceControls() {
+  if (navigator.mediaDevices?.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", () => {
+      if (!videoAccessUnlocked) return;
+      refreshMediaDeviceLists().catch(() => {});
+    });
+  }
+
+  if (els.btnPreviewCamera) {
+    els.btnPreviewCamera.addEventListener("click", () => {
+      previewSelectedCamera().catch(() => {});
+    });
+  }
+
+  const onDeviceChange = () => {
+    saveMediaDeviceSelection();
+    if (localStream) {
+      applySelectedMediaDevices().catch(() => {});
+    }
+  };
+
+  if (els.videoSourceSelect) els.videoSourceSelect.addEventListener("change", onDeviceChange);
+  if (els.audioSourceSelect) els.audioSourceSelect.addEventListener("change", onDeviceChange);
+}
+
+async function getMedia(options = {}) {
+  const forceNew = !!(options && options.forceNew);
+  if (localStream && !forceNew) {
     window.localStream = localStream;
     attachLocalVideoStream(localStream);
     refreshVideoOverlays();
     syncLocalMediaUi();
     return localStream;
   }
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "user", width: { ideal: 1280 } },
-    audio: true,
-  });
+
+  if (localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+    localStream = null;
+    window.localStream = null;
+  }
+
+  localStream = await navigator.mediaDevices.getUserMedia(buildMediaConstraints());
   window.localStream = localStream;
   attachLocalVideoStream(localStream);
   refreshVideoOverlays();
   syncLocalMediaUi();
+  mediaPermissionGranted = true;
   return localStream;
 }
 
@@ -2346,8 +2583,14 @@ function setVideoAccessUi(unlocked) {
   if (els.loginOverlay) {
     els.loginOverlay.hidden = unlocked;
   }
+  setMediaSourceControlsEnabled(unlocked);
   if (els.btnStartHost) els.btnStartHost.disabled = !unlocked;
   if (els.btnConnect) els.btnConnect.disabled = !unlocked;
+  if (unlocked) {
+    refreshMediaDeviceLists().catch(() => {});
+  } else {
+    setMediaSourceStatus("");
+  }
 }
 
 function initAccessGate() {
@@ -2754,6 +2997,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshVideoOverlays();
   initAccessGate();
   initLogout();
+  initMediaSourceControls();
   initVideoOverlayControls();
   initLayoutControls();
   initChatControls();

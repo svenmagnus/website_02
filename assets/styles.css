@@ -887,6 +887,39 @@ html[data-theme="cb-light"] button.layout-btn.active {
   border-color: var(--partner);
 }
 
+.media-source-row {
+  align-items: center;
+}
+
+.media-source-select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.media-source-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.media-source-select:focus {
+  outline: 2px solid rgba(124, 92, 255, 0.35);
+  border-color: var(--partner);
+}
+
+.media-source-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .layout-toolbar > button#btnPipNativeRemote,
 .layout-toolbar > button#btnPipNativeLocal {
   font-size: 0.76rem;
