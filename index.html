@@ -202,31 +202,33 @@
           </div>
         </article>
 
-        <div class="stage-view-controls" aria-label="Video layout">
-          <button type="button" class="stage-view-btn" data-layout="split" title="Host &amp; Guest equal" aria-label="Equal view">
-            <i class="bi bi-layout-split" aria-hidden="true"></i>
-          </button>
-          <button type="button" class="stage-view-btn" data-layout="pip-local" title="Host large" aria-label="Host large">
-            <i class="bi bi-person-bounding-box" aria-hidden="true"></i>
-          </button>
-          <button type="button" class="stage-view-btn" data-layout="pip-remote" title="Guest large" aria-label="Guest large">
-            <i class="bi bi-person-video2" aria-hidden="true"></i>
-          </button>
-          <button type="button" class="stage-view-btn" data-layout="theater" title="Guest fullscreen + chat inlay" aria-label="Guest fullscreen">
-            <i class="bi bi-fullscreen" aria-hidden="true"></i>
+        <div class="stage-chrome" aria-hidden="false">
+          <div class="stage-view-controls" aria-label="Video layout">
+            <button type="button" class="stage-view-btn" data-layout="split" title="Host &amp; Guest equal" aria-label="Equal view">
+              <i class="bi bi-columns-gap" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="stage-view-btn" data-layout="pip-local" title="Host large" aria-label="Host large">
+              <i class="bi bi-person-bounding-box" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="stage-view-btn" data-layout="pip-remote" title="Guest large" aria-label="Guest large">
+              <i class="bi bi-person-video2" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="stage-view-btn" data-layout="theater" title="Guest fullscreen + chat inlay" aria-label="Guest fullscreen">
+              <i class="bi bi-fullscreen" aria-hidden="true"></i>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            class="stage-chat-toggle"
+            id="stageChatToggle"
+            title="Show chat inlay"
+            aria-label="Show chat inlay"
+            hidden
+          >
+            <i class="bi bi-chat-dots" aria-hidden="true"></i>
           </button>
         </div>
-
-        <button
-          type="button"
-          class="stage-chat-toggle"
-          id="stageChatToggle"
-          title="Show chat inlay"
-          aria-label="Show chat inlay"
-          hidden
-        >
-          <i class="bi bi-chat-dots" aria-hidden="true"></i>
-        </button>
       </section>
 
       <div

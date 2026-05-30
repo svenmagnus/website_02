@@ -374,6 +374,24 @@ function initChatResize() {
   });
 }
 
+function initStageViewControls() {
+  const stage = els.stage;
+  if (!stage) return;
+
+  stage.addEventListener(
+    "click",
+    (e) => {
+      const btn = e.target instanceof Element ? e.target.closest(".stage-view-btn") : null;
+      if (!btn || !stage.contains(btn)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const mode = btn.getAttribute("data-layout");
+      if (mode) applyLayout(mode);
+    },
+    true
+  );
+}
+
 function initLayoutControls() {
   let saved = DEFAULT_LAYOUT;
   let corner = "br";
@@ -395,8 +413,9 @@ function initLayoutControls() {
   applyChatWidth(undefined, { skipStorage: true });
   initChatResize();
   initStageRowResize();
+  initStageViewControls();
 
-  document.querySelectorAll(".layout-btn, .stage-view-btn").forEach((btn) => {
+  document.querySelectorAll(".layout-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       applyLayout(btn.getAttribute("data-layout") || DEFAULT_LAYOUT);
     });
