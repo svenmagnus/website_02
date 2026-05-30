@@ -1,0 +1,229 @@
+/**
+ * Shared header UI: theme (CB/original) + account dropdown (Chaturbate-style).
+ */
+(function (global) {
+  const THEME_STORAGE_KEY = "dualpeer-theme";
+  const PROFILE_NAME_KEY = "dualpeer-profile-name";
+  const CB_THEMES = new Set(["cb-dark", "cb-light"]);
+  const ALLOWED_THEMES = ["original", "cb-dark", "cb-light"];
+
+  function getSavedTheme() {
+    try {
+      const t = localStorage.getItem(THEME_STORAGE_KEY) || "cb-dark";
+      return ALLOWED_THEMES.includes(t) ? t : "cb-dark";
+    } catch (_) {
+      return "cb-dark";
+    }
+  }
+
+  function isDarkTheme(theme) {
+    return theme === "cb-dark" || theme === "original";
+  }
+
+  function syncDarkModeToggle(theme) {
+    const toggle = document.getElementById("darkModeToggle");
+    if (!(toggle instanceof HTMLInputElement)) return;
+    if (theme === "original") {
+      toggle.checked = true;
+      toggle.indeterminate = false;
+      return;
+    }
+    toggle.indeterminate = false;
+    toggle.checked = theme === "cb-dark";
+  }
+
+  function syncThemeRadios(theme) {
+    document.querySelectorAll('input[name="appearanceTheme"]').forEach((el) => {
+      if (el instanceof HTMLInputElement) {
+        el.checked = el.value === theme;
+      }
+    });
+  }
+
+  function applyTheme(theme, options) {
+    const opts = options || {};
+    const t = ALLOWED_THEMES.includes(theme) ? theme : "cb-dark";
+
+    document.documentElement.setAttribute("data-theme", t);
+
+    const main = document.getElementById("appMain");
+    if (main) {
+      main.classList.toggle("layout-cb", CB_THEMES.has(t));
+    }
+
+    syncDarkModeToggle(t);
+    syncThemeRadios(t);
+
+    if (!opts.skipStorage) {
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, t);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
+    if (typeof opts.onLayout === "function") {
+      opts.onLayout(t);
+    }
+
+    document.dispatchEvent(new CustomEvent("dualpeer-theme-change", { detail: { theme: t } }));
+  }
+
+  function toggleDarkMode() {
+    const current = document.documentElement.getAttribute("data-theme") || getSavedTheme();
+    if (current === "cb-light") {
+      applyTheme("cb-dark");
+    } else {
+      applyTheme("cb-light");
+    }
+  }
+
+  function getProfileName() {
+    try {
+      return (localStorage.getItem(PROFILE_NAME_KEY) || "Guest").trim() || "Guest";
+    } catch (_) {
+      return "Guest";
+    }
+  }
+
+  function setProfileName(name) {
+    const safe = String(name || "Guest").trim().slice(0, 32) || "Guest";
+    try {
+      localStorage.setItem(PROFILE_NAME_KEY, safe);
+    } catch (_) {
+      /* ignore */
+    }
+    refreshProfileLabels(safe);
+  }
+
+  function refreshProfileLabels(name) {
+    const label = name || getProfileName();
+    const initial = label.charAt(0).toUpperCase() || "G";
+    document.querySelectorAll("[data-profile-initial]").forEach((el) => {
+      el.textContent = initial;
+    });
+    document.querySelectorAll("[data-profile-name]").forEach((el) => {
+      el.textContent = label;
+    });
+    const input = document.getElementById("settingsDisplayName");
+    if (input instanceof HTMLInputElement && document.activeElement !== input) {
+      input.value = label === "Guest" ? "" : label;
+    }
+  }
+
+  function closeAccountMenu() {
+    const menu = document.getElementById("accountMenu");
+    const btn = document.getElementById("accountMenuBtn");
+    const panel = document.getElementById("accountDropdown");
+    if (menu) menu.classList.remove("is-open");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+    if (panel) panel.hidden = true;
+  }
+
+  function openAccountMenu() {
+    const menu = document.getElementById("accountMenu");
+    const btn = document.getElementById("accountMenuBtn");
+    const panel = document.getElementById("accountDropdown");
+    if (menu) menu.classList.add("is-open");
+    if (btn) btn.setAttribute("aria-expanded", "true");
+    if (panel) panel.hidden = false;
+  }
+
+  function initAccountMenu() {
+    const btn = document.getElementById("accountMenuBtn");
+    const panel = document.getElementById("accountDropdown");
+    const logoutBtn = document.getElementById("accountLogoutBtn");
+    const darkToggle = document.getElementById("darkModeToggle");
+
+    refreshProfileLabels();
+
+    if (btn && panel) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const menu = document.getElementById("accountMenu");
+        if (menu && menu.classList.contains("is-open")) {
+          closeAccountMenu();
+        } else {
+          openAccountMenu();
+        }
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      const menu = document.getElementById("accountMenu");
+      if (!menu || !menu.classList.contains("is-open")) return;
+      if (e.target instanceof Node && menu.contains(e.target)) return;
+      closeAccountMenu();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeAccountMenu();
+    });
+
+    if (darkToggle instanceof HTMLInputElement) {
+      darkToggle.addEventListener("change", () => {
+        if (darkToggle.checked) {
+          applyTheme("cb-dark");
+        } else {
+          applyTheme("cb-light");
+        }
+      });
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", () => {
+        closeAccountMenu();
+        const legacy = document.getElementById("logoutBtn");
+        if (legacy) legacy.click();
+        else global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
+      });
+    }
+  }
+
+  function initSettingsPage() {
+    const form = document.getElementById("settingsForm");
+    const nameInput = document.getElementById("settingsDisplayName");
+
+    applyTheme(getSavedTheme(), { skipStorage: true });
+    initAccountMenu();
+
+    document.querySelectorAll('input[name="appearanceTheme"]').forEach((el) => {
+      if (!(el instanceof HTMLInputElement)) return;
+      el.addEventListener("change", () => {
+        if (el.checked) applyTheme(el.value);
+      });
+    });
+
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (nameInput instanceof HTMLInputElement) {
+          setProfileName(nameInput.value.trim() || "Guest");
+        }
+        const status = document.getElementById("settingsSavedMsg");
+        if (status) {
+          status.hidden = false;
+          setTimeout(() => {
+            status.hidden = true;
+          }, 2500);
+        }
+      });
+    }
+  }
+
+  function initShell() {
+    applyTheme(getSavedTheme(), { skipStorage: true });
+    initAccountMenu();
+  }
+
+  global.dualPeerUi = {
+    applyTheme,
+    getSavedTheme,
+    initShell,
+    initSettingsPage,
+    setProfileName,
+    getProfileName,
+    isDarkTheme,
+    CB_THEMES,
+  };
+})(window);

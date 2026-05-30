@@ -101,37 +101,10 @@ let sessionRole = null;
 
 const LAYOUT_STORAGE_KEY = "dualpeer-layout";
 const LAYOUT_BEFORE_CB_KEY = "dualpeer-layout-before-cb";
-const THEME_STORAGE_KEY = "dualpeer-theme";
-const CB_THEMES = new Set(["cb-dark", "cb-light"]);
-const ALLOWED_THEMES = ["original", "cb-dark", "cb-light"];
 
-function applyTheme(theme, options) {
-  const opts = options || {};
-  const t = ALLOWED_THEMES.includes(theme) ? theme : "original";
-
-  document.documentElement.setAttribute("data-theme", t);
-
-  const main = document.getElementById("appMain");
-  if (main) {
-    main.classList.toggle("layout-cb", CB_THEMES.has(t));
-  }
-
-  const select = document.getElementById("themeSelect");
-  if (select && select.value !== t) {
-    select.value = t;
-  }
-
-  if (!opts.skipStorage) {
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, t);
-    } catch (_) {
-      /* ignore */
-    }
-  }
-
-  if (opts.skipLayout) return;
-
-  if (CB_THEMES.has(t)) {
+function applyThemeForLayout(theme) {
+  const CB = window.dualPeerUi?.CB_THEMES || new Set(["cb-dark", "cb-light"]);
+  if (CB.has(theme)) {
     try {
       if (!localStorage.getItem(LAYOUT_BEFORE_CB_KEY)) {
         const current = localStorage.getItem(LAYOUT_STORAGE_KEY) || "split";
@@ -140,7 +113,7 @@ function applyTheme(theme, options) {
     } catch (_) {
       /* ignore */
     }
-    if (els.stage) applyLayout("pip-remote");
+    applyLayout("pip-remote");
   } else {
     let restore = "split";
     try {
@@ -152,24 +125,7 @@ function applyTheme(theme, options) {
     } catch (_) {
       /* ignore */
     }
-    if (els.stage) applyLayout(restore);
-  }
-}
-
-function initThemeSwitcher() {
-  let saved = "original";
-  try {
-    saved = localStorage.getItem(THEME_STORAGE_KEY) || "original";
-  } catch (_) {
-    /* ignore */
-  }
-  applyTheme(saved, { skipStorage: true });
-
-  const select = document.getElementById("themeSelect");
-  if (select) {
-    select.addEventListener("change", () => {
-      applyTheme(select.value);
-    });
+    applyLayout(restore);
   }
 }
 
@@ -211,7 +167,17 @@ function initLayoutControls() {
   } catch (_) {
     /* ignore */
   }
-  applyLayout(saved);
+
+  const theme =
+    document.documentElement.getAttribute("data-theme") ||
+    window.dualPeerUi?.getSavedTheme?.() ||
+    "cb-dark";
+  const CB = window.dualPeerUi?.CB_THEMES || new Set(["cb-dark", "cb-light"]);
+  if (CB.has(theme)) {
+    applyLayout("pip-remote");
+  } else {
+    applyLayout(saved);
+  }
   applyPipCorner(corner);
 
   document.querySelectorAll(".layout-btn").forEach((btn) => {
@@ -2363,7 +2329,12 @@ function initVideoOverlayControls() {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  initThemeSwitcher();
+  if (window.dualPeerUi) {
+    window.dualPeerUi.initShell();
+    document.addEventListener("dualpeer-theme-change", (e) => {
+      if (e.detail?.theme) applyThemeForLayout(e.detail.theme);
+    });
+  }
   bindVideoOverlayRefresh(els.localVideo);
   bindVideoOverlayRefresh(els.remoteVideo);
   refreshVideoOverlays();

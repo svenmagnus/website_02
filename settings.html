@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cb-dark">
+  <head>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
+          if (t === "cb-dark" || t === "cb-light" || t === "original") {
+            document.documentElement.setAttribute("data-theme", t);
+          }
+        } catch (_) {}
+      })();
+    </script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Settings — Dual-Peer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+  </head>
+  <body class="settings-page">
+    <header class="main-header">
+      <div class="header-left">
+        <a href="index.html" class="logo-link">
+          <img src="assets/logo.png" alt="Tangent-Club Logo" id="main-logo" />
+        </a>
+      </div>
+
+      <nav class="header-nav" aria-label="Account and tools">
+        <button type="button" class="header-icon-btn" disabled title="Messages (coming soon)">
+          <i class="bi bi-chat-dots" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="header-icon-btn" disabled title="Notifications (coming soon)">
+          <i class="bi bi-bell" aria-hidden="true"></i>
+        </button>
+
+        <div class="account-menu" id="accountMenu">
+          <button
+            type="button"
+            class="account-trigger"
+            id="accountMenuBtn"
+            aria-expanded="false"
+            aria-haspopup="true"
+            aria-controls="accountDropdown"
+          >
+            <span class="account-avatar" data-profile-initial>G</span>
+          </button>
+          <div class="account-dropdown" id="accountDropdown" hidden role="menu">
+            <div class="account-dropdown-head">
+              <span class="account-avatar account-avatar-lg" data-profile-initial>G</span>
+              <div class="account-dropdown-meta">
+                <span class="account-name" data-profile-name>Guest</span>
+                <span class="account-role">Member</span>
+              </div>
+            </div>
+            <a href="settings.html" class="account-dropdown-item is-active" role="menuitem">
+              <i class="bi bi-gear" aria-hidden="true"></i>
+              <span>Settings &amp; Privacy</span>
+            </a>
+            <label class="account-dropdown-item account-toggle-row" role="menuitem">
+              <span class="account-toggle-label">
+                <i class="bi bi-moon-stars" aria-hidden="true"></i>
+                Dark Mode
+              </span>
+              <span class="account-switch">
+                <input type="checkbox" id="darkModeToggle" class="account-switch-input" />
+                <span class="account-switch-track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <button type="button" class="account-dropdown-item" disabled role="menuitem">
+              <i class="bi bi-chat-square-text" aria-hidden="true"></i>
+              <span>Send Feedback</span>
+            </button>
+            <div class="account-dropdown-divider" role="separator"></div>
+            <a href="index.html" class="account-dropdown-item" role="menuitem">
+              <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+              <span>Back to room</span>
+            </a>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="settings-main">
+      <div class="settings-card card">
+        <h1>Settings &amp; Privacy</h1>
+        <p class="settings-lead">Appearance and preferences for your private session.</p>
+
+        <form id="settingsForm" class="settings-form">
+          <section class="settings-section">
+            <h2>Profile</h2>
+            <label class="settings-field" for="settingsDisplayName">
+              Display name
+              <input
+                type="text"
+                id="settingsDisplayName"
+                name="displayName"
+                maxlength="32"
+                placeholder="Shown in the menu top-right"
+                autocomplete="nickname"
+              />
+            </label>
+          </section>
+
+          <section class="settings-section">
+            <h2>Appearance</h2>
+            <p class="settings-hint">Chaturbate layout: partner video large, chat on the right, controls under video.</p>
+            <fieldset class="settings-theme-group">
+              <legend class="visually-hidden">Theme</legend>
+              <label class="settings-radio">
+                <input type="radio" name="appearanceTheme" value="cb-dark" />
+                <span>Chaturbate — Dark</span>
+              </label>
+              <label class="settings-radio">
+                <input type="radio" name="appearanceTheme" value="cb-light" />
+                <span>Chaturbate — Light</span>
+              </label>
+              <label class="settings-radio">
+                <input type="radio" name="appearanceTheme" value="original" />
+                <span>Original (Tangent-Club)</span>
+              </label>
+            </fieldset>
+            <p class="settings-hint">Tip: use <strong>Dark Mode</strong> in the menu (top right) to switch quickly between CB light and dark.</p>
+          </section>
+
+          <section class="settings-section settings-section-muted">
+            <h2>Preferences</h2>
+            <p class="settings-hint">More options will be added here — checkboxes for your likes and limits.</p>
+            <label class="settings-check is-disabled">
+              <input type="checkbox" disabled />
+              <span>Notify when partner connects (coming soon)</span>
+            </label>
+            <label class="settings-check is-disabled">
+              <input type="checkbox" disabled />
+              <span>Sound on new chat message (coming soon)</span>
+            </label>
+            <label class="settings-check is-disabled">
+              <input type="checkbox" disabled />
+              <span>Remember toy intensity per session (coming soon)</span>
+            </label>
+          </section>
+
+          <div class="settings-actions">
+            <button type="submit" class="primary">Save</button>
+            <a href="index.html" class="settings-back-link">Back to room</a>
+          </div>
+          <p class="settings-saved" id="settingsSavedMsg" hidden role="status">Saved.</p>
+        </form>
+      </div>
+    </main>
+
+    <footer>
+      Settings — preferences are stored locally in this browser only.
+    </footer>
+
+    <script src="assets/ui-shell.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        if (window.dualPeerUi) window.dualPeerUi.initSettingsPage();
+      });
+    </script>
+  </body>
+</html>

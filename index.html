@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="original">
+<html lang="en" data-theme="cb-dark">
   <head>
     <script>
       (function () {
         try {
-          var t = localStorage.getItem("dualpeer-theme") || "original";
+          var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
           if (t === "cb-dark" || t === "cb-light" || t === "original") {
             document.documentElement.setAttribute("data-theme", t);
           }
@@ -71,18 +71,62 @@
           </a>
       </div>
       
-      <div class="header-copy">
-          <div class="theme-switcher">
-            <label for="themeSelect" class="theme-switcher-label">Theme</label>
-            <select id="themeSelect" class="theme-select" aria-label="Color theme">
-              <option value="original">Original</option>
-              <option value="cb-dark">CB Dark</option>
-              <option value="cb-light">CB Light</option>
-            </select>
+      <nav class="header-nav" aria-label="Account and tools">
+        <button type="button" class="header-icon-btn" disabled title="Messages (coming soon)">
+          <i class="bi bi-chat-dots" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="header-icon-btn" disabled title="Notifications (coming soon)">
+          <i class="bi bi-bell" aria-hidden="true"></i>
+        </button>
+
+        <div class="account-menu" id="accountMenu">
+          <button
+            type="button"
+            class="account-trigger"
+            id="accountMenuBtn"
+            aria-expanded="false"
+            aria-haspopup="true"
+            aria-controls="accountDropdown"
+          >
+            <span class="account-avatar" data-profile-initial>G</span>
+          </button>
+          <div class="account-dropdown" id="accountDropdown" hidden role="menu">
+            <div class="account-dropdown-head">
+              <span class="account-avatar account-avatar-lg" data-profile-initial>G</span>
+              <div class="account-dropdown-meta">
+                <span class="account-name" data-profile-name>Guest</span>
+                <span class="account-role">Member</span>
+              </div>
+            </div>
+            <a href="settings.html" class="account-dropdown-item" role="menuitem">
+              <i class="bi bi-gear" aria-hidden="true"></i>
+              <span>Settings &amp; Privacy</span>
+            </a>
+            <label class="account-dropdown-item account-toggle-row" role="menuitem">
+              <span class="account-toggle-label">
+                <i class="bi bi-moon-stars" aria-hidden="true"></i>
+                Dark Mode
+              </span>
+              <span class="account-switch">
+                <input type="checkbox" id="darkModeToggle" class="account-switch-input" />
+                <span class="account-switch-track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <button type="button" class="account-dropdown-item" disabled role="menuitem">
+              <i class="bi bi-chat-square-text" aria-hidden="true"></i>
+              <span>Send Feedback</span>
+            </button>
+            <div class="account-dropdown-divider" role="separator"></div>
+            <button type="button" class="account-dropdown-item account-dropdown-danger" id="accountLogoutBtn" role="menuitem">
+              <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+              <span>Log Out</span>
+            </button>
           </div>
-          <span class="privat-badge">PRIVATE</span>
-          <button id="logoutBtn" class="logout-link">Logout &times;</button>
-      </div>
+        </div>
+
+        <span class="privat-badge">PRIVATE</span>
+        <button type="button" id="logoutBtn" class="logout-link visually-hidden" aria-hidden="true">Logout</button>
+      </nav>
   </header>
     <main id="appMain">
       <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video area">
@@ -258,6 +302,7 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
+    <script src="assets/ui-shell.js"></script>
     <script src="assets/app.js"></script>
   </body>
 </html>
