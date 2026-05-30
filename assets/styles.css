@@ -548,8 +548,26 @@ main {
   justify-content: flex-end;
   align-items: center;
   flex: 0 0 auto;
-  padding: 0.3rem 0.35rem 0.1rem;
-  min-height: 0;
+  min-height: 2.35rem;
+  padding: 0.35rem 0.5rem;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.stage-view-controls {
+  position: static;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: auto;
+  padding: 0.2rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .stage > .stage-chrome {
@@ -559,20 +577,6 @@ main {
   inset: 0;
   z-index: 50;
   pointer-events: none;
-}
-
-.stage-view-controls {
-  position: static;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  padding: 0.2rem;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  pointer-events: auto;
-  touch-action: manipulation;
 }
 
 .stage[data-layout="pip-remote"] > .panel-host .video-media-overlay {
@@ -589,9 +593,9 @@ body.main-fullscreen-active .stage-toolbar {
   }
 }
 
-/* Equal: compact — height from 16:10 video boxes only */
+/* Equal: compact — panels shrink-wrap to video size */
 .stage[data-layout="split"] {
-  height: auto;
+  height: fit-content;
   min-height: 0;
   align-items: start;
 }
@@ -599,14 +603,22 @@ body.main-fullscreen-active .stage-toolbar {
 .stage[data-layout="split"] .panel {
   align-self: start;
   width: 100%;
-  height: auto;
+  height: fit-content;
+  min-height: 0;
 }
 
 .stage[data-layout="split"] .video-wrap {
   width: 100%;
-  aspect-ratio: 16 / 10;
   height: auto;
   flex: 0 0 auto;
+}
+
+main.layout-cb > .layout-row-resize-handle[hidden] {
+  display: none !important;
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
 }
 
 /* Partner large: user-resizable stage height */
@@ -934,10 +946,24 @@ html[data-theme="cb-light"] .panel-head .tag.partner {
 
 .video-wrap {
   position: relative;
-  aspect-ratio: 16 / 10;
+  width: 100%;
   background: #000;
   border-radius: var(--video-radius);
   overflow: hidden;
+}
+
+/* In-flow spacer — reliable 16:10 box when all children are absolute */
+.video-wrap::before {
+  content: "";
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+}
+
+.stage[data-layout="pip-remote"] > .panel:last-child .video-wrap::before,
+.stage[data-layout="pip-local"] > .panel:first-child .video-wrap::before,
+.stage[data-layout="theater"] > .panel-guest .video-wrap::before {
+  display: none;
 }
 
 .video-wrap > video {
