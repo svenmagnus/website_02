@@ -539,9 +539,7 @@ main {
 
 .stage-view-controls {
   position: absolute;
-  right: 0.65rem;
-  bottom: 0.65rem;
-  z-index: 2;
+  z-index: 12;
   display: flex;
   align-items: center;
   gap: 0.15rem;
@@ -553,36 +551,31 @@ main {
   touch-action: manipulation;
 }
 
-/* Equal view: layout icons centered under both tiles */
-.stage[data-layout="split"] .stage-view-controls {
+/* Equal: centered on the stage overlay */
+.stage-view-controls--on-stage,
+.stage-chrome > .stage-view-controls {
   left: 50%;
   right: auto;
+  bottom: 0.65rem;
   transform: translateX(-50%);
 }
 
-/* Partner large: icons on the main video, away from the small self PiP tile */
-.stage[data-layout="pip-remote"][data-pip-corner="br"] .stage-view-controls,
-.stage[data-layout="pip-remote"][data-pip-corner="tr"] .stage-view-controls {
-  left: 0.65rem;
-  right: auto;
-  transform: none;
-}
-
-.stage[data-layout="pip-remote"][data-pip-corner="bl"] .stage-view-controls,
-.stage[data-layout="pip-remote"][data-pip-corner="tl"] .stage-view-controls {
+/* Partner large: mounted inside the main (guest) video wrap via app.js */
+.stage-view-controls--on-main,
+#guestFsTarget > .stage-view-controls {
   left: auto;
   right: 0.65rem;
+  bottom: 0.65rem;
   transform: none;
-}
-
-.stage[data-layout="pip-remote"][data-pip-corner="tr"] .stage-view-controls,
-.stage[data-layout="pip-remote"][data-pip-corner="tl"] .stage-view-controls {
-  bottom: auto;
-  top: 3rem;
 }
 
 .stage[data-layout="pip-remote"] > .panel-host .video-media-overlay {
   z-index: 3;
+}
+
+#hostFsTarget:fullscreen > .stage-view-controls,
+#guestFsTarget:fullscreen > .stage-view-controls {
+  display: none;
 }
 
 @media (max-width: 900px) {

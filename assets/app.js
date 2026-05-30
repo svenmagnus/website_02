@@ -311,12 +311,30 @@ function applyLayout(mode) {
   }
 
   syncLayoutButtons(m);
+  mountStageViewControls();
   updateResizeHandles();
 
   try {
     localStorage.setItem(LAYOUT_STORAGE_KEY, m);
   } catch (_) {
     /* ignore */
+  }
+}
+
+/** Keep layout icons on the large video — never stacked over the small PiP tile. */
+function mountStageViewControls() {
+  const controls = document.querySelector(".stage-view-controls");
+  const chrome = els.stage?.querySelector(".stage-chrome");
+  const guestWrap = document.getElementById("guestFsTarget");
+  if (!controls || !chrome || !guestWrap || !els.stage) return;
+
+  const onMain = (els.stage.dataset.layout || "split") === "pip-remote";
+  controls.classList.toggle("stage-view-controls--on-main", onMain);
+  controls.classList.toggle("stage-view-controls--on-stage", !onMain);
+
+  const targetParent = onMain ? guestWrap : chrome;
+  if (controls.parentElement !== targetParent) {
+    targetParent.appendChild(controls);
   }
 }
 
