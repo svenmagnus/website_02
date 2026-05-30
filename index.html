@@ -128,12 +128,12 @@
         <button type="button" id="logoutBtn" class="logout-link visually-hidden" aria-hidden="true">Logout</button>
       </nav>
   </header>
-    <main id="appMain" class="layout-cb" data-chat-dock="right">
-      <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video area">
-        <article class="panel">
+    <main id="appMain" class="layout-cb" data-chat-dock="right" data-view-layout="default">
+      <section class="stage" id="stage" data-layout="pip-local" data-pip-corner="br" aria-label="Video area">
+        <article class="panel panel-host">
           <div class="panel-head">
-            <span>You</span>
-            <span class="tag you">Local</span>
+            <span>Host</span>
+            <span class="tag you">You</span>
           </div>
           <div class="video-wrap">
             <video id="localVideo" autoplay playsinline muted></video>
@@ -166,10 +166,10 @@
           </div>
         </article>
 
-        <article class="panel">
+        <article class="panel panel-guest">
           <div class="panel-head">
-            <span>Partner</span>
-            <span class="tag partner">Remote</span>
+            <span>Guest</span>
+            <span class="tag partner">Partner</span>
           </div>
           <div class="video-wrap">
             <video id="remoteVideo" autoplay playsinline></video>
@@ -201,20 +201,50 @@
             </div>
           </div>
         </article>
+
+        <div class="stage-view-controls" aria-label="Video layout">
+          <button type="button" class="stage-view-btn" data-layout="split" title="Host &amp; Guest equal" aria-label="Equal view">
+            <i class="bi bi-layout-split" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="stage-view-btn" data-layout="pip-local" title="Host large" aria-label="Host large">
+            <i class="bi bi-person-bounding-box" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="stage-view-btn" data-layout="pip-remote" title="Guest large" aria-label="Guest large">
+            <i class="bi bi-person-video2" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="stage-view-btn" data-layout="theater" title="Guest fullscreen + chat inlay" aria-label="Guest fullscreen">
+            <i class="bi bi-fullscreen" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="stage-chat-toggle"
+          id="stageChatToggle"
+          title="Show chat inlay"
+          aria-label="Show chat inlay"
+          hidden
+        >
+          <i class="bi bi-chat-dots" aria-hidden="true"></i>
+        </button>
       </section>
 
-      <div class="layout-toolbar" aria-label="View and layout">
-        <span class="layout-toolbar-label">Video</span>
+      <div
+        class="layout-row-resize-handle"
+        id="videoRowResizeHandle"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize video height"
+        tabindex="0"
+      ></div>
+
+      <div class="layout-toolbar layout-toolbar-compact" aria-label="View and layout">
+        <span class="layout-toolbar-label">Layout</span>
         <div class="layout-toolbar-btns">
-          <button type="button" class="layout-btn" id="layoutSplit" data-layout="split">
-            Equal
-          </button>
-          <button type="button" class="layout-btn active" id="layoutPipLocal" data-layout="pip-local">
-            You large
-          </button>
-          <button type="button" class="layout-btn" id="layoutPipRemote" data-layout="pip-remote">
-            Partner large
-          </button>
+          <button type="button" class="layout-btn" id="layoutSplit" data-layout="split">Equal</button>
+          <button type="button" class="layout-btn active" id="layoutPipLocal" data-layout="pip-local">Host large</button>
+          <button type="button" class="layout-btn" id="layoutPipRemote" data-layout="pip-remote">Guest large</button>
+          <button type="button" class="layout-btn" id="layoutTheater" data-layout="theater">Guest fullscreen</button>
         </div>
         <span class="layout-toolbar-label">PiP corner</span>
         <select id="pipCorner" class="pip-corner-select" aria-label="Small video position">
@@ -281,17 +311,21 @@
         </div>
 
         <div
-          class="layout-split-handle"
+          class="layout-split-handle is-visible"
           id="chatResizeHandle"
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize chat panel"
           tabindex="0"
-          hidden
         ></div>
 
-        <div class="card chat-card">
-          <h2>Live Chat</h2>
+        <div class="card chat-card" id="chatCard">
+          <div class="chat-card-head">
+            <h2>Live Chat</h2>
+            <button type="button" class="chat-overlay-close" id="chatOverlayClose" title="Hide chat inlay" aria-label="Hide chat inlay" hidden>
+              <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+          </div>
           <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
           <div id="chat-input-row" class="row chat-input-row">
             <input type="text" id="chat-input" placeholder="Type a message..." maxlength="500" autocomplete="off" />

@@ -103,25 +103,94 @@ let sessionRole = null;
 const LAYOUT_STORAGE_KEY = "dualpeer-layout";
 const CHAT_DOCK_STORAGE_KEY = "dualpeer-chat-dock";
 const CHAT_WIDTH_STORAGE_KEY = "dualpeer-chat-width";
+const STAGE_HEIGHT_STORAGE_KEY = "dualpeer-stage-height";
+const CHAT_OVERLAY_VISIBLE_KEY = "dualpeer-chat-overlay-visible";
 const DEFAULT_LAYOUT = "pip-local";
 const CHAT_WIDTH_MIN = 260;
-const CHAT_WIDTH_MAX = 640;
+const CHAT_WIDTH_MAX = 720;
+const STAGE_HEIGHT_MIN = 280;
+const STAGE_HEIGHT_MAX = 920;
 
 function setPipNativeMessage(text) {
   if (els.pipNativeMsg) els.pipNativeMsg.textContent = text || "";
 }
 
-function applyLayout(mode) {
-  const allowed = ["split", "pip-remote", "pip-local"];
-  const m = allowed.includes(mode) ? mode : "split";
-  if (els.stage) els.stage.dataset.layout = m;
-  document.querySelectorAll(".layout-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.getAttribute("data-layout") === m);
+function syncLayoutButtons(mode) {
+  document.querySelectorAll(".layout-btn, .stage-view-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-layout") === mode);
   });
+}
+
+function applyLayout(mode) {
+  const allowed = ["split", "pip-remote", "pip-local", "theater"];
+  const m = allowed.includes(mode) ? mode : DEFAULT_LAYOUT;
+  if (els.stage) els.stage.dataset.layout = m;
+
+  const main = els.appMain;
+  if (main) {
+    main.dataset.viewLayout = m === "theater" ? "theater" : "default";
+  }
+
+  syncLayoutButtons(m);
+
+  const theater = m === "theater";
+  const chatToggle = document.getElementById("stageChatToggle");
+  const chatClose = document.getElementById("chatOverlayClose");
+  if (chatToggle) chatToggle.hidden = !theater;
+  if (chatClose) chatClose.hidden = !theater;
+
+  if (theater) {
+    applyChatDock("right");
+    setTheaterChatVisible(getTheaterChatVisible());
+  } else if (main) {
+    main.classList.remove("chat-overlay-hidden");
+  }
+
+  updateResizeHandles();
+
   try {
     localStorage.setItem(LAYOUT_STORAGE_KEY, m);
   } catch (_) {
     /* ignore */
+  }
+}
+
+function getTheaterChatVisible() {
+  try {
+    return localStorage.getItem(CHAT_OVERLAY_VISIBLE_KEY) !== "false";
+  } catch (_) {
+    return true;
+  }
+}
+
+function setTheaterChatVisible(visible) {
+  const main = els.appMain;
+  if (main) main.classList.toggle("chat-overlay-hidden", !visible);
+  const toggle = document.getElementById("stageChatToggle");
+  if (toggle) toggle.classList.toggle("is-active", visible);
+  try {
+    localStorage.setItem(CHAT_OVERLAY_VISIBLE_KEY, visible ? "true" : "false");
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function updateResizeHandles() {
+  const main = els.appMain;
+  const chatHandle = document.getElementById("chatResizeHandle");
+  const rowHandle = document.getElementById("videoRowResizeHandle");
+  if (!main) return;
+
+  const theater = main.dataset.viewLayout === "theater";
+  const dock = main.dataset.chatDock || "right";
+  const showChatHandle = !theater && dock === "right";
+
+  if (chatHandle) {
+    chatHandle.classList.toggle("is-visible", showChatHandle);
+    chatHandle.hidden = !showChatHandle;
+  }
+  if (rowHandle) {
+    rowHandle.hidden = theater;
   }
 }
 
@@ -147,14 +216,13 @@ function applyChatDock(mode) {
     dockSelect.value = m;
   }
 
-  const handle = document.getElementById("chatResizeHandle");
-  if (handle) handle.hidden = m !== "right";
-
   try {
     localStorage.setItem(CHAT_DOCK_STORAGE_KEY, m);
   } catch (_) {
     /* ignore */
   }
+
+  updateResizeHandles();
 }
 
 function applyChatWidth(px, options) {
@@ -183,6 +251,75 @@ function applyChatWidth(px, options) {
   }
 }
 
+function applyStageHeight(px, options) {
+  const opts = options || {};
+  const main = els.appMain;
+  if (!main) return;
+
+  let height = Number(px);
+  if (!Number.isFinite(height)) {
+    try {
+      height = Number(localStorage.getItem(STAGE_HEIGHT_STORAGE_KEY)) || 0;
+    } catch (_) {
+      height = 0;
+    }
+  }
+
+  if (height > 0) {
+    height = Math.round(Math.min(STAGE_HEIGHT_MAX, Math.max(STAGE_HEIGHT_MIN, height)));
+    main.style.setProperty("--cb-stage-height", `${height}px`);
+  } else {
+    main.style.removeProperty("--cb-stage-height");
+  }
+
+  if (!opts.skipStorage && height > 0) {
+    try {
+      localStorage.setItem(STAGE_HEIGHT_STORAGE_KEY, String(height));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
+function initStageRowResize() {
+  const handle = document.getElementById("videoRowResizeHandle");
+  const main = els.appMain;
+  const stage = els.stage;
+  if (!handle || !main || !stage) return;
+
+  let dragging = false;
+
+  handle.addEventListener("pointerdown", (e) => {
+    if (main.dataset.viewLayout === "theater") return;
+    dragging = true;
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("is-dragging");
+    document.body.classList.add("layout-resize-active-row");
+    e.preventDefault();
+  });
+
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const rect = stage.getBoundingClientRect();
+    applyStageHeight(rect.height + e.movementY);
+  });
+
+  const stopDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("is-dragging");
+    document.body.classList.remove("layout-resize-active-row");
+    try {
+      handle.releasePointerCapture(e.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  handle.addEventListener("pointerup", stopDrag);
+  handle.addEventListener("pointercancel", stopDrag);
+}
+
 function initChatResize() {
   const handle = document.getElementById("chatResizeHandle");
   const main = els.appMain;
@@ -197,7 +334,7 @@ function initChatResize() {
   };
 
   handle.addEventListener("pointerdown", (e) => {
-    if (main.dataset.chatDock !== "right") return;
+    if (main.dataset.chatDock !== "right" || main.dataset.viewLayout === "theater") return;
     dragging = true;
     handle.setPointerCapture(e.pointerId);
     handle.classList.add("is-dragging");
@@ -249,17 +386,36 @@ function initLayoutControls() {
     /* ignore */
   }
 
+  const layouts = ["split", "pip-remote", "pip-local", "theater"];
+  if (!layouts.includes(saved)) saved = DEFAULT_LAYOUT;
+
   applyLayout(saved);
   applyPipCorner(corner);
   applyChatDock(dock);
   applyChatWidth(undefined, { skipStorage: true });
   initChatResize();
+  initStageRowResize();
 
-  document.querySelectorAll(".layout-btn").forEach((btn) => {
+  document.querySelectorAll(".layout-btn, .stage-view-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      applyLayout(btn.getAttribute("data-layout") || "split");
+      applyLayout(btn.getAttribute("data-layout") || DEFAULT_LAYOUT);
     });
   });
+
+  const chatToggle = document.getElementById("stageChatToggle");
+  if (chatToggle) {
+    chatToggle.addEventListener("click", () => {
+      setTheaterChatVisible(els.appMain?.classList.contains("chat-overlay-hidden") ?? false);
+    });
+  }
+
+  const chatClose = document.getElementById("chatOverlayClose");
+  if (chatClose) {
+    chatClose.addEventListener("click", () => setTheaterChatVisible(false));
+  }
+
+  applyStageHeight(undefined, { skipStorage: true });
+  updateResizeHandles();
 
   if (els.pipCorner) {
     els.pipCorner.addEventListener("change", () => {
