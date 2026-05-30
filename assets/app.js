@@ -314,6 +314,7 @@ function applyLayout(mode) {
 
   syncLayoutButtons(m);
   updateResizeHandles();
+  syncStageShellHeight();
 
   try {
     localStorage.setItem(LAYOUT_STORAGE_KEY, m);
@@ -369,6 +370,20 @@ function applyChatDock(mode) {
   }
 
   updateResizeHandles();
+  syncStageShellHeight();
+}
+
+function syncStageShellHeight() {
+  const main = els.appMain;
+  const shell = document.querySelector(".stage-shell");
+  if (!main) return;
+
+  if (!shell || main.dataset.chatDock !== "right") {
+    main.style.removeProperty("--cb-stage-shell-height");
+    return;
+  }
+
+  main.style.setProperty("--cb-stage-shell-height", `${shell.offsetHeight}px`);
 }
 
 function applyChatWidth(px, options) {
@@ -387,6 +402,7 @@ function applyChatWidth(px, options) {
 
   width = Math.round(Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, width)));
   main.style.setProperty("--cb-chat-width", `${width}px`);
+  syncStageShellHeight();
 
   if (!opts.skipStorage) {
     try {
@@ -417,6 +433,8 @@ function applyStageHeight(px, options) {
   } else {
     main.style.removeProperty("--cb-stage-height");
   }
+
+  syncStageShellHeight();
 
   if (!opts.skipStorage && height > 0) {
     try {
@@ -564,6 +582,16 @@ function initMainFullscreen() {
   );
 }
 
+function initStageShellHeightSync() {
+  const shell = document.querySelector(".stage-shell");
+  if (!shell) return;
+
+  const ro = new ResizeObserver(() => syncStageShellHeight());
+  ro.observe(shell);
+  window.addEventListener("resize", syncStageShellHeight, { passive: true });
+  syncStageShellHeight();
+}
+
 function initLayoutControls() {
   let saved = DEFAULT_LAYOUT;
   let corner = "br";
@@ -581,6 +609,7 @@ function initLayoutControls() {
   initStageRowResize();
   initStageViewControls();
   initMainFullscreen();
+  initStageShellHeightSync();
 
   applyStageHeight(undefined, { skipStorage: true });
   updateResizeHandles();

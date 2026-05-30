@@ -1591,6 +1591,75 @@ main.layout-cb[data-chat-dock="bottom-center"] {
   grid-template-rows: auto 6px auto minmax(220px, 32vh) auto;
 }
 
+/* Partner large: chat flush with video bottom (Chaturbate-style) */
+main.layout-cb[data-chat-dock="right"] {
+  grid-template-columns: minmax(0, 1fr) 8px var(--cb-chat-width, 340px);
+  grid-template-rows: auto 6px auto auto;
+  align-items: start;
+}
+
+main.layout-cb[data-chat-dock="right"] > .stage-shell {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  width: 100%;
+  min-width: 0;
+}
+
+main.layout-cb[data-chat-dock="right"] > .layout-row-resize-handle {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+main.layout-cb[data-chat-dock="right"] .cb-under-video {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+main.layout-cb[data-chat-dock="right"] .local-test-card {
+  grid-column: 1;
+  grid-row: 4;
+}
+
+main.layout-cb[data-chat-dock="right"] .layout-split-handle {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  height: auto;
+}
+
+main.layout-cb[data-chat-dock="right"] .chat-card {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  width: 100%;
+  height: var(--cb-stage-shell-height, auto);
+  min-height: 0 !important;
+  max-height: var(--cb-stage-shell-height, none);
+  overflow: hidden;
+}
+
+main.layout-cb[data-chat-dock="right"] .stage-toolbar {
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 100%;
+  align-self: flex-start;
+  justify-content: flex-start;
+  min-height: 2.35rem;
+  max-height: 2.35rem;
+  padding: 0.3rem 0.45rem;
+}
+
+main.layout-cb[data-chat-dock="right"] .stage-view-controls {
+  margin-left: 0;
+}
+
+main.layout-cb[data-chat-dock="right"] .chat-card .chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 main.layout-cb > .stage-shell {
   grid-column: 1;
   grid-row: 1;
@@ -1645,7 +1714,7 @@ main.layout-cb .remote-card h2 {
 
 main.layout-cb .layout-split-handle {
   grid-column: 2;
-  grid-row: 1 / 4;
+  grid-row: 1;
   width: 8px;
   margin: 0 -4px;
   cursor: col-resize;
@@ -1653,6 +1722,7 @@ main.layout-cb .layout-split-handle {
   background: transparent;
   position: relative;
   z-index: 8;
+  align-self: stretch;
 }
 
 main.layout-cb .layout-split-handle:not(.is-visible),
@@ -1697,7 +1767,7 @@ main.layout-cb[data-chat-dock="bottom-center"] .layout-split-handle {
 
 main.layout-cb .chat-card {
   grid-column: 3;
-  grid-row: 1 / 4;
+  grid-row: 1;
   min-height: 0;
   height: auto;
   max-height: none;
@@ -1856,7 +1926,7 @@ main.layout-cb .chat-card .chat-messages {
 }
 
 main.layout-cb .local-test-card {
-  grid-column: 1 / -1;
+  grid-column: 1;
   grid-row: 4;
 }
 
