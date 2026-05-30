@@ -104,8 +104,7 @@ const LAYOUT_STORAGE_KEY = "dualpeer-layout";
 const CHAT_DOCK_STORAGE_KEY = "dualpeer-chat-dock";
 const CHAT_WIDTH_STORAGE_KEY = "dualpeer-chat-width";
 const STAGE_HEIGHT_STORAGE_KEY = "dualpeer-stage-height";
-const CHAT_OVERLAY_VISIBLE_KEY = "dualpeer-chat-overlay-visible";
-const DEFAULT_LAYOUT = "pip-local";
+const DEFAULT_LAYOUT = "split";
 const CHAT_WIDTH_MIN = 260;
 const CHAT_WIDTH_MAX = 720;
 const STAGE_HEIGHT_MIN = 280;
@@ -115,61 +114,79 @@ function setPipNativeMessage(text) {
   if (els.pipNativeMsg) els.pipNativeMsg.textContent = text || "";
 }
 
+function normalizeLayoutMode(mode) {
+  if (mode === "pip-remote") return "pip-remote";
+  return "split";
+}
+
+function getGuestFullscreenRoot() {
+  return document.querySelector(".panel-guest");
+}
+
+function syncFullscreenButtons(active) {
+  document.querySelectorAll('[data-action="fullscreen-guest"]').forEach((btn) => {
+    btn.classList.toggle("active", active);
+    const icon = btn.querySelector("i");
+    if (icon) {
+      icon.className = active ? "bi bi-fullscreen-exit" : "bi bi-fullscreen";
+      icon.setAttribute("aria-hidden", "true");
+    }
+  });
+}
+
 function syncLayoutButtons(mode) {
-  document.querySelectorAll(".layout-btn, .stage-view-btn").forEach((btn) => {
+  document.querySelectorAll(".layout-btn[data-layout], .stage-view-btn[data-layout]").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-layout") === mode);
   });
 }
 
-function applyLayout(mode) {
-  const allowed = ["split", "pip-remote", "pip-local", "theater"];
-  const m = allowed.includes(mode) ? mode : DEFAULT_LAYOUT;
-  if (els.stage) els.stage.dataset.layout = m;
+async function exitGuestFullscreenIfActive() {
+  const root = getGuestFullscreenRoot();
+  if (root && document.fullscreenElement === root) {
+    try {
+      await document.exitFullscreen();
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
 
-  const main = els.appMain;
-  if (main) {
-    main.dataset.viewLayout = m === "theater" ? "theater" : "default";
+async function toggleGuestFullscreen() {
+  const root = getGuestFullscreenRoot();
+  if (!root) return;
+
+  try {
+    if (document.fullscreenElement === root) {
+      await document.exitFullscreen();
+    } else if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      await root.requestFullscreen();
+    } else {
+      await root.requestFullscreen();
+    }
+  } catch (e) {
+    setPipNativeMessage("Fullscreen: " + (e && e.message ? e.message : String(e)));
+  }
+}
+
+function applyLayout(mode) {
+  const m = normalizeLayoutMode(mode);
+  exitGuestFullscreenIfActive();
+
+  if (els.stage) els.stage.dataset.layout = m;
+  if (els.appMain) els.appMain.dataset.viewLayout = "default";
+
+  if (m === "split") {
+    applyChatDock("bottom-center");
+  } else {
+    applyChatDock("right");
   }
 
   syncLayoutButtons(m);
-
-  const theater = m === "theater";
-  const chatToggle = document.getElementById("stageChatToggle");
-  const chatClose = document.getElementById("chatOverlayClose");
-  if (chatToggle) chatToggle.hidden = !theater;
-  if (chatClose) chatClose.hidden = !theater;
-
-  if (theater) {
-    applyChatDock("right");
-    setTheaterChatVisible(getTheaterChatVisible());
-  } else if (main) {
-    main.classList.remove("chat-overlay-hidden");
-  }
-
   updateResizeHandles();
 
   try {
     localStorage.setItem(LAYOUT_STORAGE_KEY, m);
-  } catch (_) {
-    /* ignore */
-  }
-}
-
-function getTheaterChatVisible() {
-  try {
-    return localStorage.getItem(CHAT_OVERLAY_VISIBLE_KEY) !== "false";
-  } catch (_) {
-    return true;
-  }
-}
-
-function setTheaterChatVisible(visible) {
-  const main = els.appMain;
-  if (main) main.classList.toggle("chat-overlay-hidden", !visible);
-  const toggle = document.getElementById("stageChatToggle");
-  if (toggle) toggle.classList.toggle("is-active", visible);
-  try {
-    localStorage.setItem(CHAT_OVERLAY_VISIBLE_KEY, visible ? "true" : "false");
   } catch (_) {
     /* ignore */
   }
@@ -181,17 +198,14 @@ function updateResizeHandles() {
   const rowHandle = document.getElementById("videoRowResizeHandle");
   if (!main) return;
 
-  const theater = main.dataset.viewLayout === "theater";
-  const dock = main.dataset.chatDock || "right";
-  const showChatHandle = !theater && dock === "right";
+  const dock = main.dataset.chatDock || "bottom-center";
+  const showChatHandle = dock === "right";
 
   if (chatHandle) {
     chatHandle.classList.toggle("is-visible", showChatHandle);
     chatHandle.hidden = !showChatHandle;
   }
-  if (rowHandle) {
-    rowHandle.hidden = theater;
-  }
+  if (rowHandle) rowHandle.hidden = false;
 }
 
 function applyPipCorner(corner) {
@@ -212,7 +226,7 @@ function applyChatDock(mode) {
   if (main) main.dataset.chatDock = m;
 
   const dockSelect = document.getElementById("chatDock");
-  if (dockSelect instanceof HTMLSelectElement && dockSelect.value !== m) {
+  if (dockSelect instanceof HTMLSelectElement) {
     dockSelect.value = m;
   }
 
@@ -290,7 +304,6 @@ function initStageRowResize() {
   let dragging = false;
 
   handle.addEventListener("pointerdown", (e) => {
-    if (main.dataset.viewLayout === "theater") return;
     dragging = true;
     handle.setPointerCapture(e.pointerId);
     handle.classList.add("is-dragging");
@@ -334,7 +347,7 @@ function initChatResize() {
   };
 
   handle.addEventListener("pointerdown", (e) => {
-    if (main.dataset.chatDock !== "right" || main.dataset.viewLayout === "theater") return;
+    if (main.dataset.chatDock !== "right") return;
     dragging = true;
     handle.setPointerCapture(e.pointerId);
     handle.classList.add("is-dragging");
@@ -381,7 +394,7 @@ function initStageViewControls() {
   stage.addEventListener(
     "click",
     (e) => {
-      const btn = e.target instanceof Element ? e.target.closest(".stage-view-btn") : null;
+      const btn = e.target instanceof Element ? e.target.closest(".stage-view-btn[data-layout]") : null;
       if (!btn || !stage.contains(btn)) return;
       e.preventDefault();
       e.stopPropagation();
@@ -392,46 +405,48 @@ function initStageViewControls() {
   );
 }
 
+function initGuestFullscreen() {
+  const root = getGuestFullscreenRoot();
+  const hint = document.getElementById("guestFsHint");
+
+  document.addEventListener("fullscreenchange", () => {
+    const active = !!root && document.fullscreenElement === root;
+    syncFullscreenButtons(active);
+    if (hint) hint.hidden = !active;
+    document.body.classList.toggle("guest-fullscreen-active", active);
+  });
+}
+
 function initLayoutControls() {
   let saved = DEFAULT_LAYOUT;
   let corner = "br";
-  let dock = "right";
   try {
-    saved = localStorage.getItem(LAYOUT_STORAGE_KEY) || DEFAULT_LAYOUT;
+    saved = normalizeLayoutMode(localStorage.getItem(LAYOUT_STORAGE_KEY) || DEFAULT_LAYOUT);
     corner = localStorage.getItem("dualpeer-pip-corner") || "br";
-    dock = localStorage.getItem(CHAT_DOCK_STORAGE_KEY) || "right";
   } catch (_) {
     /* ignore */
   }
 
-  const layouts = ["split", "pip-remote", "pip-local", "theater"];
-  if (!layouts.includes(saved)) saved = DEFAULT_LAYOUT;
-
   applyLayout(saved);
   applyPipCorner(corner);
-  applyChatDock(dock);
   applyChatWidth(undefined, { skipStorage: true });
   initChatResize();
   initStageRowResize();
   initStageViewControls();
+  initGuestFullscreen();
 
-  document.querySelectorAll(".layout-btn").forEach((btn) => {
+  document.querySelectorAll(".layout-btn[data-layout]").forEach((btn) => {
     btn.addEventListener("click", () => {
       applyLayout(btn.getAttribute("data-layout") || DEFAULT_LAYOUT);
     });
   });
 
-  const chatToggle = document.getElementById("stageChatToggle");
-  if (chatToggle) {
-    chatToggle.addEventListener("click", () => {
-      setTheaterChatVisible(els.appMain?.classList.contains("chat-overlay-hidden") ?? false);
+  document.querySelectorAll('[data-action="fullscreen-guest"]').forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      toggleGuestFullscreen();
     });
-  }
-
-  const chatClose = document.getElementById("chatOverlayClose");
-  if (chatClose) {
-    chatClose.addEventListener("click", () => setTheaterChatVisible(false));
-  }
+  });
 
   applyStageHeight(undefined, { skipStorage: true });
   updateResizeHandles();
@@ -439,13 +454,6 @@ function initLayoutControls() {
   if (els.pipCorner) {
     els.pipCorner.addEventListener("change", () => {
       applyPipCorner(els.pipCorner.value);
-    });
-  }
-
-  const chatDock = document.getElementById("chatDock");
-  if (chatDock instanceof HTMLSelectElement) {
-    chatDock.addEventListener("change", () => {
-      applyChatDock(chatDock.value);
     });
   }
 

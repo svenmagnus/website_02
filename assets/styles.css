@@ -1656,11 +1656,73 @@ main.layout-cb[data-chat-dock="bottom"] .chat-card {
 main.layout-cb[data-chat-dock="bottom-center"] .chat-card {
   grid-column: 1;
   grid-row: 5;
-  width: min(720px, 100%);
+  width: min(760px, 92%);
   justify-self: center;
   height: auto;
-  min-height: 220px;
-  max-height: min(40vh, 420px);
+  min-height: 240px;
+  max-height: min(38vh, 440px);
+}
+
+main.layout-cb[data-chat-dock="bottom-center"] .chat-card .chat-messages {
+  min-height: 160px;
+}
+
+/* Guest browser fullscreen (Esc to exit) */
+.panel-guest:fullscreen {
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  border: none;
+  border-radius: 0;
+}
+
+.panel-guest:fullscreen .panel-head {
+  display: none;
+}
+
+.panel-guest:fullscreen .video-wrap {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+  pointer-events: auto;
+}
+
+.panel-guest:fullscreen video {
+  object-fit: contain;
+}
+
+.guest-fs-hint {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.guest-fs-hint kbd {
+  display: inline-block;
+  margin: 0 0.15rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.stage-fs-btn.active,
+.stage-view-btn.stage-fs-btn.active {
+  color: #fff;
+  background: var(--accent);
 }
 
 main.layout-cb .chat-card .chat-messages {
