@@ -96,30 +96,52 @@ function waitIceGatheringComplete(pc, timeoutMs = 4000) {
   });
 }
 
+function normalizeStreamKey(raw) {
+  if (raw == null) return "";
+  let key = String(raw).trim();
+  key = key.replace(/[\uFEFF\u200B-\u200D]/g, "");
+  while (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1).trim();
+  }
+  while (/^Bearer\s+/i.test(key)) key = key.replace(/^Bearer\s+/i, "").trim();
+  key = key.replace(/\s+/g, "");
+  const urlMatch = key.match(/\/whip\/([A-Za-z0-9_-]{12,128})\/?$/);
+  if (urlMatch) key = urlMatch[1];
+  return key;
+}
+
 function validateStreamKey(streamKey) {
-  if (!streamKey || typeof streamKey !== "string") return false;
-  if (streamKey.length < 12 || streamKey.length > 128) return false;
-  if (!/^[a-zA-Z0-9_-]+$/.test(streamKey)) return false;
-  if (STATIC_KEYS.has(streamKey)) return true;
-  if (registeredKeys.has(streamKey)) return true;
+  const key = normalizeStreamKey(streamKey);
+  if (!key) return false;
+  if (key.length < 12 || key.length > 128) return false;
+  if (!/^[a-zA-Z0-9_-]+$/.test(key)) return false;
+  if (STATIC_KEYS.has(key)) return true;
+  if (registeredKeys.has(key)) return true;
   return false;
 }
 
-/** OBS sends stream key as Bearer token; path key is optional. */
+/** OBS: Authorization: Bearer <stream-key> (any casing / extra spaces). */
 function parseBearerToken(req) {
-  const auth = req.headers.authorization || "";
-  const match = auth.match(/^Bearer\s+(.+)$/i);
-  if (!match) return null;
-  let token = match[1].trim();
-  if (token.toLowerCase().startsWith("bearer ")) token = token.slice(7).trim();
+  const raw = String(req.get?.("authorization") ?? req.headers?.authorization ?? "").trim();
+  if (!raw) return null;
+  let token = raw;
+  while (/^Bearer\s+/i.test(token)) token = token.replace(/^Bearer\s+/i, "").trim();
+  token = normalizeStreamKey(token);
   return token || null;
 }
 
 function resolveStreamKey(req, pathKey) {
-  const fromPath = typeof pathKey === "string" ? pathKey.trim() : "";
-  if (fromPath && validateStreamKey(fromPath)) return fromPath;
+  const candidates = [];
+  if (typeof pathKey === "string" && pathKey.trim()) candidates.push(pathKey);
   const bearer = parseBearerToken(req);
-  if (bearer && validateStreamKey(bearer)) return bearer;
+  if (bearer) candidates.push(bearer);
+  for (const candidate of candidates) {
+    const key = normalizeStreamKey(candidate);
+    if (key && validateStreamKey(key)) return key;
+  }
   return null;
 }
 
@@ -154,8 +176,12 @@ function sendWhipOptions(_req, res) {
 }
 
 function rejectStreamKey(req, res, reason) {
+  const bearer = parseBearerToken(req);
+  const pathKey = normalizeStreamKey(req.params?.streamKey);
   console.log(
-    `[WHIP] 401 ${reason} path=${req.path} auth=${req.headers.authorization ? "Bearer …" : "none"}`
+    `[WHIP] 401 ${reason} path=${req.path} bearerLen=${bearer?.length ?? 0} ` +
+      `bearerKnown=${bearer ? validateStreamKey(bearer) : false} pathKeyKnown=${pathKey ? validateStreamKey(pathKey) : false} ` +
+      `registered=${registeredKeys.size} authHeader=${req.get?.("authorization") ? "yes" : "no"}`
   );
   return res.status(401).type("text/plain").send("Unauthorized: invalid stream key");
 }

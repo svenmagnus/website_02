@@ -938,6 +938,51 @@ html[data-theme="cb-light"] button.layout-btn.active {
   word-break: break-all;
 }
 
+.whip-copy-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.whip-copy-row .whip-copy-value {
+  flex: 1;
+  margin-top: 0;
+  min-width: 0;
+}
+
+.whip-copy-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.whip-copy-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.whip-copy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.whip-copy-feedback {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 0.68rem;
+  color: var(--ok, #3dd68c);
+  white-space: nowrap;
+}
+
 .layout-toolbar > button#btnPipNativeRemote,
 .layout-toolbar > button#btnPipNativeLocal {
   font-size: 0.76rem;

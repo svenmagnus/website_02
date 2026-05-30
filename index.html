@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8400" />
+    <link rel="stylesheet" href="assets/styles.css?v=8401" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -35,7 +35,7 @@
       // Direct motor via lovense.sendCommand — no Stream Master Basic Levels needed
       window.DUALPEER_DIRECT_MOTOR = true;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8400"></script>
+    <script src="assets/lovense-broadcast.js?v=8401"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -264,11 +264,35 @@
             </p>
             <div class="whip-field">
               <span class="status-line">OBS Server (WHIP)</span>
-              <div class="peer-id-box" id="whipServerOut">—</div>
+              <div class="whip-copy-row">
+                <div class="peer-id-box whip-copy-value" id="whipServerOut">—</div>
+                <button
+                  type="button"
+                  class="whip-copy-btn"
+                  id="btnCopyWhipServer"
+                  title="Server-URL kopieren"
+                  aria-label="OBS Server URL kopieren"
+                >
+                  <i class="bi bi-clipboard" aria-hidden="true"></i>
+                </button>
+                <span class="whip-copy-feedback" id="whipServerCopyFeedback" hidden>Kopiert!</span>
+              </div>
             </div>
             <div class="whip-field">
               <span class="status-line">OBS Bearer Token (stream key)</span>
-              <div class="peer-id-box" id="whipBearerOut">—</div>
+              <div class="whip-copy-row">
+                <div class="peer-id-box whip-copy-value" id="whipBearerOut">—</div>
+                <button
+                  type="button"
+                  class="whip-copy-btn"
+                  id="btnCopyWhipBearer"
+                  title="Bearer Token kopieren"
+                  aria-label="OBS Bearer Token kopieren"
+                >
+                  <i class="bi bi-clipboard" aria-hidden="true"></i>
+                </button>
+                <span class="whip-copy-feedback" id="whipBearerCopyFeedback" hidden>Kopiert!</span>
+              </div>
             </div>
             <p class="status-line" id="whipBroadcastStatus">Start the WHIP server, then open this page (port 8787 or Live Server :5500).</p>
             <p class="status-line media-source-hint" style="margin-top: 0.35rem">
@@ -370,7 +394,7 @@
         window.DUALPEER_WHIP_URL ||
         (location.port === "8787" ? location.origin : "http://127.0.0.1:8787");
     </script>
-    <script src="assets/ui-shell.js?v=8400"></script>
-    <script src="assets/app.js?v=8400"></script>
+    <script src="assets/ui-shell.js?v=8401"></script>
+    <script src="assets/app.js?v=8401"></script>
   </body>
 </html>

@@ -1105,17 +1105,64 @@ function updateWhipBroadcastUi(message, cls) {
   const server = document.getElementById("whipServerOut");
   const bearer = document.getElementById("whipBearerOut");
   const status = document.getElementById("whipBroadcastStatus");
-  if (server) {
-    server.textContent =
-      whipBroadcast?.whipServerUrl || whipBroadcast?.whipUrl?.replace(/\/[^/]+$/, "") || "—";
-  }
-  if (bearer) {
-    bearer.textContent = whipBroadcast?.whipBearerToken || whipBroadcast?.streamKey || "—";
-  }
+  const serverUrl =
+    whipBroadcast?.whipServerUrl || whipBroadcast?.whipUrl?.replace(/\/[^/]+$/, "") || "";
+  const bearerToken = whipBroadcast?.whipBearerToken || whipBroadcast?.streamKey || "";
+  if (server) server.textContent = serverUrl || "—";
+  if (bearer) bearer.textContent = bearerToken || "—";
+  syncWhipCopyButtons();
   if (status && message) {
     status.textContent = message;
     status.className = "status-line" + (cls ? " " + cls : "");
   }
+}
+
+function syncWhipCopyButtons() {
+  const serverVal = document.getElementById("whipServerOut")?.textContent?.trim() || "";
+  const bearerVal = document.getElementById("whipBearerOut")?.textContent?.trim() || "";
+  const btnServer = document.getElementById("btnCopyWhipServer");
+  const btnBearer = document.getElementById("btnCopyWhipBearer");
+  const hasServer = serverVal && serverVal !== "—";
+  const hasBearer = bearerVal && bearerVal !== "—";
+  if (btnServer) btnServer.disabled = !hasServer;
+  if (btnBearer) btnBearer.disabled = !hasBearer;
+}
+
+async function copyWhipField(valueElId, feedbackElId) {
+  const valueEl = document.getElementById(valueElId);
+  const feedbackEl = document.getElementById(feedbackElId);
+  const text = (valueEl?.textContent || "").trim();
+  if (!text || text === "—") return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+  if (feedbackEl) {
+    feedbackEl.hidden = false;
+    clearTimeout(feedbackEl._copyTimer);
+    feedbackEl._copyTimer = setTimeout(() => {
+      feedbackEl.hidden = true;
+    }, 1600);
+  }
+}
+
+function initWhipCopyButtons() {
+  document.getElementById("btnCopyWhipServer")?.addEventListener("click", () => {
+    copyWhipField("whipServerOut", "whipServerCopyFeedback");
+  });
+  document.getElementById("btnCopyWhipBearer")?.addEventListener("click", () => {
+    copyWhipField("whipBearerOut", "whipBearerCopyFeedback");
+  });
+  syncWhipCopyButtons();
 }
 
 async function checkWhipServerReachable() {
@@ -1372,6 +1419,7 @@ function initMediaSourceControls() {
     broadcastMode.addEventListener("change", syncBroadcastModeUi);
   }
   syncBroadcastModeUi();
+  initWhipCopyButtons();
 }
 
 async function getMedia(options = {}) {
