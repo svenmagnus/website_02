@@ -1849,11 +1849,9 @@ function setLovenseStatus(text) {
 }
 
 function isLovenseReady() {
-  return (
-    lovenseReady &&
-    camExtensionInstance &&
-    typeof camExtensionInstance.receiveTip === "function"
-  );
+  syncLovenseFromBridge();
+  const bridge = window.dualPeerLovense;
+  return !!(bridge?.ready && bridge?.instance);
 }
 
 function syncLovenseFromBridge() {
@@ -2406,6 +2404,29 @@ function initLogout() {
   });
 }
 
+function startLovenseConnectionWatch() {
+  let ticks = 0;
+  const timer = setInterval(() => {
+    syncLovenseFromBridge();
+    const bridge = window.dualPeerLovense;
+    if (bridge?.ready || bridge?.error) {
+      clearInterval(timer);
+      return;
+    }
+    ticks += 1;
+    if (ticks === 4 && typeof bridge?.retryInit === "function") {
+      bridge.retryInit();
+    }
+    if (ticks % 5 === 0) {
+      const pageUrl = location.origin + location.pathname;
+      setLovenseStatus(
+        `Waiting for Cam Extension (test:Tangent-Club) — open the Lovense widget on ${pageUrl}, connect toys, then wait for ready.`
+      );
+    }
+    if (ticks >= 45) clearInterval(timer);
+  }, 2000);
+}
+
 function lovenseNotReadyMessage() {
   syncLovenseFromBridge();
   const bridge = window.dualPeerLovense;
@@ -2703,6 +2724,7 @@ function initVideoOverlayControls() {
 
 
 document.addEventListener("DOMContentLoaded", () => {
+  initLovenseIfPresent();
   if (window.dualPeerUi) {
     window.dualPeerUi.initShell();
   }
@@ -2713,7 +2735,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initLogout();
   initVideoOverlayControls();
   initLayoutControls();
-  initLovenseIfPresent();
   initChatControls();
   initDynamicToyControls();
   initLocalToyTestPanel();

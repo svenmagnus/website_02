@@ -866,69 +866,114 @@
     return { ok, method: ok ? "receiveTip-all" : "receiveTip-failed" };
   }
 
+  function bindCamExtensionHandlers(camExtension) {
+    camExtension.on("ready", async (ce) => {
+      state.instance = ce || camExtension;
+      state.ready = true;
+      state.error = null;
+      try {
+        if (typeof state.instance.getCamVersion === "function") {
+          state.version = await state.instance.getCamVersion();
+        }
+        if (typeof state.instance.getToyStatus === "function") {
+          state.toys = (await state.instance.getToyStatus()) || [];
+        }
+        await refreshStreamSettings();
+        syncLovenseToyMapFromExtension();
+      } catch (e) {
+        console.warn("[Lovense] version/toy status:", e);
+      }
+      flushPendingTips();
+      dispatch("dualpeer-lovense-ready", {
+        instance: state.instance,
+        version: state.version,
+        toys: state.toys,
+        hasSendCommand: hasLovenseSendCommand(),
+        lanToysOnline: isLovenseLanOnline(),
+        directMotor: isDirectMotorMode(),
+        streamWarnings: isDirectMotorMode() ? [] : getStreamMasterWarnings(),
+      });
+    });
+
+    camExtension.on("settingsChange", async () => {
+      await refreshStreamSettings();
+      dispatch("dualpeer-lovense-settings", {
+        warnings: getStreamMasterWarnings(),
+      });
+    });
+
+    camExtension.on("sdkError", (data) => {
+      state.error = data;
+      dispatch("dualpeer-lovense-error", data);
+    });
+
+    camExtension.on("toyStatusChange", (data) => {
+      state.toys = data || [];
+      syncLovenseToyMapFromExtension();
+      dispatch("dualpeer-lovense-toys", state.toys);
+    });
+  }
+
   function init() {
+    if (state.ready) return true;
+
     const site = global.LOVENSE_SITE_NAME || "test:Tangent-Club";
     const model = global.__LOVENSE_MODEL_NAME__ || "model1";
 
     if (typeof global.CamExtension === "undefined") {
       state.error = { code: "NO_SDK", message: "broadcast.js not loaded" };
       dispatch("dualpeer-lovense-error", state.error);
-      return;
+      return false;
     }
+
+    if (state.instance) return true;
 
     try {
       const camExtension = new global.CamExtension(site, model);
       state.instance = camExtension;
-
-      camExtension.on("ready", async (ce) => {
-        state.instance = ce || camExtension;
-        state.ready = true;
-        state.error = null;
-        try {
-          if (typeof state.instance.getCamVersion === "function") {
-            state.version = await state.instance.getCamVersion();
-          }
-          if (typeof state.instance.getToyStatus === "function") {
-            state.toys = (await state.instance.getToyStatus()) || [];
-          }
-          await refreshStreamSettings();
-          syncLovenseToyMapFromExtension();
-        } catch (e) {
-          console.warn("[Lovense] version/toy status:", e);
-        }
-        flushPendingTips();
-        dispatch("dualpeer-lovense-ready", {
-          instance: state.instance,
-          version: state.version,
-          toys: state.toys,
-          hasSendCommand: hasLovenseSendCommand(),
-          lanToysOnline: isLovenseLanOnline(),
-          directMotor: isDirectMotorMode(),
-          streamWarnings: isDirectMotorMode() ? [] : getStreamMasterWarnings(),
-        });
-      });
-
-      camExtension.on("settingsChange", async () => {
-        await refreshStreamSettings();
-        dispatch("dualpeer-lovense-settings", {
-          warnings: getStreamMasterWarnings(),
-        });
-      });
-
-      camExtension.on("sdkError", (data) => {
-        state.error = data;
-        dispatch("dualpeer-lovense-error", data);
-      });
-
-      camExtension.on("toyStatusChange", (data) => {
-        state.toys = data || [];
-        syncLovenseToyMapFromExtension();
-        dispatch("dualpeer-lovense-toys", state.toys);
-      });
+      state.error = null;
+      bindCamExtensionHandlers(camExtension);
+      return true;
     } catch (e) {
       state.error = { code: "INIT_FAIL", message: e && e.message ? e.message : String(e) };
       dispatch("dualpeer-lovense-error", state.error);
+      return false;
     }
+  }
+
+  function retryInit() {
+    if (state.ready) return true;
+    state.instance = null;
+    state.error = null;
+    return init();
+  }
+
+  /** Extension bridge is ready only after the page + content script have connected. */
+  function scheduleBoot() {
+    const boot = () => init();
+
+    if (document.readyState === "complete") {
+      setTimeout(boot, 50);
+    } else {
+      window.addEventListener("load", () => setTimeout(boot, 50), { once: true });
+    }
+
+    window.addEventListener(
+      "load",
+      () => {
+        setTimeout(() => {
+          if (state.ready) return;
+          if (state.instance && !state.error) return;
+          retryInit();
+        }, 7000);
+      },
+      { once: true }
+    );
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible" || state.ready) return;
+      if (!state.instance) init();
+    });
   }
 
   global.dualPeerLovense = {
@@ -968,7 +1013,9 @@
     getModelName() {
       return global.__LOVENSE_MODEL_NAME__ || "model1";
     },
+    init,
+    retryInit,
   };
 
-  init();
+  scheduleBoot();
 })(window);
