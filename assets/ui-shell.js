@@ -1,33 +1,27 @@
 /**
- * Shared header UI: theme (CB/original) + account dropdown (Chaturbate-style).
+ * Shared header UI: CB light/dark theme + account dropdown (Chaturbate-style).
  */
 (function (global) {
   const THEME_STORAGE_KEY = "dualpeer-theme";
   const PROFILE_NAME_KEY = "dualpeer-profile-name";
-  const CB_THEMES = new Set(["cb-dark", "cb-light"]);
-  const ALLOWED_THEMES = ["original", "cb-dark", "cb-light"];
+  const ALLOWED_THEMES = ["cb-dark", "cb-light"];
+
+  function normalizeTheme(theme) {
+    if (theme === "original") return "cb-dark";
+    return ALLOWED_THEMES.includes(theme) ? theme : "cb-dark";
+  }
 
   function getSavedTheme() {
     try {
-      const t = localStorage.getItem(THEME_STORAGE_KEY) || "cb-dark";
-      return ALLOWED_THEMES.includes(t) ? t : "cb-dark";
+      return normalizeTheme(localStorage.getItem(THEME_STORAGE_KEY) || "cb-dark");
     } catch (_) {
       return "cb-dark";
     }
   }
 
-  function isDarkTheme(theme) {
-    return theme === "cb-dark" || theme === "original";
-  }
-
   function syncDarkModeToggle(theme) {
     const toggle = document.getElementById("darkModeToggle");
     if (!(toggle instanceof HTMLInputElement)) return;
-    if (theme === "original") {
-      toggle.checked = true;
-      toggle.indeterminate = false;
-      return;
-    }
     toggle.indeterminate = false;
     toggle.checked = theme === "cb-dark";
   }
@@ -42,13 +36,13 @@
 
   function applyTheme(theme, options) {
     const opts = options || {};
-    const t = ALLOWED_THEMES.includes(theme) ? theme : "cb-dark";
+    const t = normalizeTheme(theme);
 
     document.documentElement.setAttribute("data-theme", t);
 
     const main = document.getElementById("appMain");
     if (main) {
-      main.classList.toggle("layout-cb", CB_THEMES.has(t));
+      main.classList.add("layout-cb");
     }
 
     syncDarkModeToggle(t);
@@ -62,20 +56,7 @@
       }
     }
 
-    if (typeof opts.onLayout === "function") {
-      opts.onLayout(t);
-    }
-
     document.dispatchEvent(new CustomEvent("dualpeer-theme-change", { detail: { theme: t } }));
-  }
-
-  function toggleDarkMode() {
-    const current = document.documentElement.getAttribute("data-theme") || getSavedTheme();
-    if (current === "cb-light") {
-      applyTheme("cb-dark");
-    } else {
-      applyTheme("cb-light");
-    }
   }
 
   function getProfileName() {
@@ -223,7 +204,5 @@
     initSettingsPage,
     setProfileName,
     getProfileName,
-    isDarkTheme,
-    CB_THEMES,
   };
 })(window);

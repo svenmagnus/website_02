@@ -6,7 +6,7 @@
         try {
           var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
           if (t === "cb-dark" || t === "cb-light" || t === "original") {
-            document.documentElement.setAttribute("data-theme", t);
+            document.documentElement.setAttribute("data-theme", t === "original" ? "cb-dark" : t);
           }
         } catch (_) {}
       })();
@@ -112,23 +112,18 @@
 
           <section class="settings-section">
             <h2>Appearance</h2>
-            <p class="settings-hint">Chaturbate layout: partner video large, chat on the right, controls under video.</p>
+            <p class="settings-hint">Light and dark mode — same as the toggle in the menu (top right).</p>
             <fieldset class="settings-theme-group">
               <legend class="visually-hidden">Theme</legend>
               <label class="settings-radio">
                 <input type="radio" name="appearanceTheme" value="cb-dark" />
-                <span>Chaturbate — Dark</span>
+                <span>Dark mode</span>
               </label>
               <label class="settings-radio">
                 <input type="radio" name="appearanceTheme" value="cb-light" />
-                <span>Chaturbate — Light</span>
-              </label>
-              <label class="settings-radio">
-                <input type="radio" name="appearanceTheme" value="original" />
-                <span>Original (Tangent-Club)</span>
+                <span>Light mode</span>
               </label>
             </fieldset>
-            <p class="settings-hint">Tip: use <strong>Dark Mode</strong> in the menu (top right) to switch quickly between CB light and dark.</p>
           </section>
 
           <section class="settings-section settings-section-muted">

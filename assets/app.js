@@ -43,6 +43,7 @@ const $ = (sel) => document.querySelector(sel);
 let videoAccessUnlocked = false;
 
 const els = {
+  appMain: $("#appMain"),
   stage: $("#stage"),
   localVideo: $("#localVideo"),
   remoteVideo: $("#remoteVideo"),
@@ -100,34 +101,11 @@ let lovenseReady = false;
 let sessionRole = null;
 
 const LAYOUT_STORAGE_KEY = "dualpeer-layout";
-const LAYOUT_BEFORE_CB_KEY = "dualpeer-layout-before-cb";
-
-function applyThemeForLayout(theme) {
-  const CB = window.dualPeerUi?.CB_THEMES || new Set(["cb-dark", "cb-light"]);
-  if (CB.has(theme)) {
-    try {
-      if (!localStorage.getItem(LAYOUT_BEFORE_CB_KEY)) {
-        const current = localStorage.getItem(LAYOUT_STORAGE_KEY) || "split";
-        localStorage.setItem(LAYOUT_BEFORE_CB_KEY, current);
-      }
-    } catch (_) {
-      /* ignore */
-    }
-    applyLayout("pip-remote");
-  } else {
-    let restore = "split";
-    try {
-      restore =
-        localStorage.getItem(LAYOUT_BEFORE_CB_KEY) ||
-        localStorage.getItem(LAYOUT_STORAGE_KEY) ||
-        "split";
-      localStorage.removeItem(LAYOUT_BEFORE_CB_KEY);
-    } catch (_) {
-      /* ignore */
-    }
-    applyLayout(restore);
-  }
-}
+const CHAT_DOCK_STORAGE_KEY = "dualpeer-chat-dock";
+const CHAT_WIDTH_STORAGE_KEY = "dualpeer-chat-width";
+const DEFAULT_LAYOUT = "pip-local";
+const CHAT_WIDTH_MIN = 260;
+const CHAT_WIDTH_MAX = 640;
 
 function setPipNativeMessage(text) {
   if (els.pipNativeMsg) els.pipNativeMsg.textContent = text || "";
@@ -158,27 +136,124 @@ function applyPipCorner(corner) {
   }
 }
 
-function initLayoutControls() {
-  let saved = "split";
-  let corner = "br";
+function applyChatDock(mode) {
+  const allowed = ["right", "bottom", "bottom-center"];
+  const m = allowed.includes(mode) ? mode : "right";
+  const main = els.appMain;
+  if (main) main.dataset.chatDock = m;
+
+  const dockSelect = document.getElementById("chatDock");
+  if (dockSelect instanceof HTMLSelectElement && dockSelect.value !== m) {
+    dockSelect.value = m;
+  }
+
+  const handle = document.getElementById("chatResizeHandle");
+  if (handle) handle.hidden = m !== "right";
+
   try {
-    saved = localStorage.getItem(LAYOUT_STORAGE_KEY) || "split";
+    localStorage.setItem(CHAT_DOCK_STORAGE_KEY, m);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function applyChatWidth(px, options) {
+  const opts = options || {};
+  const main = els.appMain;
+  if (!main) return;
+
+  let width = Number(px);
+  if (!Number.isFinite(width)) {
+    try {
+      width = Number(localStorage.getItem(CHAT_WIDTH_STORAGE_KEY)) || 360;
+    } catch (_) {
+      width = 360;
+    }
+  }
+
+  width = Math.round(Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, width)));
+  main.style.setProperty("--cb-chat-width", `${width}px`);
+
+  if (!opts.skipStorage) {
+    try {
+      localStorage.setItem(CHAT_WIDTH_STORAGE_KEY, String(width));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
+function initChatResize() {
+  const handle = document.getElementById("chatResizeHandle");
+  const main = els.appMain;
+  if (!handle || !main) return;
+
+  let dragging = false;
+
+  const onMove = (clientX) => {
+    const rect = main.getBoundingClientRect();
+    const width = rect.right - clientX;
+    applyChatWidth(width);
+  };
+
+  handle.addEventListener("pointerdown", (e) => {
+    if (main.dataset.chatDock !== "right") return;
+    dragging = true;
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("is-dragging");
+    document.body.classList.add("layout-resize-active");
+    e.preventDefault();
+  });
+
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    onMove(e.clientX);
+  });
+
+  const stopDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("is-dragging");
+    document.body.classList.remove("layout-resize-active");
+    try {
+      handle.releasePointerCapture(e.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  handle.addEventListener("pointerup", stopDrag);
+  handle.addEventListener("pointercancel", stopDrag);
+
+  handle.addEventListener("keydown", (e) => {
+    if (main.dataset.chatDock !== "right") return;
+    let delta = 0;
+    if (e.key === "ArrowLeft") delta = 16;
+    if (e.key === "ArrowRight") delta = -16;
+    if (!delta) return;
+    e.preventDefault();
+    const current = parseInt(getComputedStyle(main).getPropertyValue("--cb-chat-width"), 10) || 360;
+    applyChatWidth(current + delta);
+  });
+}
+
+function initLayoutControls() {
+  let saved = DEFAULT_LAYOUT;
+  let corner = "br";
+  let dock = "right";
+  try {
+    saved = localStorage.getItem(LAYOUT_STORAGE_KEY) || DEFAULT_LAYOUT;
     corner = localStorage.getItem("dualpeer-pip-corner") || "br";
+    dock = localStorage.getItem(CHAT_DOCK_STORAGE_KEY) || "right";
   } catch (_) {
     /* ignore */
   }
 
-  const theme =
-    document.documentElement.getAttribute("data-theme") ||
-    window.dualPeerUi?.getSavedTheme?.() ||
-    "cb-dark";
-  const CB = window.dualPeerUi?.CB_THEMES || new Set(["cb-dark", "cb-light"]);
-  if (CB.has(theme)) {
-    applyLayout("pip-remote");
-  } else {
-    applyLayout(saved);
-  }
+  applyLayout(saved);
   applyPipCorner(corner);
+  applyChatDock(dock);
+  applyChatWidth(undefined, { skipStorage: true });
+  initChatResize();
 
   document.querySelectorAll(".layout-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -189,6 +264,13 @@ function initLayoutControls() {
   if (els.pipCorner) {
     els.pipCorner.addEventListener("change", () => {
       applyPipCorner(els.pipCorner.value);
+    });
+  }
+
+  const chatDock = document.getElementById("chatDock");
+  if (chatDock instanceof HTMLSelectElement) {
+    chatDock.addEventListener("change", () => {
+      applyChatDock(chatDock.value);
     });
   }
 
@@ -2331,9 +2413,6 @@ function initVideoOverlayControls() {
 document.addEventListener("DOMContentLoaded", () => {
   if (window.dualPeerUi) {
     window.dualPeerUi.initShell();
-    document.addEventListener("dualpeer-theme-change", (e) => {
-      if (e.detail?.theme) applyThemeForLayout(e.detail.theme);
-    });
   }
   bindVideoOverlayRefresh(els.localVideo);
   bindVideoOverlayRefresh(els.remoteVideo);
