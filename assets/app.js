@@ -119,27 +119,78 @@ function normalizeLayoutMode(mode) {
   return "split";
 }
 
-function getGuestFullscreenTarget() {
-  return document.getElementById("guestFsTarget") || document.querySelector(".panel-guest .video-wrap");
-}
-
-function getGuestFullscreenRoot() {
-  return document.querySelector(".panel-guest");
+function hasActiveVideoFeed(video) {
+  if (!video) return false;
+  const wrap = video.closest(".video-wrap");
+  if (wrap?.getAttribute("data-has-feed") === "true") return true;
+  const stream = video.srcObject;
+  if (stream && stream.getVideoTracks?.().some((t) => t.readyState === "live" && t.enabled)) {
+    return true;
+  }
+  return video.readyState >= 2 && video.videoWidth > 0;
 }
 
 function getFullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement || null;
 }
 
-function isGuestFullscreenActive() {
-  const target = getGuestFullscreenTarget();
-  const video = els.remoteVideo;
-  const fsEl = getFullscreenElement();
-  if (fsEl && target && (fsEl === target || fsEl === video || target.contains(fsEl))) {
-    return true;
+function resolveFullscreenTarget() {
+  const layout = els.stage?.dataset.layout || "split";
+  const hostWrap = document.getElementById("hostFsTarget");
+  const guestWrap = document.getElementById("guestFsTarget");
+  const remoteHasFeed = hasActiveVideoFeed(els.remoteVideo);
+  const localHasFeed = hasActiveVideoFeed(els.localVideo);
+
+  if (layout === "split") {
+    if (remoteHasFeed && localHasFeed) {
+      return {
+        el: els.stage,
+        video: els.remoteVideo,
+        hint: document.getElementById("stageFsHint"),
+      };
+    }
+    if (remoteHasFeed) {
+      return { el: guestWrap, video: els.remoteVideo, hint: document.getElementById("guestFsHint") };
+    }
+    if (localHasFeed) {
+      return { el: hostWrap, video: els.localVideo, hint: document.getElementById("hostFsHint") };
+    }
+    return {
+      el: hostWrap || guestWrap || els.stage,
+      video: els.localVideo || els.remoteVideo,
+      hint: document.getElementById("hostFsHint") || document.getElementById("guestFsHint"),
+    };
   }
-  if (video && video.webkitDisplayingFullscreen) return true;
-  return false;
+
+  if (remoteHasFeed) {
+    return { el: guestWrap, video: els.remoteVideo, hint: document.getElementById("guestFsHint") };
+  }
+  if (localHasFeed) {
+    return { el: hostWrap, video: els.localVideo, hint: document.getElementById("hostFsHint") };
+  }
+
+  return {
+    el: guestWrap || hostWrap,
+    video: els.remoteVideo || els.localVideo,
+    hint: document.getElementById("guestFsHint") || document.getElementById("hostFsHint"),
+  };
+}
+
+function isMainFullscreenActive() {
+  const fsEl = getFullscreenElement();
+  if (!fsEl) {
+    if (els.remoteVideo?.webkitDisplayingFullscreen) return true;
+    if (els.localVideo?.webkitDisplayingFullscreen) return true;
+    return false;
+  }
+  const targets = [
+    els.stage,
+    document.getElementById("hostFsTarget"),
+    document.getElementById("guestFsTarget"),
+    els.localVideo,
+    els.remoteVideo,
+  ].filter(Boolean);
+  return targets.some((t) => t === fsEl || (t.contains && t.contains(fsEl)) || fsEl.contains(t));
 }
 
 function showFullscreenError(message) {
@@ -169,15 +220,8 @@ function exitDocumentFullscreen() {
   return Promise.resolve();
 }
 
-function syncGuestFullscreenUi(active) {
-  syncFullscreenButtons(active);
-  const hint = document.getElementById("guestFsHint");
-  if (hint) hint.hidden = !active;
-  document.body.classList.toggle("guest-fullscreen-active", active);
-}
-
-function syncFullscreenButtons(active) {
-  document.querySelectorAll('[data-action="fullscreen-guest"]').forEach((btn) => {
+function syncMainFullscreenUi(active) {
+  document.querySelectorAll('[data-action="fullscreen-main"]').forEach((btn) => {
     btn.classList.toggle("active", active);
     const icon = btn.querySelector("i");
     if (icon) {
@@ -185,40 +229,48 @@ function syncFullscreenButtons(active) {
       icon.setAttribute("aria-hidden", "true");
     }
   });
+  ["stageFsHint", "hostFsHint", "guestFsHint"].forEach((id) => {
+    const hint = document.getElementById(id);
+    if (hint) hint.hidden = true;
+  });
+  if (active) {
+    const ctx = resolveFullscreenTarget();
+    if (ctx.hint) ctx.hint.hidden = false;
+  }
+  document.body.classList.toggle("main-fullscreen-active", active);
 }
 
 function syncLayoutButtons(mode) {
-  document.querySelectorAll(".layout-btn[data-layout], .stage-view-btn[data-layout]").forEach((btn) => {
+  document.querySelectorAll(".stage-view-btn[data-layout]").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-layout") === mode);
   });
 }
 
-async function exitGuestFullscreenIfActive() {
-  if (!isGuestFullscreenActive()) return;
+async function exitMainFullscreenIfActive() {
+  if (!isMainFullscreenActive()) return;
   try {
     await exitDocumentFullscreen();
   } catch (_) {
     /* ignore */
   }
-  syncGuestFullscreenUi(false);
+  syncMainFullscreenUi(false);
 }
 
-function toggleGuestFullscreen() {
-  const target = getGuestFullscreenTarget();
-  const video = els.remoteVideo;
-
-  if (isGuestFullscreenActive()) {
+function toggleMainFullscreen() {
+  if (isMainFullscreenActive()) {
     exitDocumentFullscreen()
-      .then(() => syncGuestFullscreenUi(false))
+      .then(() => syncMainFullscreenUi(false))
       .catch((e) => showFullscreenError(e.message));
     return;
   }
 
-  // iOS: native video fullscreen
-  if (video && typeof video.webkitEnterFullscreen === "function") {
+  const ctx = resolveFullscreenTarget();
+  const { el: target, video } = ctx;
+
+  if (video && typeof video.webkitEnterFullscreen === "function" && /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
     try {
       video.webkitEnterFullscreen();
-      syncGuestFullscreenUi(true);
+      syncMainFullscreenUi(true);
     } catch (e) {
       showFullscreenError(e.message);
     }
@@ -226,20 +278,15 @@ function toggleGuestFullscreen() {
   }
 
   if (!target) {
-    showFullscreenError("Partner video area not found.");
-    return;
-  }
-
-  if (document.fullscreenEnabled === false && document.webkitFullscreenEnabled === false) {
-    showFullscreenError("Fullscreen is disabled in this browser.");
+    showFullscreenError("Video area not found.");
     return;
   }
 
   const tryTarget = (el, isFallback) => {
     requestElementFullscreen(el)
-      .then(() => syncGuestFullscreenUi(true))
+      .then(() => syncMainFullscreenUi(true))
       .catch((err) => {
-        if (!isFallback && video) {
+        if (!isFallback && video && video !== el) {
           tryTarget(video, true);
           return;
         }
@@ -252,7 +299,7 @@ function toggleGuestFullscreen() {
 
 function applyLayout(mode) {
   const m = normalizeLayoutMode(mode);
-  exitGuestFullscreenIfActive();
+  exitMainFullscreenIfActive();
 
   if (els.stage) els.stage.dataset.layout = m;
   if (els.appMain) els.appMain.dataset.viewLayout = "default";
@@ -486,27 +533,28 @@ function initStageViewControls() {
   );
 }
 
-function initGuestFullscreen() {
+function initMainFullscreen() {
   const onFullscreenChange = () => {
-    syncGuestFullscreenUi(isGuestFullscreenActive());
+    syncMainFullscreenUi(isMainFullscreenActive());
   };
 
   document.addEventListener("fullscreenchange", onFullscreenChange);
   document.addEventListener("webkitfullscreenchange", onFullscreenChange);
 
-  if (els.remoteVideo) {
-    els.remoteVideo.addEventListener("webkitbeginfullscreen", () => syncGuestFullscreenUi(true));
-    els.remoteVideo.addEventListener("webkitendfullscreen", () => syncGuestFullscreenUi(false));
-  }
+  [els.remoteVideo, els.localVideo].forEach((video) => {
+    if (!video) return;
+    video.addEventListener("webkitbeginfullscreen", () => syncMainFullscreenUi(true));
+    video.addEventListener("webkitendfullscreen", () => syncMainFullscreenUi(false));
+  });
 
   document.addEventListener(
     "click",
     (e) => {
-      const btn = e.target instanceof Element ? e.target.closest('[data-action="fullscreen-guest"]') : null;
+      const btn = e.target instanceof Element ? e.target.closest('[data-action="fullscreen-main"]') : null;
       if (!btn) return;
       e.preventDefault();
       e.stopPropagation();
-      toggleGuestFullscreen();
+      toggleMainFullscreen();
     },
     true
   );
@@ -528,55 +576,10 @@ function initLayoutControls() {
   initChatResize();
   initStageRowResize();
   initStageViewControls();
-  initGuestFullscreen();
-
-  document.querySelectorAll(".layout-btn[data-layout]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      applyLayout(btn.getAttribute("data-layout") || DEFAULT_LAYOUT);
-    });
-  });
+  initMainFullscreen();
 
   applyStageHeight(undefined, { skipStorage: true });
   updateResizeHandles();
-
-  if (els.pipCorner) {
-    els.pipCorner.addEventListener("change", () => {
-      applyPipCorner(els.pipCorner.value);
-    });
-  }
-
-  const pipOk = document.pictureInPictureEnabled;
-  if (els.btnPipNativeRemote) els.btnPipNativeRemote.disabled = !pipOk;
-  if (els.btnPipNativeLocal) els.btnPipNativeLocal.disabled = !pipOk;
-  if (!pipOk) {
-    setPipNativeMessage("Browser PiP is not supported here.");
-  }
-
-  async function toggleDocumentPip(video) {
-    if (!document.pictureInPictureEnabled || !video) return;
-    try {
-      if (document.pictureInPictureElement === video) {
-        await document.exitPictureInPicture();
-        setPipNativeMessage("PiP window closed.");
-      } else {
-        await video.requestPictureInPicture();
-        setPipNativeMessage("PiP window active (tab can stay in background).");
-      }
-    } catch (e) {
-      setPipNativeMessage("PiP: " + (e && e.message ? e.message : String(e)));
-    }
-  }
-
-  if (els.btnPipNativeRemote) {
-    els.btnPipNativeRemote.addEventListener("click", () => toggleDocumentPip(els.remoteVideo));
-  }
-  if (els.btnPipNativeLocal) {
-    els.btnPipNativeLocal.addEventListener("click", () => toggleDocumentPip(els.localVideo));
-  }
-
-  document.addEventListener("leavepictureinpicture", () => {
-    setPipNativeMessage("");
-  });
 }
 
 function setStatus(el, text, cls) {

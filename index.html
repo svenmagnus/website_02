@@ -135,7 +135,7 @@
             <span>Host</span>
             <span class="tag you">You</span>
           </div>
-          <div class="video-wrap">
+          <div class="video-wrap" id="hostFsTarget">
             <video id="localVideo" autoplay playsinline muted></video>
             <div id="localPulse" class="toy-pulse" aria-hidden="true"></div>
             <div id="localPlaceholder" class="video-placeholder is-visible" aria-hidden="false">
@@ -162,6 +162,9 @@
               >
                 <i class="bi bi-camera-video video-ctrl-icon" id="localVideoIcon" aria-hidden="true"></i>
               </button>
+            </div>
+            <div class="video-fs-hint" id="hostFsHint" hidden>
+              Press <kbd>Esc</kbd> to exit fullscreen
             </div>
           </div>
         </article>
@@ -199,13 +202,16 @@
                 <i class="bi bi-camera-video video-ctrl-icon" id="remoteVideoIcon" aria-hidden="true"></i>
               </button>
             </div>
-            <div class="guest-fs-hint" id="guestFsHint" hidden>
+            <div class="video-fs-hint guest-fs-hint" id="guestFsHint" hidden>
               Press <kbd>Esc</kbd> to exit fullscreen
             </div>
           </div>
         </article>
 
         <div class="stage-chrome" aria-hidden="false">
+          <div class="video-fs-hint stage-fs-hint" id="stageFsHint" hidden>
+            Press <kbd>Esc</kbd> to exit fullscreen
+          </div>
           <div class="stage-view-controls" aria-label="Video layout">
             <button type="button" class="stage-view-btn active" data-layout="split" title="Host &amp; Guest equal" aria-label="Equal view">
               <i class="bi bi-columns-gap" aria-hidden="true"></i>
@@ -213,7 +219,7 @@
             <button type="button" class="stage-view-btn" data-layout="pip-remote" title="Partner large, you small" aria-label="Partner large">
               <i class="bi bi-square" aria-hidden="true"></i>
             </button>
-            <button type="button" class="stage-view-btn stage-fs-btn" data-action="fullscreen-guest" title="Partner fullscreen" aria-label="Partner fullscreen">
+            <button type="button" class="stage-view-btn stage-fs-btn" data-action="fullscreen-main" title="Fullscreen" aria-label="Fullscreen">
               <i class="bi bi-fullscreen" aria-hidden="true"></i>
             </button>
           </div>
@@ -228,36 +234,6 @@
         aria-label="Resize video height"
         tabindex="0"
       ></div>
-
-      <div class="layout-toolbar layout-toolbar-compact" aria-label="View and layout">
-        <span class="layout-toolbar-label">Layout</span>
-        <div class="layout-toolbar-btns">
-          <button type="button" class="layout-btn active" id="layoutSplit" data-layout="split">Equal</button>
-          <button type="button" class="layout-btn" id="layoutPipRemote" data-layout="pip-remote">Partner large</button>
-          <button type="button" class="layout-btn stage-fs-btn" id="layoutFullscreen" data-action="fullscreen-guest">Fullscreen</button>
-        </div>
-        <span class="layout-toolbar-label">PiP corner</span>
-        <select id="pipCorner" class="pip-corner-select" aria-label="Small video position">
-          <option value="br">Bottom right</option>
-          <option value="bl">Bottom left</option>
-          <option value="tr">Top right</option>
-          <option value="tl">Top left</option>
-        </select>
-        <span class="layout-toolbar-label">Chat</span>
-        <select id="chatDock" class="pip-corner-select" aria-label="Chat panel position" disabled title="Set automatically by layout">
-          <option value="right">Right</option>
-          <option value="bottom">Bottom (full width)</option>
-          <option value="bottom-center" selected>Bottom center</option>
-        </select>
-        <span class="layout-toolbar-label">Browser</span>
-        <button type="button" id="btnPipNativeRemote" title="Floating window (Partner)">
-          PiP window: Partner
-        </button>
-        <button type="button" id="btnPipNativeLocal" title="Floating window (You)">
-          PiP window: You
-        </button>
-        <span class="pip-native-msg" id="pipNativeMsg" role="status"></span>
-      </div>
 
       <section class="controls" id="controlsPanel">
         <div class="cb-under-video">
@@ -283,6 +259,7 @@
           </div>
           <p class="lovense-hint" id="lovenseStatus">Lovense: initializing …</p>
           <p class="lovense-hint" id="lovenseToyStatus"></p>
+          <p class="status-line pip-native-msg" id="pipNativeMsg" role="status"></p>
         </div>
 
         <div class="card remote-card">

@@ -539,8 +539,8 @@ main {
 
 .stage-view-controls {
   position: absolute;
-  right: 0.5rem;
-  bottom: 0.5rem;
+  right: 0.65rem;
+  bottom: 0.65rem;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -551,6 +551,38 @@ main {
   backdrop-filter: blur(6px);
   pointer-events: auto;
   touch-action: manipulation;
+}
+
+/* Equal view: layout icons centered under both tiles */
+.stage[data-layout="split"] .stage-view-controls {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+/* Partner large: icons on the main video, away from the small self PiP tile */
+.stage[data-layout="pip-remote"][data-pip-corner="br"] .stage-view-controls,
+.stage[data-layout="pip-remote"][data-pip-corner="tr"] .stage-view-controls {
+  left: 0.65rem;
+  right: auto;
+  transform: none;
+}
+
+.stage[data-layout="pip-remote"][data-pip-corner="bl"] .stage-view-controls,
+.stage[data-layout="pip-remote"][data-pip-corner="tl"] .stage-view-controls {
+  left: auto;
+  right: 0.65rem;
+  transform: none;
+}
+
+.stage[data-layout="pip-remote"][data-pip-corner="tr"] .stage-view-controls,
+.stage[data-layout="pip-remote"][data-pip-corner="tl"] .stage-view-controls {
+  bottom: auto;
+  top: 3rem;
+}
+
+.stage[data-layout="pip-remote"] > .panel-host .video-media-overlay {
+  z-index: 3;
 }
 
 @media (max-width: 900px) {
@@ -768,16 +800,11 @@ body.layout-resize-active-row * {
 }
 
 .layout-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-bottom: 0;
-  padding: 0.55rem 0.75rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 0.8rem;
+  display: none !important;
+}
+
+.pip-native-msg:empty {
+  display: none;
 }
 
 .layout-toolbar-label {
@@ -1493,7 +1520,7 @@ footer {
 main.layout-cb {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 8px var(--cb-chat-width, 340px);
-  grid-template-rows: auto 6px auto auto auto;
+  grid-template-rows: auto 6px auto auto;
   gap: 0.5rem 0.35rem;
   align-items: stretch;
   max-width: none;
@@ -1507,7 +1534,7 @@ main.layout-cb[data-view-layout="theater"] {
 main.layout-cb[data-chat-dock="bottom"],
 main.layout-cb[data-chat-dock="bottom-center"] {
   grid-template-columns: 1fr;
-  grid-template-rows: auto 6px auto auto minmax(220px, 32vh) auto;
+  grid-template-rows: auto 6px auto minmax(220px, 32vh) auto;
 }
 
 main.layout-cb > .stage {
@@ -1527,10 +1554,7 @@ main.layout-cb[data-view-layout="theater"] > .layout-row-resize-handle {
 }
 
 main.layout-cb > .layout-toolbar {
-  grid-column: 1;
-  grid-row: 3;
-  margin-bottom: 0;
-  font-size: 0.74rem;
+  display: none !important;
 }
 
 main.layout-cb > .controls {
@@ -1540,7 +1564,7 @@ main.layout-cb > .controls {
 main.layout-cb .cb-under-video {
   display: grid;
   grid-column: 1;
-  grid-row: 4;
+  grid-row: 3;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 0.5rem;
   align-items: start;
@@ -1558,7 +1582,7 @@ main.layout-cb .remote-card h2 {
 
 main.layout-cb .layout-split-handle {
   grid-column: 2;
-  grid-row: 1 / 5;
+  grid-row: 1 / 4;
   width: 8px;
   margin: 0 -4px;
   cursor: col-resize;
@@ -1610,7 +1634,7 @@ main.layout-cb[data-chat-dock="bottom-center"] .layout-split-handle {
 
 main.layout-cb .chat-card {
   grid-column: 3;
-  grid-row: 1 / 5;
+  grid-row: 1 / 4;
   min-height: 0;
   height: auto;
   max-height: none;
@@ -1646,7 +1670,7 @@ main.layout-cb[data-view-layout="theater"] .stage-chat-toggle {
 
 main.layout-cb[data-chat-dock="bottom"] .chat-card {
   grid-column: 1;
-  grid-row: 5;
+  grid-row: 4;
   width: 100%;
   height: auto;
   min-height: 220px;
@@ -1655,7 +1679,7 @@ main.layout-cb[data-chat-dock="bottom"] .chat-card {
 
 main.layout-cb[data-chat-dock="bottom-center"] .chat-card {
   grid-column: 1;
-  grid-row: 5;
+  grid-row: 4;
   width: min(760px, 92%);
   justify-self: center;
   height: auto;
@@ -1667,11 +1691,13 @@ main.layout-cb[data-chat-dock="bottom-center"] .chat-card .chat-messages {
   min-height: 160px;
 }
 
-/* Guest browser fullscreen (Esc to exit) */
+/* Browser fullscreen (Esc to exit) */
+#hostFsTarget:fullscreen,
+#hostFsTarget:-webkit-full-screen,
 #guestFsTarget:fullscreen,
 #guestFsTarget:-webkit-full-screen,
-.panel-guest:fullscreen,
-.panel-guest:-webkit-full-screen {
+.stage:fullscreen,
+.stage:-webkit-full-screen {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1681,45 +1707,39 @@ main.layout-cb[data-chat-dock="bottom-center"] .chat-card .chat-messages {
   pointer-events: auto;
 }
 
-#guestFsTarget:fullscreen video,
-#guestFsTarget:-webkit-full-screen video,
-.panel-guest:fullscreen video {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+.stage:fullscreen {
+  padding: 0;
+  gap: 0;
 }
 
-#guestFsTarget:fullscreen .guest-fs-hint,
-#guestFsTarget:-webkit-full-screen .guest-fs-hint {
-  display: block;
-}
-
-.panel-guest:fullscreen {
-  display: flex;
-  flex-direction: column;
-  background: #000;
-  border: none;
-  border-radius: 0;
-}
-
-.panel-guest:fullscreen .panel-head {
+.stage:fullscreen .panel-head {
   display: none;
 }
 
-.panel-guest:fullscreen .video-wrap {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-  aspect-ratio: auto;
-  border-radius: 0;
-  pointer-events: auto;
+.stage:fullscreen[data-layout="split"] {
+  grid-template-columns: 1fr 1fr;
 }
 
-.panel-guest:fullscreen video {
+#hostFsTarget:fullscreen video,
+#hostFsTarget:-webkit-full-screen video,
+#guestFsTarget:fullscreen video,
+#guestFsTarget:-webkit-full-screen video,
+.stage:fullscreen video {
+  flex: 1;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 
+#hostFsTarget:fullscreen,
+#guestFsTarget:fullscreen {
+  flex: 1;
+  min-height: 0;
+  aspect-ratio: auto;
+  height: 100%;
+}
+
+.video-fs-hint,
 .guest-fs-hint {
   position: absolute;
   top: 1rem;
@@ -1735,6 +1755,11 @@ main.layout-cb[data-chat-dock="bottom-center"] .chat-card .chat-messages {
   pointer-events: none;
 }
 
+.stage-fs-hint {
+  top: 1rem;
+}
+
+.video-fs-hint kbd,
 .guest-fs-hint kbd {
   display: inline-block;
   margin: 0 0.15rem;
@@ -1744,6 +1769,15 @@ main.layout-cb[data-chat-dock="bottom-center"] .chat-card .chat-messages {
   background: rgba(255, 255, 255, 0.12);
   font: inherit;
   font-size: 0.78rem;
+}
+
+#hostFsTarget:fullscreen .video-fs-hint,
+#hostFsTarget:-webkit-full-screen .video-fs-hint,
+#guestFsTarget:fullscreen .video-fs-hint,
+#guestFsTarget:-webkit-full-screen .video-fs-hint,
+.stage:fullscreen .stage-fs-hint,
+.stage:-webkit-full-screen .stage-fs-hint {
+  display: block;
 }
 
 .stage-fs-btn.active,
@@ -1760,12 +1794,12 @@ main.layout-cb .chat-card .chat-messages {
 
 main.layout-cb .local-test-card {
   grid-column: 1 / -1;
-  grid-row: 5;
+  grid-row: 4;
 }
 
 main.layout-cb[data-chat-dock="bottom"] .local-test-card,
 main.layout-cb[data-chat-dock="bottom-center"] .local-test-card {
-  grid-row: 6;
+  grid-row: 5;
 }
 
 main.layout-cb[data-view-layout="theater"] .local-test-card {
