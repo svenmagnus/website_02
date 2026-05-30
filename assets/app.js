@@ -311,30 +311,12 @@ function applyLayout(mode) {
   }
 
   syncLayoutButtons(m);
-  mountStageViewControls();
   updateResizeHandles();
 
   try {
     localStorage.setItem(LAYOUT_STORAGE_KEY, m);
   } catch (_) {
     /* ignore */
-  }
-}
-
-/** Keep layout icons on the large video — never stacked over the small PiP tile. */
-function mountStageViewControls() {
-  const controls = document.querySelector(".stage-view-controls");
-  const chrome = els.stage?.querySelector(".stage-chrome");
-  const guestWrap = document.getElementById("guestFsTarget");
-  if (!controls || !chrome || !guestWrap || !els.stage) return;
-
-  const onMain = (els.stage.dataset.layout || "split") === "pip-remote";
-  controls.classList.toggle("stage-view-controls--on-main", onMain);
-  controls.classList.toggle("stage-view-controls--on-stage", !onMain);
-
-  const targetParent = onMain ? guestWrap : chrome;
-  if (controls.parentElement !== targetParent) {
-    targetParent.appendChild(controls);
   }
 }
 
@@ -346,12 +328,14 @@ function updateResizeHandles() {
 
   const dock = main.dataset.chatDock || "bottom-center";
   const showChatHandle = dock === "right";
+  const layout = els.stage?.dataset.layout || "split";
+  const showRowHandle = layout === "pip-remote";
 
   if (chatHandle) {
     chatHandle.classList.toggle("is-visible", showChatHandle);
     chatHandle.hidden = !showChatHandle;
   }
-  if (rowHandle) rowHandle.hidden = false;
+  if (rowHandle) rowHandle.hidden = !showRowHandle;
 }
 
 function applyPipCorner(corner) {
@@ -534,14 +518,14 @@ function initChatResize() {
 }
 
 function initStageViewControls() {
-  const stage = els.stage;
-  if (!stage) return;
+  const shell = document.querySelector(".stage-shell");
+  if (!shell) return;
 
-  stage.addEventListener(
+  shell.addEventListener(
     "click",
     (e) => {
       const btn = e.target instanceof Element ? e.target.closest(".stage-view-btn[data-layout]") : null;
-      if (!btn || !stage.contains(btn)) return;
+      if (!btn || !shell.contains(btn)) return;
       e.preventDefault();
       e.stopPropagation();
       const mode = btn.getAttribute("data-layout");

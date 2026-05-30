@@ -527,7 +527,25 @@ main {
   margin-bottom: 0;
   position: relative;
   isolation: isolate;
-  min-height: var(--cb-stage-height, clamp(320px, 55vh, 720px));
+  min-height: 0;
+}
+
+.stage-shell {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0;
+}
+
+.stage-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0.35rem 0.15rem 0;
+  min-height: 0;
 }
 
 .stage > .stage-chrome {
@@ -538,9 +556,9 @@ main {
 }
 
 .stage-view-controls {
-  position: absolute;
-  z-index: 12;
-  display: flex;
+  position: static;
+  z-index: 1;
+  display: inline-flex;
   align-items: center;
   gap: 0.15rem;
   padding: 0.2rem;
@@ -551,30 +569,11 @@ main {
   touch-action: manipulation;
 }
 
-/* Equal: centered on the stage overlay */
-.stage-view-controls--on-stage,
-.stage-chrome > .stage-view-controls {
-  left: 50%;
-  right: auto;
-  bottom: 0.65rem;
-  transform: translateX(-50%);
-}
-
-/* Partner large: mounted inside the main (guest) video wrap via app.js */
-.stage-view-controls--on-main,
-#guestFsTarget > .stage-view-controls {
-  left: auto;
-  right: 0.65rem;
-  bottom: 0.65rem;
-  transform: none;
-}
-
 .stage[data-layout="pip-remote"] > .panel-host .video-media-overlay {
   z-index: 3;
 }
 
-#hostFsTarget:fullscreen > .stage-view-controls,
-#guestFsTarget:fullscreen > .stage-view-controls {
+body.main-fullscreen-active .stage-toolbar {
   display: none;
 }
 
@@ -584,7 +583,13 @@ main {
   }
 }
 
-/* PiP + theater: single cell stack */
+/* Equal: height follows video aspect ratio — no forced empty band */
+.stage[data-layout="split"] {
+  height: auto;
+  min-height: 0;
+}
+
+/* Partner large: user-resizable stage height */
 .stage[data-layout="pip-remote"],
 .stage[data-layout="pip-local"],
 .stage[data-layout="theater"] {
@@ -594,6 +599,7 @@ main {
   gap: 0;
   position: relative;
   min-height: var(--cb-stage-height, clamp(360px, 68vh, 85vh));
+  flex: 1 1 auto;
 }
 
 .stage[data-layout="pip-remote"] > .panel,
@@ -1530,11 +1536,20 @@ main.layout-cb[data-chat-dock="bottom-center"] {
   grid-template-rows: auto 6px auto minmax(220px, 32vh) auto;
 }
 
-main.layout-cb > .stage {
+main.layout-cb > .stage-shell {
   grid-column: 1;
   grid-row: 1;
   margin-bottom: 0;
+}
+
+main.layout-cb > .stage-shell > .stage[data-layout="pip-remote"],
+main.layout-cb > .stage-shell > .stage[data-layout="pip-local"],
+main.layout-cb > .stage-shell > .stage[data-layout="theater"] {
   min-height: var(--cb-stage-height, clamp(360px, 68vh, 85vh));
+}
+
+main.layout-cb > .stage {
+  margin-bottom: 0;
 }
 
 main.layout-cb > .layout-row-resize-handle {
@@ -1830,6 +1845,7 @@ body.layout-resize-active * {
     grid-template-rows: auto;
   }
 
+  main.layout-cb > .stage-shell,
   main.layout-cb > .stage,
   main.layout-cb > .layout-row-resize-handle,
   main.layout-cb > .layout-toolbar,

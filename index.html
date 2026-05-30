@@ -129,6 +129,7 @@
       </nav>
   </header>
     <main id="appMain" class="layout-cb" data-chat-dock="bottom-center" data-view-layout="default">
+      <div class="stage-shell">
       <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video area">
         <article class="panel panel-host">
           <div class="panel-head">
@@ -212,19 +213,23 @@
           <div class="video-fs-hint stage-fs-hint" id="stageFsHint" hidden>
             Press <kbd>Esc</kbd> to exit fullscreen
           </div>
-          <div class="stage-view-controls" aria-label="Video layout">
-            <button type="button" class="stage-view-btn active" data-layout="split" title="Host &amp; Guest equal" aria-label="Equal view">
-              <i class="bi bi-columns-gap" aria-hidden="true"></i>
-            </button>
-            <button type="button" class="stage-view-btn" data-layout="pip-remote" title="Partner large, you small" aria-label="Partner large">
-              <i class="bi bi-square" aria-hidden="true"></i>
-            </button>
-            <button type="button" class="stage-view-btn stage-fs-btn" data-action="fullscreen-main" title="Fullscreen" aria-label="Fullscreen">
-              <i class="bi bi-fullscreen" aria-hidden="true"></i>
-            </button>
-          </div>
         </div>
       </section>
+
+      <div class="stage-toolbar" aria-label="Video layout">
+        <div class="stage-view-controls">
+          <button type="button" class="stage-view-btn active" data-layout="split" title="Host &amp; Guest equal" aria-label="Equal view">
+            <i class="bi bi-columns-gap" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="stage-view-btn" data-layout="pip-remote" title="Partner large, you small" aria-label="Partner large">
+            <i class="bi bi-square" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="stage-view-btn stage-fs-btn" data-action="fullscreen-main" title="Fullscreen" aria-label="Fullscreen">
+            <i class="bi bi-fullscreen" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      </div>
 
       <div
         class="layout-row-resize-handle"
