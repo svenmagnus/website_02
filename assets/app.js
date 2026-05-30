@@ -39,7 +39,16 @@ const PEER_OPTIONS = {
 };
 
 /** WHIP/WHEP server — set window.DUALPEER_WHIP_URL in index.html for production */
-const WHIP_API_BASE = String(window.DUALPEER_WHIP_URL || "http://localhost:8787").replace(/\/$/, "");
+function resolveWhipApiBase() {
+  if (window.DUALPEER_WHIP_URL) return String(window.DUALPEER_WHIP_URL).replace(/\/$/, "");
+  if (location.port === "8787") return location.origin;
+  if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+    return `${location.protocol}//${location.hostname}:8787`;
+  }
+  return "http://127.0.0.1:8787";
+}
+
+const WHIP_API_BASE = resolveWhipApiBase();
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -1093,28 +1102,51 @@ function syncBroadcastModeUi() {
 }
 
 function updateWhipBroadcastUi(message, cls) {
-  const endpoint = document.getElementById("whipEndpointOut");
-  const key = document.getElementById("whipStreamKeyOut");
+  const server = document.getElementById("whipServerOut");
+  const bearer = document.getElementById("whipBearerOut");
   const status = document.getElementById("whipBroadcastStatus");
-  if (endpoint) endpoint.textContent = whipBroadcast?.whipUrl || "—";
-  if (key) key.textContent = whipBroadcast?.streamKey || "—";
+  if (server) {
+    server.textContent =
+      whipBroadcast?.whipServerUrl || whipBroadcast?.whipUrl?.replace(/\/[^/]+$/, "") || "—";
+  }
+  if (bearer) {
+    bearer.textContent = whipBroadcast?.whipBearerToken || whipBroadcast?.streamKey || "—";
+  }
   if (status && message) {
     status.textContent = message;
     status.className = "status-line" + (cls ? " " + cls : "");
   }
 }
 
+async function checkWhipServerReachable() {
+  try {
+    const resp = await fetch(`${WHIP_API_BASE}/health`, { cache: "no-store" });
+    return resp.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function registerWhipBroadcast(peerId) {
+  const reachable = await checkWhipServerReachable();
+  if (!reachable) {
+    throw new Error(
+      "WHIP server not reachable. Run: cd server && npm start — then open http://127.0.0.1:8787/ (not tangent-club.com)."
+    );
+  }
   const resp = await fetch(`${WHIP_API_BASE}/api/broadcast/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ peerId: peerId || "" }),
   });
   if (!resp.ok) {
-    throw new Error("WHIP server unreachable — run: cd server && npm install && npm start");
+    throw new Error("WHIP register failed — is the server running on port 8787?");
   }
   whipBroadcast = await resp.json();
-  updateWhipBroadcastUi("Paste WHIP URL in OBS, then Start Streaming. Waiting for OBS…", "ok");
+  updateWhipBroadcastUi(
+    "OBS: paste Server + Bearer Token (Settings → Stream → WHIP), then Start Streaming.",
+    "ok"
+  );
   return whipBroadcast;
 }
 
@@ -1126,13 +1158,24 @@ function waitForWhipLive(streamKey, timeoutMs = 180000) {
       try {
         const resp = await fetch(`${WHIP_API_BASE}/api/broadcast/${encodeURIComponent(streamKey)}/status`);
         const data = await resp.json();
+        const state = data.connectionState || "waiting";
         if (data.live && data.videoTracks > 0) {
           clearInterval(whipPollTimer);
           updateWhipBroadcastUi("OBS connected — loading stream into Host panel…", "ok");
           resolve(data);
           return;
         }
-        updateWhipBroadcastUi("Waiting for OBS WHIP stream… (Start Streaming in OBS)", "");
+        if (data.whipIngest) {
+          updateWhipBroadcastUi(
+            `OBS reached server (${state}, ${data.trackCount} tracks). Waiting for video…`,
+            "ok"
+          );
+        } else {
+          updateWhipBroadcastUi(
+            "Waiting for OBS WHIP… paste URL in OBS → Settings → Stream → WHIP → Start Streaming",
+            ""
+          );
+        }
         if (Date.now() - started > timeoutMs) {
           clearInterval(whipPollTimer);
           reject(new Error("Timed out waiting for OBS WHIP stream."));
@@ -1161,19 +1204,53 @@ function waitIceGatheringCompleteBrowser(pc, timeoutMs = 4000) {
   });
 }
 
+function waitForPeerConnected(pc, timeoutMs = 20000) {
+  if (pc.connectionState === "connected") return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("WebRTC video connection timed out.")), timeoutMs);
+    pc.addEventListener("connectionstatechange", () => {
+      if (pc.connectionState === "connected") {
+        clearTimeout(timer);
+        resolve();
+      }
+      if (pc.connectionState === "failed") {
+        clearTimeout(timer);
+        reject(new Error("WebRTC connection failed."));
+      }
+    });
+  });
+}
+
 async function subscribeWhepStream(whepUrl) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      return await subscribeWhepStreamOnce(whepUrl);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < 7) {
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+    }
+  }
+  throw lastErr || new Error("WHEP subscribe failed");
+}
+
+async function subscribeWhepStreamOnce(whepUrl) {
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   pc.addTransceiver("video", { direction: "recvonly" });
   pc.addTransceiver("audio", { direction: "recvonly" });
 
   const stream = new MediaStream();
-  pc.ontrack = (event) => {
-    if (event.track) stream.addTrack(event.track);
-  };
+  pc.addEventListener("track", (event) => {
+    if (event.track && !stream.getTracks().includes(event.track)) {
+      stream.addTrack(event.track);
+    }
+  });
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  await waitIceGatheringCompleteBrowser(pc);
+  await waitIceGatheringCompleteBrowser(pc, 6000);
 
   const resp = await fetch(whepUrl, {
     method: "POST",
@@ -1187,17 +1264,18 @@ async function subscribeWhepStream(whepUrl) {
 
   const answerSdp = await resp.text();
   await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+  await waitForPeerConnected(pc);
 
   if (!stream.getVideoTracks().length) {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("No video track from OBS WHIP.")), 10000);
-      pc.ontrack = (event) => {
-        if (event.track) stream.addTrack(event.track);
+      const timer = setTimeout(() => reject(new Error("No video track from OBS WHIP.")), 12000);
+      pc.addEventListener("track", (event) => {
+        if (event.track?.kind === "video") stream.addTrack(event.track);
         if (stream.getVideoTracks().length) {
           clearTimeout(timer);
           resolve();
         }
-      };
+      });
     });
   }
 

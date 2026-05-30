@@ -8,8 +8,10 @@
     "node": ">=20"
   },
   "scripts": {
+    "prestart": "node -e \"const{execSync}=require('node:child_process');try{const p=execSync('lsof -t -i:8787',{encoding:'utf8'}).trim();if(p)execSync('kill -9 '+p.split('\\n').join(' '));}catch(e){}\"",
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "restart": "npm run prestart && npm start"
   },
   "dependencies": {
     "@roamhq/wrtc": "^0.8.0",

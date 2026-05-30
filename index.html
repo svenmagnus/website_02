@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8399" />
+    <link rel="stylesheet" href="assets/styles.css?v=8400" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -35,7 +35,7 @@
       // Direct motor via lovense.sendCommand — no Stream Master Basic Levels needed
       window.DUALPEER_DIRECT_MOTOR = true;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8399"></script>
+    <script src="assets/lovense-broadcast.js?v=8400"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -263,14 +263,19 @@
               External encoder — paste into OBS (Settings → Stream → WHIP):
             </p>
             <div class="whip-field">
-              <span class="status-line">WHIP URL</span>
-              <div class="peer-id-box" id="whipEndpointOut">—</div>
+              <span class="status-line">OBS Server (WHIP)</span>
+              <div class="peer-id-box" id="whipServerOut">—</div>
             </div>
             <div class="whip-field">
-              <span class="status-line">Stream key (in URL path)</span>
-              <div class="peer-id-box" id="whipStreamKeyOut">—</div>
+              <span class="status-line">OBS Bearer Token (stream key)</span>
+              <div class="peer-id-box" id="whipBearerOut">—</div>
             </div>
-            <p class="status-line" id="whipBroadcastStatus">Click Start as Host to generate your WHIP URL.</p>
+            <p class="status-line" id="whipBroadcastStatus">Start the WHIP server, then open this page (port 8787 or Live Server :5500).</p>
+            <p class="status-line media-source-hint" style="margin-top: 0.35rem">
+              Local test: <strong>cd server && npm run restart</strong> — then
+              <strong>http://127.0.0.1:8787/</strong> or Live Server on <strong>:5500</strong>.
+              If you see “Cannot GET /”, an old server is still running; restart fixes it.
+            </p>
           </div>
           <div class="row media-source-row">
             <label for="videoSourceSelect">Video source</label>
@@ -361,9 +366,11 @@
     </footer>
 
     <script>
-      window.DUALPEER_WHIP_URL = window.DUALPEER_WHIP_URL || "http://localhost:8787";
+      window.DUALPEER_WHIP_URL =
+        window.DUALPEER_WHIP_URL ||
+        (location.port === "8787" ? location.origin : "http://127.0.0.1:8787");
     </script>
-    <script src="assets/ui-shell.js?v=8399"></script>
-    <script src="assets/app.js?v=8399"></script>
+    <script src="assets/ui-shell.js?v=8400"></script>
+    <script src="assets/app.js?v=8400"></script>
   </body>
 </html>

@@ -26,6 +26,9 @@ npm start
 
 Default: `http://localhost:8787`
 
+**Important for local testing:** open the app at **`http://127.0.0.1:8787/`** (same server serves the website + WHIP API).  
+Do **not** use `https://tangent-club.com` with a localhost WHIP server — the browser blocks that.
+
 ## Endpoints
 
 | Method | Path | Description |
