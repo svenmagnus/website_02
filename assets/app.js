@@ -1821,10 +1821,7 @@ function sendChatMessage() {
   }
   const text = (els.chatInput.value || "").trim();
   if (!text) return;
-  if (!dataConn || !dataConn.open) {
-    setDataActivityStatus("Chat unavailable — connect first.", "err");
-    return;
-  }
+
   const sender = sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You";
   const payload = {
     type: "chat",
@@ -1832,11 +1829,17 @@ function sendChatMessage() {
     sender,
     ts: Date.now(),
   };
+
+  appendChatMessage("You", text, true, payload.ts);
+  els.chatInput.value = "";
+  els.chatInput.focus();
+
+  if (!dataConn || !dataConn.open) {
+    setDataActivityStatus("Message shown locally — connect to send to partner.", "err");
+    return;
+  }
+
   try {
-    // Show locally immediately so messages never disappear.
-    appendChatMessage("You", text, true, payload.ts);
-    els.chatInput.value = "";
-    els.chatInput.focus();
     sendDataChannelMessage(payload);
     setDataActivityStatus("Chat message sent.", "ok");
   } catch (e) {
