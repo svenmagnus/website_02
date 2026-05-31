@@ -14,9 +14,16 @@ import express from "express";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import wrtc from "@roamhq/wrtc";
-
-const { RTCPeerConnection, RTCSessionDescription } = wrtc;
+import { WhipReceiver } from "@werift/whip-server";
+import {
+  RTCPeerConnection,
+  useAV1X,
+  useH264,
+  useOPUS,
+  useSdesRTPStreamId,
+  useVP8,
+  useVP9,
+} from "werift";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.join(__dirname, "..");
@@ -51,12 +58,74 @@ const ICE_SERVERS = [
   },
 ];
 
+function trackId(track) {
+  return track?.uuid ?? track?.id ?? null;
+}
+
+/** Latest ingest track per kind on the WHIP peer connection. */
+function getIngestTransceiverTracks(session, { strictDirection = true } = {}) {
+  const byKind = new Map();
+  for (const tx of session.pc?.getTransceivers() || []) {
+    const track = tx.receiver?.track;
+    if (!track) continue;
+    if (strictDirection) {
+      const direction = tx.currentDirection || tx.direction;
+      if (direction === "sendonly") continue;
+    }
+    byKind.set(track.kind, track);
+  }
+  return byKind;
+}
+
+/** WhipReceiver.onTrack can miss tracks; mirror live transceiver tracks when needed. */
+function backfillWhipReceiver(session) {
+  const { whipReceiver } = session;
+  if (!whipReceiver) return;
+  const byKind = getIngestTransceiverTracks(session, { strictDirection: false });
+  const audio = byKind.get("audio");
+  const video = byKind.get("video");
+  if (audio) whipReceiver.audio = audio;
+  if (video) {
+    if (!whipReceiver.video?.length) whipReceiver.video = [video];
+    else whipReceiver.video[whipReceiver.video.length - 1] = video;
+  }
+}
+
+/** Tracks on WHIP transceivers only (never stale WhipReceiver fallbacks). */
+function getIngestRelayTracks(session) {
+  const t = session.ingestTracks || {};
+  return [t.audio, t.video].filter(Boolean);
+}
+
+function whipTransceiversReady(session) {
+  return !!(session.ingestTracks?.audio && session.ingestTracks?.video);
+}
+
+/** @deprecated Use ingestTracks from onTrack; kept for one-shot backfill after connect. */
+function getActiveWhipTracks(session) {
+  const fromIngest = getIngestRelayTracks(session);
+  if (fromIngest.length) return fromIngest;
+  let byKind = getIngestTransceiverTracks(session, { strictDirection: true });
+  let tracks = [byKind.get("audio"), byKind.get("video")].filter(Boolean);
+  if (tracks.length < 2) {
+    byKind = getIngestTransceiverTracks(session, { strictDirection: false });
+    tracks = [byKind.get("audio"), byKind.get("video")].filter(Boolean);
+  }
+  return tracks;
+}
+
+function whipReceiverReady(session) {
+  return whipTransceiversReady(session);
+}
+
 function waitForWhipTracks(session, timeoutMs = 10000) {
-  if (session.tracks.length > 0) return Promise.resolve(session.tracks);
+  seedIngestTracksFromWhipReceiver(session);
+  if (whipReceiverReady(session)) return Promise.resolve(getIngestRelayTracks(session));
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
     const tick = () => {
-      if (session.tracks.length > 0) return resolve(session.tracks);
+      seedIngestTracksFromWhipReceiver(session);
+      if (whipReceiverReady(session)) return resolve(getIngestRelayTracks(session));
       if (Date.now() >= deadline) {
         return reject(new Error("WHIP tracks not received in time"));
       }
@@ -66,33 +135,121 @@ function waitForWhipTracks(session, timeoutMs = 10000) {
   });
 }
 
-function bindWhipTrackHandler(session, tracks) {
-  const onTrack = (event) => {
-    if (!event.track) return;
-    if (!tracks.includes(event.track)) tracks.push(event.track);
+function noteWhipRtp(session, track) {
+  if (!track?.onReceiveRtp) return;
+  const id = trackId(track);
+  if (!id) return;
+  session._rtpBoundIds = session._rtpBoundIds || new Set();
+  if (session._rtpBoundIds.has(id)) return;
+  session._rtpBoundIds.add(id);
+  track.onReceiveRtp.once(() => {
+    session.rtpSeen = session.rtpSeen || { audio: false, video: false };
+    session.rtpSeen[track.kind] = true;
     session.updatedAt = Date.now();
-    session.live = tracks.some((t) => t.kind === "video" && t.readyState !== "ended");
-    console.log(
-      `[WHIP] track ${event.track.kind} id=${event.track.id} readyState=${event.track.readyState} key=${session.streamKey}`
-    );
-  };
-  session.pc.addEventListener("track", onTrack);
-  session.pc.ontrack = onTrack;
+    console.log(`[WHIP] rtp ${track.kind} id=${id} key=${session.streamKey}`);
+    if (track.kind === "video") {
+      session.live = true;
+      rebindWhepRelay(session);
+    }
+  });
 }
 
-function waitIceGatheringComplete(pc, timeoutMs = 4000) {
+function bindWhipRtpHandlers(session) {
+  for (const track of getIngestRelayTracks(session)) {
+    noteWhipRtp(session, track);
+  }
+}
+
+function waitForWhipVideoRtp(session, timeoutMs = 15000) {
+  bindWhipRtpHandlers(session);
+  if (session.rtpSeen?.video) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = () => {
+      bindWhipRtpHandlers(session);
+      if (session.rtpSeen?.video) return resolve();
+      if (Date.now() >= deadline) {
+        return reject(new Error("WHIP video RTP not received in time"));
+      }
+      setTimeout(tick, 200);
+    };
+    tick();
+  });
+}
+
+function registerWhipTrack(session, track) {
+  if (!track) return;
+  const idx = session.tracks.findIndex((t) => t.kind === track.kind);
+  const prev = idx >= 0 ? session.tracks[idx] : null;
+  if (prev === track) return;
+  if (prev) session.tracks[idx] = track;
+  else session.tracks.push(track);
+  session.updatedAt = Date.now();
+  session.live = session.tracks.some((t) => t.kind === "video");
+  const prevId = prev?.uuid ?? prev?.id;
+  const nextId = track.uuid ?? track.id ?? "?";
+  if (prevId !== nextId) {
+    console.log(`[WHIP] track ${track.kind} id=${nextId} key=${session.streamKey}`);
+  }
+}
+
+function syncWhipTracksFromPc(session) {
+  for (const track of getIngestRelayTracks(session)) {
+    registerWhipTrack(session, track);
+  }
+}
+
+function seedIngestTracksFromWhipReceiver(session) {
+  session.ingestTracks = session.ingestTracks || { audio: null, video: null };
+  const { whipReceiver } = session;
+  if (whipReceiver?.audio && !session.ingestTracks.audio) {
+    session.ingestTracks.audio = whipReceiver.audio;
+    registerWhipTrack(session, whipReceiver.audio);
+    noteWhipRtp(session, whipReceiver.audio);
+  }
+  const videos = whipReceiver?.video;
+  if (videos?.length && !session.ingestTracks.video) {
+    session.ingestTracks.video = videos[videos.length - 1];
+    registerWhipTrack(session, session.ingestTracks.video);
+    noteWhipRtp(session, session.ingestTracks.video);
+  }
+}
+
+function bindWhipTrackHandler(session) {
+  session.ingestTracks = { audio: null, video: null };
+  let rebindTimer = null;
+  const scheduleRebind = () => {
+    if (!whipTransceiversReady(session)) return;
+    clearTimeout(rebindTimer);
+    rebindTimer = setTimeout(() => rebindWhepRelay(session), 100);
+  };
+
+  session.whipReceiver.onTrack.subscribe((track) => {
+    if (!track) return;
+    const prev = session.ingestTracks[track.kind];
+    const prevId = trackId(prev);
+    const nextId = trackId(track);
+    if (prev && prevId === nextId) return;
+    if (prev && session.rtpSeen?.[track.kind]) return;
+
+    session.ingestTracks[track.kind] = track;
+    registerWhipTrack(session, track);
+    noteWhipRtp(session, track);
+    console.log(`[WHIP] onTrack ${track.kind} id=${nextId ?? "?"} key=${session.streamKey}`);
+    scheduleRebind();
+  });
+}
+
+function waitWeriftIceGathering(pc, timeoutMs = 8000) {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => {
-    const timer = setTimeout(finish, timeoutMs);
-    function finish() {
-      clearTimeout(timer);
-      pc.removeEventListener("icegatheringstatechange", onChange);
-      resolve();
-    }
-    function onChange() {
-      if (pc.iceGatheringState === "complete") finish();
-    }
-    pc.addEventListener("icegatheringstatechange", onChange);
+    const timer = setTimeout(resolve, timeoutMs);
+    pc.iceGatheringStateChange.subscribe((state) => {
+      if (state === "complete") {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
   });
 }
 
@@ -145,6 +302,171 @@ function resolveStreamKey(req, pathKey) {
   return null;
 }
 
+function normalizeOfferSdp(sdp) {
+  const text = String(sdp || "").trim();
+  if (!text) return text;
+  const normalized = text.replace(/\r?\n/g, "\r\n");
+  return normalized.endsWith("\r\n") ? normalized : `${normalized}\r\n`;
+}
+
+/** Text-only OBS/WHIP SDP cleanup before setRemoteDescription (no PeerConnection calls). */
+function sanitizeWhipOfferSdp(rawSdp) {
+  const lines = normalizeOfferSdp(rawSdp)
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter(Boolean);
+
+  const mids = new Set();
+  const cleaned = [];
+
+  for (const line of lines) {
+    if (line === "a=extmap-allow-mixed") continue;
+    if (line.startsWith("a=ssrc:")) continue;
+    if (line.startsWith("a=ssrc-group:")) continue;
+    if (/^a=rtcp:\d+ IN IP4 0\.0\.0\.0$/.test(line)) continue;
+    if (line.startsWith("a=mid:")) mids.add(line.slice("a=mid:".length));
+    cleaned.push(line);
+  }
+
+  for (let i = 0; i < cleaned.length; i++) {
+    if (!cleaned[i].startsWith("a=group:BUNDLE ")) continue;
+    const bundleMids = cleaned[i].slice("a=group:BUNDLE ".length).split(/\s+/).filter(Boolean);
+    const validMids = bundleMids.filter((mid) => mids.has(mid));
+    if (validMids.length > 0) {
+      cleaned[i] = `a=group:BUNDLE ${validMids.join(" ")}`;
+    }
+  }
+
+  return normalizeOfferSdp(cleaned.join("\n"));
+}
+
+function parseOfferMediaCodecs(sdp) {
+  const lines = sdp.replace(/\r\n/g, "\n").split("\n");
+  /** @type {{ kind: string, payloadTypes: string[], rtpmaps: Record<string, string>, fmtps: Record<string, string> }[]} */
+  const sections = [];
+  let section = null;
+
+  for (const line of lines) {
+    if (line.startsWith("m=")) {
+      section = {
+        kind: line.split(/\s+/)[0].slice(2),
+        payloadTypes: line.split(/\s+/).slice(3),
+        rtpmaps: {},
+        fmtps: {},
+      };
+      sections.push(section);
+      continue;
+    }
+    if (!section) continue;
+    const rtpmap = line.match(/^a=rtpmap:(\d+)\s+(.+)$/);
+    if (rtpmap) {
+      section.rtpmaps[rtpmap[1]] = rtpmap[2];
+      continue;
+    }
+    const fmtp = line.match(/^a=fmtp:(\d+)\s+(.+)$/);
+    if (fmtp) section.fmtps[fmtp[1]] = fmtp[2];
+  }
+
+  return sections;
+}
+
+function buildWeriftPeerConfig(offerSdp) {
+  const sections = parseOfferMediaCodecs(offerSdp);
+  const audioSection = sections.find((section) => section.kind === "audio");
+  const videoSection = sections.find((section) => section.kind === "video");
+
+  const audioCodecs = [];
+  if (audioSection) {
+    for (const payloadType of audioSection.payloadTypes) {
+      const mime = (audioSection.rtpmaps[payloadType] || "").toLowerCase();
+      if (!mime.startsWith("opus/")) continue;
+      const parts = mime.split("/");
+      audioCodecs.push(
+        useOPUS({
+          payloadType: Number(payloadType),
+          clockRate: Number(parts[1]) || 48000,
+          channels: Number(parts[2]) || 2,
+        })
+      );
+    }
+  }
+  if (audioCodecs.length === 0) {
+    audioCodecs.push(useOPUS({ clockRate: 48000, channels: 2 }));
+  }
+
+  const videoCodecs = [];
+  if (videoSection) {
+    for (const payloadType of videoSection.payloadTypes) {
+      const mime = (videoSection.rtpmaps[payloadType] || "").toLowerCase();
+      const fmtp = videoSection.fmtps[payloadType];
+      const pt = Number(payloadType);
+      if (mime.startsWith("h264/")) {
+        videoCodecs.push(useH264({ payloadType: pt, sdpFmtpLine: fmtp }));
+      } else if (mime.startsWith("vp8/")) {
+        videoCodecs.push(useVP8({ payloadType: pt }));
+      } else if (mime.startsWith("vp9/")) {
+        videoCodecs.push(useVP9({ payloadType: pt }));
+      } else if (mime.startsWith("av1/")) {
+        videoCodecs.push(useAV1X({ payloadType: pt }));
+      }
+    }
+  }
+  if (videoCodecs.length === 0) {
+    videoCodecs.push(useH264());
+  }
+
+  return {
+    codecs: { audio: audioCodecs, video: videoCodecs },
+    headerExtensions: { video: [useSdesRTPStreamId()] },
+    iceServers: ICE_SERVERS,
+  };
+}
+
+function createWeriftPeerConnection(peerConfig) {
+  return new RTCPeerConnection(peerConfig);
+}
+
+/** Attach WHIP ingest tracks to a WHEP playback peer (browser recvonly offer already applied). */
+function attachWhipTracksToWhepPc(whepPc, whipSession) {
+  const byKind = new Map();
+  for (const track of getIngestRelayTracks(whipSession)) {
+    byKind.set(track.kind, track);
+  }
+
+  for (const kind of ["audio", "video"]) {
+    const track = byKind.get(kind);
+    if (!track) continue;
+    const transceiver = whepPc.getTransceivers().find((tx) => tx.kind === kind);
+    if (!transceiver?.sender) {
+      console.warn(`[WHEP] no transceiver for ${kind}`);
+      continue;
+    }
+    transceiver.sender.registerTrack(track);
+    if (transceiver.direction !== "sendonly" && transceiver.direction !== "sendrecv") {
+      transceiver.setDirection("sendonly");
+    }
+    console.log(
+      `[WHEP] relay ${kind} id=${trackId(track) ?? "?"} transceiver=yes dir=${transceiver.direction}/${transceiver.currentDirection ?? "-"}`
+    );
+  }
+}
+
+function rebindWhepRelay(whipSession) {
+  const tracks = getIngestRelayTracks(whipSession);
+  if (!tracks.some((t) => t.kind === "video")) return;
+  for (const whepId of [...whipSession.whepResourceIds]) {
+    const whep = whepSessions.get(whepId);
+    if (!whep?.pc || whep.pc.connectionState === "closed") {
+      whipSession.whepResourceIds.delete(whepId);
+      closeWhepSession(whepId);
+      continue;
+    }
+    attachWhipTracksToWhepPc(whep.pc, whipSession);
+    console.log(`[WHEP] rebound key=${whipSession.streamKey} resource=${whepId}`);
+  }
+}
+
 function requestBaseUrl(req) {
   if (process.env.PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
   const host = req.get("host");
@@ -190,11 +512,19 @@ function makeStreamKey() {
   return `tc-${randomBytes(18).toString("base64url")}`;
 }
 
-function closeWhipSession(streamKey) {
+function closeWhipSession(streamKey, { closeWhep = true } = {}) {
   const session = whipSessions.get(streamKey);
   if (!session) return;
+  if (closeWhep) {
+    for (const whepId of session.whepResourceIds) closeWhepSession(whepId);
+  }
   try {
-    session.pc.close();
+    session.whipReceiver?.close?.();
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    session.pc?.close?.();
   } catch (_) {
     /* ignore */
   }
@@ -205,7 +535,7 @@ function closeWhepSession(resourceId) {
   const session = whepSessions.get(resourceId);
   if (!session) return;
   try {
-    session.pc.close();
+    session.pc?.close?.();
   } catch (_) {
     /* ignore */
   }
@@ -230,9 +560,9 @@ app.use(
       }
       return callback(null, false);
     },
-    methods: ["GET", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
-    exposedHeaders: ["Location"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept", "If-Match"],
+    exposedHeaders: ["Location", "ETag", "Link"],
   })
 );
 app.use(express.json({ limit: "32kb" }));
@@ -261,16 +591,19 @@ app.get("/api/broadcast/:streamKey/status", (req, res) => {
     return res.status(401).json({ ok: false, error: "invalid_stream_key" });
   }
   const session = whipSessions.get(streamKey);
-  const tracks = session?.tracks || [];
-  const videoTracks = tracks.filter((t) => t.kind === "video" && t.readyState !== "ended");
+  const tracks = session ? getIngestRelayTracks(session) : [];
+  const videoTracks = tracks.filter((t) => t.kind === "video");
+  const videoRtp = !!session?.rtpSeen?.video;
   res.json({
     ok: true,
     streamKey,
     whipIngest: !!session,
     connectionState: session?.pc?.connectionState || null,
-    live: videoTracks.length > 0,
+    live: videoRtp,
+    videoRtp,
+    tracksReady: videoTracks.length > 0,
     videoTracks: videoTracks.length,
-    audioTracks: tracks.filter((t) => t.kind === "audio" && t.readyState !== "ended").length,
+    audioTracks: tracks.filter((t) => t.kind === "audio").length,
     trackCount: tracks.length,
     whepSubscribers: session?.whepResourceIds?.size || 0,
     updatedAt: session?.updatedAt || null,
@@ -282,7 +615,7 @@ app.options("/whip/", sendWhipOptions);
 app.options("/whip/:streamKey", sendWhipOptions);
 
 async function handleWhipIngest(req, res, streamKey) {
-  const offerSdp = (req.body || "").trim();
+  const offerSdp = sanitizeWhipOfferSdp((req.body || "").trim());
   const baseUrl = requestBaseUrl(req);
 
   console.log(`[WHIP] ingest key=${streamKey} bytes=${offerSdp.length} auth=${parseBearerToken(req) ? "yes" : "no"}`);
@@ -291,51 +624,62 @@ async function handleWhipIngest(req, res, streamKey) {
     return res.status(400).type("text/plain").send("Bad Request: SDP offer required");
   }
 
-  closeWhipSession(streamKey);
+  const priorSession = whipSessions.get(streamKey);
+  const priorWhepIds = new Set(priorSession?.whepResourceIds || []);
+  closeWhipSession(streamKey, { closeWhep: false });
 
   const resourceId = randomBytes(12).toString("hex");
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const peerConfig = buildWeriftPeerConfig(offerSdp);
+  const pc = createWeriftPeerConnection(peerConfig);
+  const whipReceiver = new WhipReceiver(pc);
   const tracks = [];
 
   const session = {
     streamKey,
     resourceId,
     pc,
+    whipReceiver,
+    peerConfig,
     tracks,
+    ingestTracks: { audio: null, video: null },
     live: false,
-    whepResourceIds: new Set(),
+    rtpSeen: { audio: false, video: false },
+    whepResourceIds: priorWhepIds,
     updatedAt: Date.now(),
   };
 
-  bindWhipTrackHandler(session, tracks);
+  bindWhipTrackHandler(session);
 
-  pc.onconnectionstatechange = () => {
+  pc.connectionStateChange.subscribe(() => {
+    if (whipSessions.get(streamKey) !== session) return;
     session.updatedAt = Date.now();
     console.log(`[WHIP] connectionState=${pc.connectionState} key=${streamKey} tracks=${tracks.length}`);
     if (pc.connectionState === "connected") {
-      session.live = tracks.some((t) => t.kind === "video" && t.readyState !== "ended");
+      seedIngestTracksFromWhipReceiver(session);
+      session.live = !!session.rtpSeen?.video;
+      rebindWhepRelay(session);
     }
     if (pc.connectionState === "failed" || pc.connectionState === "closed") {
       closeWhipSession(streamKey);
-      for (const whepId of session.whepResourceIds) closeWhepSession(whepId);
     }
-  };
+  });
 
   try {
-    await pc.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp: offerSdp }));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    await waitIceGatheringComplete(pc, 8000);
+    await whipReceiver.setRemoteOffer(offerSdp);
+    seedIngestTracksFromWhipReceiver(session);
+    await waitWeriftIceGathering(pc, 8000);
 
     whipSessions.set(streamKey, session);
 
+    const answerSdp = normalizeOfferSdp(pc.localDescription?.sdp || "");
     const location = `${baseUrl}/whip/${streamKey}/${resourceId}`;
     res.set("Location", location);
+    res.set("ETag", `"${whipReceiver.etag}"`);
     res.set("Link", WHIP_ICE_LINK);
     res.set("Content-Type", "application/sdp");
-    res.set("Access-Control-Expose-Headers", "Location, Link");
-    console.log(`[WHIP] 201 answer key=${streamKey} resource=${resourceId}`);
-    return res.status(201).send(pc.localDescription.sdp);
+    res.set("Access-Control-Expose-Headers", "Location, ETag, Link");
+    console.log(`[WHIP] 201 answer key=${streamKey} resource=${resourceId} tracks=${tracks.length}`);
+    return res.status(201).send(answerSdp);
   } catch (err) {
     closeWhipSession(streamKey);
     console.error("[WHIP] ingest failed:", err);
@@ -361,6 +705,29 @@ app.post("/whip/:streamKey", async (req, res) => {
   return handleWhipIngest(req, res, streamKey);
 });
 
+app.patch("/whip/:streamKey/:resourceId", async (req, res) => {
+  const { streamKey, resourceId } = req.params;
+  const session = whipSessions.get(streamKey);
+  if (!session || session.resourceId !== resourceId) {
+    return res.status(404).type("text/plain").send("Not found");
+  }
+  const candidateSdp = String(req.body || "").trim();
+  if (!candidateSdp) {
+    return res.status(400).type("text/plain").send("Bad Request: ICE fragment required");
+  }
+  try {
+    await session.whipReceiver.iceRequest({
+      etag: String(req.get("If-Match") || "").replace(/^"|"$/g, ""),
+      candidate: candidateSdp,
+    });
+    seedIngestTracksFromWhipReceiver(session);
+    return res.status(204).end();
+  } catch (err) {
+    console.error("[WHIP] trickle ICE failed:", err);
+    return res.status(500).type("text/plain").send(`WHIP ICE error: ${err.message || err}`);
+  }
+});
+
 app.delete("/whip/:streamKey/:resourceId", (req, res) => {
   const { streamKey, resourceId } = req.params;
   const session = whipSessions.get(streamKey);
@@ -374,7 +741,7 @@ app.delete("/whip/:streamKey/:resourceId", (req, res) => {
 
 app.post("/whep/:streamKey", async (req, res) => {
   const { streamKey } = req.params;
-  const offerSdp = (req.body || "").trim();
+  const offerSdp = sanitizeWhipOfferSdp((req.body || "").trim());
 
   console.log(`[WHEP] playback request key=${streamKey}`);
 
@@ -392,7 +759,7 @@ app.post("/whep/:streamKey", async (req, res) => {
 
   let liveTracks;
   try {
-    liveTracks = (await waitForWhipTracks(whip, 12000)).filter((t) => t.readyState !== "ended");
+    liveTracks = await waitForWhipTracks(whip, 12000);
   } catch (_) {
     return res.status(404).type("text/plain").send("WHIP connected but no media tracks yet — retry in OBS");
   }
@@ -401,18 +768,25 @@ app.post("/whep/:streamKey", async (req, res) => {
     return res.status(404).type("text/plain").send("No video track on WHIP stream yet");
   }
 
-  const resourceId = randomBytes(12).toString("hex");
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-
-  for (const track of liveTracks) {
-    pc.addTrack(track);
+  try {
+    await waitForWhipVideoRtp(whip, 15000);
+  } catch (_) {
+    return res
+      .status(404)
+      .type("text/plain")
+      .send("WHIP connected but no video data from OBS yet — check OBS is streaming");
   }
 
+  const resourceId = randomBytes(12).toString("hex");
+  const pc = createWeriftPeerConnection(whip.peerConfig || buildWeriftPeerConfig(offerSdp));
+
   try {
-    await pc.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp: offerSdp }));
+    await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+    attachWhipTracksToWhepPc(pc, whip);
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    await waitIceGatheringComplete(pc);
+    await waitWeriftIceGathering(pc, 8000);
+    attachWhipTracksToWhepPc(pc, whip);
 
     whepSessions.set(resourceId, { streamKey, resourceId, pc });
     whip.whepResourceIds.add(resourceId);
@@ -421,8 +795,12 @@ app.post("/whep/:streamKey", async (req, res) => {
     res.set("Location", location);
     res.set("Content-Type", "application/sdp");
     res.set("Access-Control-Expose-Headers", "Location");
-    console.log(`[WHEP] answer sent key=${streamKey} tracks=${liveTracks.length}`);
-    return res.status(201).send(pc.localDescription.sdp);
+    const relayCount = pc.getSenders().filter((s) => s.track).length;
+    console.log(
+      `[WHEP] answer sent key=${streamKey} active=${liveTracks.length} relay=${relayCount} sessionTracks=${whip.tracks.length}`
+    );
+    const answerSdp = normalizeOfferSdp(pc.localDescription?.sdp || answer.sdp || "");
+    return res.status(201).send(answerSdp);
   } catch (err) {
     closeWhepSession(resourceId);
     console.error("[WHEP] playback failed:", err);
@@ -448,7 +826,7 @@ app.get("/", (_req, res) => {
 app.use(express.static(WEB_ROOT, { index: false, maxAge: 0 }));
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`WHIP/WHEP server v2 (static app + CORS) on ${PUBLIC_BASE_URL}`);
+  console.log(`WHIP/WHEP server v13 (stable onTrack ingest) on ${PUBLIC_BASE_URL}`);
   console.log(`  App (local):  ${PUBLIC_BASE_URL}/  or  http://127.0.0.1:${PORT}/`);
   console.log(`  Live Server:  http://127.0.0.1:5500/ also works (API on :${PORT})`);
   console.log(`  WHIP ingest:  POST ${PUBLIC_BASE_URL}/whip/:stream_key`);

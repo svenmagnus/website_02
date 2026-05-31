@@ -14,8 +14,9 @@
     "restart": "npm run prestart && npm start"
   },
   "dependencies": {
-    "@roamhq/wrtc": "^0.8.0",
+    "@werift/whip-server": "^0.0.2",
     "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "werift": "^0.23.0"
   }
 }

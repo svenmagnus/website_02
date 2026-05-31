@@ -145,7 +145,7 @@ function hasActiveVideoFeed(video) {
   const wrap = video.closest(".video-wrap");
   if (wrap?.getAttribute("data-has-feed") === "true") return true;
   const stream = video.srcObject;
-  if (stream && stream.getVideoTracks?.().some((t) => t.readyState === "live" && t.enabled)) {
+  if (stream && stream.getVideoTracks?.().some((t) => t.readyState === "live" && t.enabled && !t.muted)) {
     return true;
   }
   return video.readyState >= 2 && video.videoWidth > 0;
@@ -663,7 +663,7 @@ function isVideoFeedActive(videoEl) {
   const stream = videoEl.srcObject;
   if (!(stream instanceof MediaStream)) return false;
 
-  return stream.getVideoTracks().some((t) => t.readyState !== "ended" && t.enabled);
+  return stream.getVideoTracks().some((t) => t.readyState !== "ended" && t.enabled && !t.muted);
 }
 
 function setVideoWrapFeedState(videoEl, active) {
@@ -1206,13 +1206,18 @@ function waitForWhipLive(streamKey, timeoutMs = 180000) {
         const resp = await fetch(`${WHIP_API_BASE}/api/broadcast/${encodeURIComponent(streamKey)}/status`);
         const data = await resp.json();
         const state = data.connectionState || "waiting";
-        if (data.live && data.videoTracks > 0) {
+        if (data.videoRtp) {
           clearInterval(whipPollTimer);
-          updateWhipBroadcastUi("OBS connected — loading stream into Host panel…", "ok");
+          updateWhipBroadcastUi("OBS video active — loading stream into Host panel…", "ok");
           resolve(data);
           return;
         }
-        if (data.whipIngest) {
+        if (data.tracksReady && data.whipIngest) {
+          updateWhipBroadcastUi(
+            `OBS connected (${state}, ${data.trackCount} tracks) — waiting for video data…`,
+            "ok"
+          );
+        } else if (data.whipIngest) {
           updateWhipBroadcastUi(
             `OBS reached server (${state}, ${data.trackCount} tracks). Waiting for video…`,
             "ok"
@@ -1330,6 +1335,36 @@ async function subscribeWhepStreamOnce(whepUrl) {
   return stream;
 }
 
+async function waitForWhepVideoFrames(stream, videoEl, timeoutMs = 20000) {
+  const vt = stream.getVideoTracks()[0];
+  if (!vt) throw new Error("No video track from OBS WHIP.");
+
+  if (videoEl?.videoWidth > 0) return;
+  if (!vt.muted) return;
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("OBS video is black — no frames received. Reconnect OBS with a fresh Bearer Token.")),
+      timeoutMs
+    );
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    if (videoEl) {
+      videoEl.addEventListener("loadeddata", done, { once: true });
+      videoEl.addEventListener(
+        "resize",
+        () => {
+          if (videoEl.videoWidth > 0) done();
+        },
+        { once: true }
+      );
+    }
+    vt.onunmute = done;
+  });
+}
+
 async function startWhipSessionMedia() {
   if (!whipBroadcast?.streamKey) {
     await registerWhipBroadcast("");
@@ -1351,6 +1386,9 @@ async function startWhipSessionMedia() {
   localStream = await subscribeWhepStream(whipBroadcast.whepUrl);
   window.localStream = localStream;
   attachLocalVideoStream(localStream);
+  updateWhipBroadcastUi("WHEP connected — waiting for OBS video frames…", "ok");
+  await waitForWhepVideoFrames(localStream, els.localVideo);
+  if (mediaConn) replaceTracksInPeerConnection(localStream);
   refreshVideoOverlays();
   syncLocalMediaUi();
   setObsVideoWrapFlag(false);
