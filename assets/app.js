@@ -38,14 +38,20 @@ const PEER_OPTIONS = {
   config: PEER_CONNECTION_CONFIG,
 };
 
-/** WHIP/WHEP server — set window.DUALPEER_WHIP_URL in index.html for production */
+// Hier wird deine aktuelle Cloudflare-Tunnel-URL fest hinterlegt:
+window.DUALPEER_WHIP_URL = "https://stored-determining-neutral-agreement.trycloudflare.com";
+
+/** WHIP/WHEP server – set window.DUALPEER_WHIP_URL in index.html for production */
 function resolveWhipApiBase() {
-  if (window.DUALPEER_WHIP_URL) return String(window.DUALPEER_WHIP_URL).replace(/\/$/, "");
-  if (location.port === "8787") return location.origin;
-  if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-    return `${location.protocol}//${location.hostname}:8787`;
-  }
-  return "http://127.0.0.1:8787";
+    if (window.DUALPEER_WHIP_URL) return String(window.DUALPEER_WHIP_URL).replace(/\/$/, "");
+    if (location.port === "8787") return location.origin;
+    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+        return `${location.protocol}//${location.hostname}:8787`;
+    }
+    if ((/(^|\.)tangent-club\.com$/i).test(location.hostname)) {
+        return "https://whip.tangent-club.com";
+    }
+    return "http://127.0.0.1:8787";
 }
 
 const WHIP_API_BASE = resolveWhipApiBase();

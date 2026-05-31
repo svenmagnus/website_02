@@ -119,12 +119,12 @@ function whipReceiverReady(session) {
 }
 
 function waitForWhipTracks(session, timeoutMs = 10000) {
-  seedIngestTracksFromWhipReceiver(session);
+  harvestIngestTracks(session);
   if (whipReceiverReady(session)) return Promise.resolve(getIngestRelayTracks(session));
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
     const tick = () => {
-      seedIngestTracksFromWhipReceiver(session);
+      harvestIngestTracks(session);
       if (whipReceiverReady(session)) return resolve(getIngestRelayTracks(session));
       if (Date.now() >= deadline) {
         return reject(new Error("WHIP tracks not received in time"));
@@ -161,12 +161,12 @@ function bindWhipRtpHandlers(session) {
 }
 
 function waitForWhipVideoRtp(session, timeoutMs = 15000) {
-  bindWhipRtpHandlers(session);
+  bindAllTransceiverRtp(session);
   if (session.rtpSeen?.video) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
     const tick = () => {
-      bindWhipRtpHandlers(session);
+      bindAllTransceiverRtp(session);
       if (session.rtpSeen?.video) return resolve();
       if (Date.now() >= deadline) {
         return reject(new Error("WHIP video RTP not received in time"));
@@ -199,20 +199,121 @@ function syncWhipTracksFromPc(session) {
   }
 }
 
-function seedIngestTracksFromWhipReceiver(session) {
+function adoptIngestTrack(session, track, source, { log = false } = {}) {
+  if (!track) return false;
+  session.ingestTracks = session.ingestTracks || { audio: null, video: null };
+  const prev = session.ingestTracks[track.kind];
+  const prevId = trackId(prev);
+  const nextId = trackId(track);
+  if (prev && prevId === nextId) return false;
+  if (prev) return false;
+
+  session.ingestTracks[track.kind] = track;
+  registerWhipTrack(session, track);
+  noteWhipRtp(session, track);
+  if (log) {
+    console.log(`[WHIP] ${source} ${track.kind} id=${nextId ?? "?"} key=${session.streamKey}`);
+  }
+  return true;
+}
+
+function bindAllTransceiverRtp(session) {
+  for (const tx of session.pc?.getTransceivers() || []) {
+    const track = tx.receiver?.track;
+    if (track) noteWhipRtp(session, track);
+  }
+}
+
+function bindWhipTransceiverHandlers(session) {
+  if (session._txHandlersBound) return;
+  session._txHandlersBound = true;
+
+  const bindTx = (tx) => {
+    tx.onTrack.subscribe((track) => {
+      if (adoptIngestTrack(session, track, "onTrack", { log: true })) {
+        rebindWhepRelay(session);
+      } else {
+        noteWhipRtp(session, track);
+      }
+    });
+    const existing = tx.receiver?.track;
+    if (existing) {
+      adoptIngestTrack(session, existing, "transceiver", { log: true });
+      noteWhipRtp(session, existing);
+    }
+  };
+
+  session.pc.onTransceiverAdded.subscribe((tx) => bindTx(tx));
+  for (const tx of session.pc.getTransceivers()) bindTx(tx);
+}
+
+function getLiveWhipRelayTracks(session) {
+  const byKind = getIngestTransceiverTracks(session, { strictDirection: false });
+  const out = new Map();
+  for (const kind of ["audio", "video"]) {
+    const live = byKind.get(kind);
+    if (live) out.set(kind, live);
+    else if (session.ingestTracks?.[kind]) out.set(kind, session.ingestTracks[kind]);
+  }
+  return out;
+}
+
+function logWhipTransceivers(session) {
+  const txs = session.pc?.getTransceivers() || [];
+  const parts = txs.map((tx, i) => {
+    const direction = tx.currentDirection || tx.direction || "?";
+    return `${i}:${tx.kind}/${direction}/${trackId(tx.receiver?.track) ?? "none"}`;
+  });
+  console.log(
+    `[WHIP] transceivers=${txs.length}${parts.length ? ` [${parts.join(", ")}]` : ""} key=${session.streamKey}`
+  );
+}
+
+/** Fill ingestTracks from WhipReceiver + PC transceivers (first track per kind only). */
+function harvestIngestTracks(session, { log = false } = {}) {
   session.ingestTracks = session.ingestTracks || { audio: null, video: null };
   const { whipReceiver } = session;
-  if (whipReceiver?.audio && !session.ingestTracks.audio) {
-    session.ingestTracks.audio = whipReceiver.audio;
-    registerWhipTrack(session, whipReceiver.audio);
-    noteWhipRtp(session, whipReceiver.audio);
+  if (whipReceiver?.audio) {
+    adoptIngestTrack(session, whipReceiver.audio, "whipReceiver", { log });
   }
   const videos = whipReceiver?.video;
-  if (videos?.length && !session.ingestTracks.video) {
-    session.ingestTracks.video = videos[videos.length - 1];
-    registerWhipTrack(session, session.ingestTracks.video);
-    noteWhipRtp(session, session.ingestTracks.video);
+  if (videos?.length) {
+    adoptIngestTrack(session, videos[videos.length - 1], "whipReceiver", { log });
   }
+
+  let byKind = getIngestTransceiverTracks(session, { strictDirection: false });
+  if (!byKind.has("audio") || !byKind.has("video")) {
+    byKind = getIngestTransceiverTracks(session, { strictDirection: true });
+  }
+  for (const kind of ["audio", "video"]) {
+    adoptIngestTrack(session, byKind.get(kind), "transceiver", { log });
+  }
+  bindAllTransceiverRtp(session);
+  return whipTransceiversReady(session);
+}
+
+function startIngestTrackPoll(session) {
+  if (session._ingestPoll) return;
+  let attempts = 0;
+  session._ingestPoll = setInterval(() => {
+    if (whipSessions.get(session.streamKey) !== session) {
+      clearInterval(session._ingestPoll);
+      session._ingestPoll = null;
+      return;
+    }
+    harvestIngestTracks(session, { log: false });
+    bindAllTransceiverRtp(session);
+    if (session.rtpSeen?.video) {
+      clearInterval(session._ingestPoll);
+      session._ingestPoll = null;
+      rebindWhepRelay(session);
+    } else if (++attempts >= 80) {
+      clearInterval(session._ingestPoll);
+      session._ingestPoll = null;
+      logWhipTransceivers(session);
+      console.warn(`[WHIP] no video RTP after 20s key=${session.streamKey}`);
+    }
+  }, 250);
 }
 
 function bindWhipTrackHandler(session) {
@@ -226,17 +327,11 @@ function bindWhipTrackHandler(session) {
 
   session.whipReceiver.onTrack.subscribe((track) => {
     if (!track) return;
-    const prev = session.ingestTracks[track.kind];
-    const prevId = trackId(prev);
-    const nextId = trackId(track);
-    if (prev && prevId === nextId) return;
-    if (prev && session.rtpSeen?.[track.kind]) return;
-
-    session.ingestTracks[track.kind] = track;
-    registerWhipTrack(session, track);
-    noteWhipRtp(session, track);
-    console.log(`[WHIP] onTrack ${track.kind} id=${nextId ?? "?"} key=${session.streamKey}`);
-    scheduleRebind();
+    if (adoptIngestTrack(session, track, "onTrack", { log: true })) {
+      scheduleRebind();
+    } else {
+      noteWhipRtp(session, track);
+    }
   });
 }
 
@@ -322,8 +417,7 @@ function sanitizeWhipOfferSdp(rawSdp) {
 
   for (const line of lines) {
     if (line === "a=extmap-allow-mixed") continue;
-    if (line.startsWith("a=ssrc:")) continue;
-    if (line.startsWith("a=ssrc-group:")) continue;
+    // Keep a=ssrc / a=ssrc-group — OBS WHIP needs them for RTP demux in werift.
     if (/^a=rtcp:\d+ IN IP4 0\.0\.0\.0$/.test(line)) continue;
     if (line.startsWith("a=mid:")) mids.add(line.slice("a=mid:".length));
     cleaned.push(line);
@@ -429,10 +523,7 @@ function createWeriftPeerConnection(peerConfig) {
 
 /** Attach WHIP ingest tracks to a WHEP playback peer (browser recvonly offer already applied). */
 function attachWhipTracksToWhepPc(whepPc, whipSession) {
-  const byKind = new Map();
-  for (const track of getIngestRelayTracks(whipSession)) {
-    byKind.set(track.kind, track);
-  }
+  const byKind = getLiveWhipRelayTracks(whipSession);
 
   for (const kind of ["audio", "video"]) {
     const track = byKind.get(kind);
@@ -649,13 +740,17 @@ async function handleWhipIngest(req, res, streamKey) {
   };
 
   bindWhipTrackHandler(session);
+  bindWhipTransceiverHandlers(session);
 
   pc.connectionStateChange.subscribe(() => {
     if (whipSessions.get(streamKey) !== session) return;
     session.updatedAt = Date.now();
     console.log(`[WHIP] connectionState=${pc.connectionState} key=${streamKey} tracks=${tracks.length}`);
     if (pc.connectionState === "connected") {
-      seedIngestTracksFromWhipReceiver(session);
+      harvestIngestTracks(session, { log: false });
+      bindAllTransceiverRtp(session);
+      logWhipTransceivers(session);
+      startIngestTrackPoll(session);
       session.live = !!session.rtpSeen?.video;
       rebindWhepRelay(session);
     }
@@ -666,7 +761,7 @@ async function handleWhipIngest(req, res, streamKey) {
 
   try {
     await whipReceiver.setRemoteOffer(offerSdp);
-    seedIngestTracksFromWhipReceiver(session);
+    harvestIngestTracks(session, { log: true });
     await waitWeriftIceGathering(pc, 8000);
 
     whipSessions.set(streamKey, session);
@@ -720,7 +815,7 @@ app.patch("/whip/:streamKey/:resourceId", async (req, res) => {
       etag: String(req.get("If-Match") || "").replace(/^"|"$/g, ""),
       candidate: candidateSdp,
     });
-    seedIngestTracksFromWhipReceiver(session);
+    harvestIngestTracks(session);
     return res.status(204).end();
   } catch (err) {
     console.error("[WHIP] trickle ICE failed:", err);
@@ -826,7 +921,7 @@ app.get("/", (_req, res) => {
 app.use(express.static(WEB_ROOT, { index: false, maxAge: 0 }));
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`WHIP/WHEP server v13 (stable onTrack ingest) on ${PUBLIC_BASE_URL}`);
+  console.log(`WHIP/WHEP server v16 (keep SSRC + live relay) on ${PUBLIC_BASE_URL}`);
   console.log(`  App (local):  ${PUBLIC_BASE_URL}/  or  http://127.0.0.1:${PORT}/`);
   console.log(`  Live Server:  http://127.0.0.1:5500/ also works (API on :${PORT})`);
   console.log(`  WHIP ingest:  POST ${PUBLIC_BASE_URL}/whip/:stream_key`);
