@@ -554,10 +554,10 @@ authRouter.post("/auth/register", async (req, res) => {
     user: token ? rowToProfile(verifiedUser) : undefined,
     devVerifyUrl: devVerifyUrl || undefined,
     message: verifiedUser.email_verified_at
-      ? "Konto erstellt — richte jetzt dein Profil ein."
+      ? "Account created — set up your profile next."
       : emailSent
-        ? "Konto erstellt. Bitte bestätige deine E-Mail (auch Spam-Ordner prüfen)."
-        : "Konto erstellt. E-Mail-Versand nicht aktiv — Bestätigungslink siehe unten oder Server-Konsole.",
+        ? "Account created. Please confirm your email (check spam folder too)."
+        : "Account created. Email delivery not active — see confirmation link below or server console.",
   });
 });
 

@@ -48,17 +48,17 @@
     if (isTangentClubSite()) {
       if (!base) {
         return (
-          "API-Server nicht konfiguriert: In assets/app.js WHIP_CLOUDFLARE_TUNNEL_URL setzen, " +
-          "zu GitHub pushen, dann Seite neu laden."
+          "API server not configured: set WHIP_CLOUDFLARE_TUNNEL_URL in assets/app.js, " +
+          "push to GitHub, then reload the page."
         );
       }
       return (
-        `API nicht erreichbar unter ${base}. Auf dem Mac: cd server && npm run restart ` +
-        "und in einem zweiten Terminal npm run tunnel — neue Tunnel-URL in assets/app.js eintragen und pushen."
+        `API unreachable at ${base}. On your Mac: cd server && npm run restart ` +
+        "and in a second terminal npm run tunnel — update the tunnel URL in assets/app.js and push."
       );
     }
-    if (!base) return "API-Server nicht konfiguriert.";
-    return `API nicht erreichbar (${base}). Läuft der Server? cd server && npm run restart`;
+    if (!base) return "API server not configured.";
+    return `API unreachable (${base}). Is the server running? cd server && npm run restart`;
   }
 
   function getSession() {
@@ -993,11 +993,11 @@
       const base = health.base || resolveApiBase();
       if (health.ok) {
         apiBanner.className = "status-line ok";
-        apiBanner.textContent = `Server verbunden (${base}).`;
+        apiBanner.textContent = `Server connected (${base}).`;
         return;
       }
       apiBanner.className = "status-line err";
-      apiBanner.textContent = `${apiUnreachableMessage(base)} — Aktuelle API: ${base || "keine"}`;
+      apiBanner.textContent = `${apiUnreachableMessage(base)} — API: ${base || "none"}`;
     });
 
     const params = new URLSearchParams(location.search);
@@ -1015,7 +1015,7 @@
       validateInviteToken(token)
         .then((data) => {
           if (inviteInfo) {
-            inviteInfo.textContent = `Eingeladen von ${data.hostName} — bitte mit dieser E-Mail registrieren.`;
+            inviteInfo.textContent = `Invited by ${data.hostName} — please register with this email address.`;
             inviteInfo.className = "status-line ok";
           }
           if (emailEl instanceof HTMLInputElement) {
@@ -1023,21 +1023,21 @@
             emailEl.readOnly = true;
           }
           if (emailHint) {
-            emailHint.textContent = "E-Mail ist durch die Einladung festgelegt.";
+            emailHint.textContent = "Email is predetermined by the invitation.";
           }
         })
         .catch(() => {
           if (inviteInfo) {
-            inviteInfo.textContent = "Einladungslink ungültig oder abgelaufen.";
+            inviteInfo.textContent = "Invitation link invalid or expired.";
             inviteInfo.className = "status-line err";
           }
         });
     } else if (inviteInfo) {
       inviteInfo.textContent =
-        "Mit Einladungslink in der E-Mail oder mit 4-stelligem Code aus der Einladung registrieren.";
+        "Register using the invitation link in your email or with the 4-digit code from the invitation.";
       inviteInfo.className = "status-line";
       if (emailHint) {
-        emailHint.textContent = "Bei Code-Einladung: dieselbe E-Mail wie in der Einladung.";
+        emailHint.textContent = "For code invites: use the same email as on the invitation.";
       }
     }
 
@@ -1056,7 +1056,7 @@
         if (successPanel) successPanel.hidden = false;
         const successMsg = document.getElementById("registerSuccessMessage");
         if (successMsg) {
-          successMsg.textContent = result.message || "Konto erstellt.";
+          successMsg.textContent = result.message || "Account created.";
         }
         const username = document.getElementById("registerUsername")?.value;
         const password = document.getElementById("registerPassword")?.value;
@@ -1067,21 +1067,21 @@
           return;
         } else if (result.needsEmailVerification) {
           const devEl = document.getElementById("registerDevVerify");
-          const emailHint = document.getElementById("registerEmailHint");
-          if (emailHint) {
-            emailHint.hidden = false;
-            emailHint.className = "status-line";
-            emailHint.textContent = result.emailSent
-              ? "Keine Mail? Spam-Ordner prüfen — oder unten den Bestätigungslink nutzen."
-              : "E-Mail-Versand ist nicht aktiv — bitte den Bestätigungslink unten öffnen.";
+          const successEmailHint = document.getElementById("registerSuccessEmailHint");
+          if (successEmailHint) {
+            successEmailHint.hidden = false;
+            successEmailHint.className = "status-line";
+            successEmailHint.textContent = result.emailSent
+              ? "No email? Check spam — or use the confirmation link below."
+              : "Email delivery is not active — open the confirmation link below.";
           }
           if (devEl && result.devVerifyUrl) {
             devEl.hidden = false;
             devEl.className = "status-line ok";
-            devEl.innerHTML = `Bestätigung: <a href="${result.devVerifyUrl}">E-Mail jetzt bestätigen</a> — danach <a href="index.html">anmelden</a>`;
+            devEl.innerHTML = `Confirm: <a href="${result.devVerifyUrl}">Verify email now</a> — then <a href="index.html">log in</a>`;
           }
           if (successMsg && !result.devVerifyUrl) {
-            successMsg.textContent += " Danach auf der Startseite anmelden.";
+            successMsg.textContent += " Then log in on the home page.";
           }
         } else if (username && password) {
           try {
@@ -1097,15 +1097,15 @@
         if (errEl) {
           errEl.hidden = false;
           const map = {
-            username_taken: "Benutzername bereits vergeben.",
-            email_taken: "E-Mail bereits registriert.",
-            email_mismatch: "E-Mail passt nicht zur Einladung.",
-            invalid_invite: "Einladung ungültig oder abgelaufen.",
-            invite_required: "Einladung erforderlich: Link aus der E-Mail oder 4-stelliger Code.",
-            invalid_invite_code: "Einladungscode muss 4 Ziffern haben.",
-            invalid_username: "Benutzername: 3–24 Zeichen (Buchstaben, Zahlen, _).",
-            invalid_password: "Passwort mindestens 8 Zeichen.",
-            invalid_email: "Bitte eine gültige E-Mail-Adresse eingeben.",
+            username_taken: "Username already taken.",
+            email_taken: "Email already registered.",
+            email_mismatch: "Email does not match the invitation.",
+            invalid_invite: "Invitation invalid or expired.",
+            invite_required: "Invitation required: use the link from the email or a 4-digit code.",
+            invalid_invite_code: "Invitation code must be 4 digits.",
+            invalid_username: "Username: 3–24 characters (letters, numbers, _).",
+            invalid_password: "Password must be at least 8 characters.",
+            invalid_email: "Please enter a valid email address.",
           };
           const extra = {
             network_error: apiUnreachableMessage(resolveApiBase()),

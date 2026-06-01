@@ -176,7 +176,7 @@ function createTransport(config) {
 
 function emailLayout({ title, bodyHtml, footerNote }) {
   return `<!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
 <body style="margin:0;padding:0;background:#0f0f12;font-family:'Segoe UI',system-ui,sans-serif;color:#e8e8ec;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:24px auto;background:#1a1a22;border-radius:12px;border:1px solid #2a2a36;">
@@ -226,25 +226,25 @@ export async function sendMail({ to, subject, text, html, userRow, logContext = 
  * @param {{ to: string, inviteUrl: string, hostName: string, inviteCode: string, userRow?: Record<string, unknown>|null }} opts
  */
 export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, userRow }) {
-  const subject = `${hostName} lädt dich zu ${SITE_NAME} ein`;
+  const subject = `${hostName} invites you to ${SITE_NAME}`;
   const text =
-    `Hallo,\n\n` +
-    `${hostName} hat dich zu einer privaten Dual-Peer-Session auf ${SITE_NAME} eingeladen.\n\n` +
-    `Registrierung (einmaliger Link, 7 Tage gültig):\n${inviteUrl}\n\n` +
-    `Falls der Link nicht öffnet — 4-stelliger Einladungscode: ${inviteCode}\n` +
-    `(auf der Registrierungsseite eingeben, zusammen mit deiner E-Mail-Adresse)\n\n` +
-    `Mit freundlichen Grüßen\n${hostName}`;
+    `Hello,\n\n` +
+    `${hostName} invites you to a private session on ${SITE_NAME}.\n\n` +
+    `Registration (one-time link, valid for 7 days):\n${inviteUrl}\n\n` +
+    `If the link does not open — invitation code (4 digits): ${inviteCode}\n` +
+    `(enter on the registration page together with your email address)\n\n` +
+    `Best regards,\n${hostName}`;
 
   const html = emailLayout({
-    title: "Du bist eingeladen",
+    title: "You are invited",
     bodyHtml:
       `<p style="line-height:1.55;color:#c8c8d0;">` +
-      `<strong style="color:#fff;">${escapeHtml(hostName)}</strong> lädt dich zu einer privaten Session auf ${escapeHtml(SITE_NAME)} ein.</p>` +
-      `<p style="margin:20px 0;"><a href="${escapeHtml(inviteUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Konto erstellen</a></p>` +
-      `<p style="font-size:14px;color:#a0a0b0;line-height:1.5;">Oder Link kopieren:<br><span style="word-break:break-all;color:#e8e8ec;">${escapeHtml(inviteUrl)}</span></p>` +
+      `<strong style="color:#fff;">${escapeHtml(hostName)}</strong> invites you to a private session on ${escapeHtml(SITE_NAME)}.</p>` +
+      `<p style="margin:20px 0;"><a href="${escapeHtml(inviteUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Create Account</a></p>` +
+      `<p style="font-size:14px;color:#a0a0b0;line-height:1.5;">Or copy link:<br><span style="word-break:break-all;color:#e8e8ec;">${escapeHtml(inviteUrl)}</span></p>` +
       `<p style="margin-top:20px;padding:14px;background:#12121a;border-radius:8px;font-size:14px;color:#e8e8ec;">` +
-      `<strong>Einladungscode</strong> (4 Ziffern, 7 Tage): <code style="font-size:18px;letter-spacing:0.15em;color:#f97316;">${escapeHtml(inviteCode)}</code></p>`,
-    footerNote: "Dieser Link und Code sind nur für dich bestimmt und verfallen nach 7 Tagen.",
+      `<strong>Invitation Code</strong> (4 digits, 7 days): <code style="font-size:18px;letter-spacing:0.15em;color:#f97316;">${escapeHtml(inviteCode)}</code></p>`,
+    footerNote: "This link and code are intended only for you and will expire in 7 days.",
   });
 
   const result = await sendMail({
