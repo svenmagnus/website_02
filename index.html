@@ -96,8 +96,14 @@
               <div class="account-dropdown-meta">
                 <span class="account-name" data-profile-name>Guest</span>
                 <span class="account-role">Member</span>
+                <span class="account-profile-mini" data-profile-gender>—</span>
+                <span class="account-profile-mini" data-profile-technique-summary>No techniques selected</span>
               </div>
             </div>
+            <button type="button" class="account-dropdown-item" id="btnOpenProfileTab" role="menuitem">
+              <i class="bi bi-person-badge" aria-hidden="true"></i>
+              <span>My profile</span>
+            </button>
             <a href="settings.html" class="account-dropdown-item" role="menuitem">
               <i class="bi bi-gear" aria-hidden="true"></i>
               <span>Settings &amp; Privacy</span>
@@ -112,9 +118,9 @@
                 <span class="account-switch-track" aria-hidden="true"></span>
               </span>
             </label>
-            <button type="button" class="account-dropdown-item" disabled role="menuitem">
-              <i class="bi bi-chat-square-text" aria-hidden="true"></i>
-              <span>Send Feedback</span>
+            <button type="button" class="account-dropdown-item" disabled role="menuitem" title="Phase 2 — email invitations">
+              <i class="bi bi-envelope" aria-hidden="true"></i>
+              <span>Invite by email (Phase 2)</span>
             </button>
             <div class="account-dropdown-divider" role="separator"></div>
             <button type="button" class="account-dropdown-item account-dropdown-danger" id="accountLogoutBtn" role="menuitem">
@@ -242,8 +248,34 @@
 
       <section class="controls" id="controlsPanel">
         <div class="cb-under-video">
-        <div class="card connection-card">
-          <h2>Connection</h2>
+        <div class="card connection-card panel-tabs-card">
+          <div class="panel-tabs" role="tablist" aria-label="Session panels">
+            <button type="button" class="panel-tab" role="tab" data-panel-tab="stream" aria-selected="false">
+              Stream
+            </button>
+            <button type="button" class="panel-tab is-active" role="tab" data-panel-tab="setup" aria-selected="true">
+              Setup
+            </button>
+            <button type="button" class="panel-tab" role="tab" data-panel-tab="profile" aria-selected="false">
+              Profile
+            </button>
+          </div>
+
+          <div class="panel-tab-panel" data-panel-tab-panel="stream" hidden>
+            <h2 class="panel-tab-title">Live session</h2>
+            <p class="status-line stream-tab-hint">Connection details are in the Setup tab while you stream.</p>
+            <div class="row stream-tab-actions">
+              <button type="button" id="btnHangupStream">Disconnect</button>
+              <button type="button" class="secondary" id="btnOpenSetupTab">Open Setup</button>
+            </div>
+            <p class="status-line" id="streamStatusHost">Host: not started yet.</p>
+            <p class="status-line" id="streamStatusGuest">Guest: not connected yet.</p>
+            <p class="status-line" id="streamStatusData">Data channel: disconnected.</p>
+            <p class="status-line" data-partner-technique-summary>Partner: not connected</p>
+          </div>
+
+          <div class="panel-tab-panel" data-panel-tab-panel="setup">
+          <h2 class="panel-tab-title">Connection &amp; broadcast</h2>
           <div class="row">
             <button type="button" class="primary" id="btnStartHost" disabled>
               Start as Host
@@ -336,10 +368,56 @@
           <p class="lovense-hint" id="lovenseToyStatus"></p>
           <p class="lovense-hint lovense-url-hint" id="lovenseUrlHint"></p>
           <p class="status-line pip-native-msg" id="pipNativeMsg" role="status"></p>
+          </div>
+
+          <div class="panel-tab-panel" data-panel-tab-panel="profile" hidden>
+            <h2 class="panel-tab-title">My profile</h2>
+            <p class="status-line profile-tab-hint">
+              Saved on this device (Phase 1). Phase 2 adds accounts and email invites.
+            </p>
+            <form id="profileForm" class="profile-form">
+              <div class="row">
+                <label for="profileDisplayName">Display name</label>
+                <input type="text" id="profileDisplayName" maxlength="32" placeholder="Your name …" autocomplete="nickname" />
+              </div>
+              <div class="row">
+                <label for="profileGender">Gender</label>
+                <select id="profileGender">
+                  <option value="">Prefer not to say</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="nonbinary">Non-binary</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="row">
+                <label for="profileBio">About you</label>
+                <textarea id="profileBio" rows="3" maxlength="500" placeholder="Short text about you …"></textarea>
+              </div>
+              <fieldset class="profile-techniques-field">
+                <legend>Techniques you are open to</legend>
+                <p class="status-line" style="margin: 0 0 0.5rem">
+                  Your partner can request these during the stream (shown in chat).
+                </p>
+                <div id="profileTechniqueList" class="profile-technique-list"></div>
+              </fieldset>
+              <div class="row">
+                <button type="submit" class="primary">Save profile</button>
+              </div>
+              <p class="status-line" id="profileSaveStatus" hidden></p>
+            </form>
+          </div>
         </div>
 
         <div class="card remote-card">
-          <h2>Remote Control</h2>
+          <h2>Technique requests</h2>
+          <p class="status-line" style="margin: 0 0 0.5rem">
+            Choose a technique your partner listed on their profile — it appears in Live Chat.
+          </p>
+          <div id="techniqueRequestList" class="technique-request-list" aria-live="polite">
+            <p class="technique-empty-note">Connect to a partner to see their technique list.</p>
+          </div>
+          <h2 class="remote-toys-heading">Remote Control (toys)</h2>
           <p class="status-line" style="margin: 0 0 0.5rem">
             Controls your partner&apos;s toys (host and guest share lists). Low/Medium/High use mapped tip tokens; 0 = stop.
           </p>
@@ -392,7 +470,8 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/ui-shell.js?v=8402"></script>
-    <script src="assets/app.js?v=8402"></script>
+    <script src="assets/ui-shell.js?v=8403"></script>
+    <script src="assets/member-profile.js?v=8403"></script>
+    <script src="assets/app.js?v=8403"></script>
   </body>
 </html>

@@ -1263,6 +1263,153 @@ video {
   font-weight: 600;
 }
 
+.panel-tabs-card {
+  padding-top: 0.75rem;
+}
+
+.panel-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.panel-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.panel-tab:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.panel-tab.is-active {
+  color: var(--text);
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+
+.panel-tab-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.92rem;
+}
+
+.panel-tab-panel[hidden] {
+  display: none !important;
+}
+
+.stream-tab-hint,
+.profile-tab-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 0.65rem;
+}
+
+.stream-tab-actions {
+  margin-bottom: 0.75rem;
+}
+
+.account-profile-mini {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.profile-form textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  font: inherit;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.profile-techniques-field {
+  border: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.profile-techniques-field legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.profile-technique-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.technique-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.technique-request-list {
+  margin-bottom: 0.85rem;
+}
+
+.technique-request-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.technique-request-btn {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.technique-request-btn:hover {
+  background: color-mix(in srgb, var(--accent) 28%, var(--surface));
+}
+
+.technique-empty-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.remote-toys-heading {
+  margin-top: 0.25rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.chat-message--technique {
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.chat-message--technique .chat-text {
+  font-weight: 600;
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;

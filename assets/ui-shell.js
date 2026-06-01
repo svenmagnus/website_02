@@ -204,5 +204,7 @@
     initSettingsPage,
     setProfileName,
     getProfileName,
+    closeAccountMenu,
+    openAccountMenu,
   };
 })(window);

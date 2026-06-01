@@ -1645,6 +1645,7 @@ function updateDataConnStatus() {
 function updateConnectionUi() {
   updatePeerConnectionStatus();
   updateDataConnStatus();
+  syncStreamTabStatus();
 }
 
 function setPeerStatus(msg, cls) {
@@ -2511,13 +2512,15 @@ function formatChatTime(ts) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function appendChatMessage(sender, text, isLocal, ts) {
+function appendChatMessage(sender, text, isLocal, ts, { variant } = {}) {
   if (!els.chatMessages) {
     setDataActivityStatus("Chat container not found (#chat-messages).", "err");
     return;
   }
   const msg = document.createElement("div");
-  msg.className = "chat-message" + (isLocal ? " local" : " remote");
+  let className = "chat-message" + (isLocal ? " local" : " remote");
+  if (variant === "technique") className += " chat-message--technique";
+  msg.className = className;
   const safeText = String(text || "").trim();
 
   const meta = document.createElement("span");
@@ -2532,6 +2535,38 @@ function appendChatMessage(sender, text, isLocal, ts) {
   msg.appendChild(textNode);
   els.chatMessages.appendChild(msg);
   els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+}
+
+function appendChatTechniqueMessage(sender, label, isLocal, ts) {
+  const text = isLocal ? `You request: ${label}` : `${sender} requests: ${label}`;
+  appendChatMessage(isLocal ? "You" : sender, text, isLocal, ts, { variant: "technique" });
+}
+
+function getChatDisplayName() {
+  if (global.MemberProfile?.getChatSenderName) return MemberProfile.getChatSenderName();
+  return sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You";
+}
+
+function shareMemberProfileOverDataChannel() {
+  if (!global.MemberProfile?.shareProfileOverDataChannel) return;
+  MemberProfile.shareProfileOverDataChannel((payload) => sendDataChannelMessage(payload));
+}
+
+function isLiveSessionActive() {
+  return !!(sessionRole && (dataConn?.open || hasRemoteVideo()));
+}
+
+function syncStreamTabStatus() {
+  const hostEl = document.getElementById("streamStatusHost");
+  const guestEl = document.getElementById("streamStatusGuest");
+  const dataEl = document.getElementById("streamStatusData");
+  if (hostEl && els.statusHost) hostEl.textContent = els.statusHost.textContent;
+  if (guestEl && els.statusGuest) guestEl.textContent = els.statusGuest.textContent;
+  if (dataEl && els.statusData) dataEl.textContent = els.statusData.textContent;
+  if (global.MemberProfile?.maybeAutoStreamTab) {
+    MemberProfile.maybeAutoStreamTab(isLiveSessionActive());
+  }
+  if (global.MemberProfile?.refreshAccountMini) MemberProfile.refreshAccountMini();
 }
 
 function handleIncomingChatPayload(data) {
@@ -2624,6 +2659,20 @@ function handleIncomingDataMessage(raw) {
     handleIncomingChatPayload(data);
     return;
   }
+  if (data.type === "profile" || data.type === "profile_request") {
+    if (data.type === "profile_request") {
+      shareMemberProfileOverDataChannel();
+      return;
+    }
+    if (global.MemberProfile?.handleIncomingProfile) MemberProfile.handleIncomingProfile(data);
+    return;
+  }
+  if (data.type === "technique_request") {
+    if (global.MemberProfile?.handleIncomingTechniqueRequest) {
+      MemberProfile.handleIncomingTechniqueRequest(data);
+    }
+    return;
+  }
   setDataActivityStatus("Unknown data message received.", "err");
 }
 
@@ -2635,7 +2684,7 @@ function sendChatMessage() {
   const text = (els.chatInput.value || "").trim();
   if (!text) return;
 
-  const sender = sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You";
+  const sender = getChatDisplayName();
   const payload = {
     type: "chat",
     text,
@@ -3019,6 +3068,7 @@ function setupDataConnection(conn) {
       dataConn = null;
     }
     partnerRemoteToys = [];
+    if (global.MemberProfile?.setPartnerProfile) MemberProfile.setPartnerProfile(null);
     renderToyControls([]);
     updateConnectionUi();
     setPeerStatus("Partner disconnected.", "err");
@@ -3027,6 +3077,8 @@ function setupDataConnection(conn) {
     updateConnectionUi();
     broadcastLocalToyInventory();
     sendDataChannelMessage({ type: "toy_inventory_request", ts: Date.now() });
+    shareMemberProfileOverDataChannel();
+    sendDataChannelMessage({ type: "profile_request", ts: Date.now() });
   });
   conn.on("error", (err) => {
     setDataActivityStatus(
@@ -3039,6 +3091,8 @@ function setupDataConnection(conn) {
     updateConnectionUi();
     broadcastLocalToyInventory();
     sendDataChannelMessage({ type: "toy_inventory_request", ts: Date.now() });
+    shareMemberProfileOverDataChannel();
+    sendDataChannelMessage({ type: "profile_request", ts: Date.now() });
   }
 }
 
@@ -3169,8 +3223,40 @@ els.btnConnect.addEventListener("click", async () => {
 });
 
 els.btnHangup.addEventListener("click", () => hangup());
+const btnHangupStream = document.getElementById("btnHangupStream");
+if (btnHangupStream) btnHangupStream.addEventListener("click", () => hangup());
 
 window.addEventListener("beforeunload", () => hangup());
+
+function sendTechniqueRequest(techniqueId, label, fromName) {
+  const ts = Date.now();
+  appendChatTechniqueMessage(fromName, label, true, ts);
+  if (!dataConn?.open) {
+    setDataActivityStatus("Technique saved to chat — connect for partner to see it.", "");
+    return;
+  }
+  sendDataChannelMessage({
+    type: "technique_request",
+    techniqueId,
+    label,
+    fromName,
+    ts,
+  });
+}
+
+function initMemberProfileBridge() {
+  window.addEventListener("dualpeer-technique-request", (e) => {
+    const { techniqueId, label, fromName } = e.detail || {};
+    sendTechniqueRequest(techniqueId, label, fromName);
+  });
+  window.addEventListener("dualpeer-technique-request-incoming", (e) => {
+    const { label, fromName, ts } = e.detail || {};
+    appendChatTechniqueMessage(fromName, label, false, ts);
+  });
+  window.addEventListener("dualpeer-profile-share-request", () => {
+    shareMemberProfileOverDataChannel();
+  });
+}
 
 function setVideoAccessUi(unlocked) {
   videoAccessUnlocked = unlocked;
@@ -3602,4 +3688,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initChatControls();
   initDynamicToyControls();
   initLocalToyTestPanel();
+  initMemberProfileBridge();
 });
