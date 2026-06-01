@@ -992,10 +992,11 @@
       if (!apiBanner) return;
       const base = health.base || resolveApiBase();
       if (health.ok) {
-        apiBanner.className = "status-line ok";
-        apiBanner.textContent = `Server connected (${base}).`;
+        apiBanner.hidden = true;
+        apiBanner.textContent = "";
         return;
       }
+      apiBanner.hidden = false;
       apiBanner.className = "status-line err";
       apiBanner.textContent = `${apiUnreachableMessage(base)} — API: ${base || "none"}`;
     });
@@ -1015,7 +1016,7 @@
       validateInviteToken(token)
         .then((data) => {
           if (inviteInfo) {
-            inviteInfo.textContent = `Invited by ${data.hostName} — please register with this email address.`;
+            inviteInfo.textContent = `Invited by ${data.hostName} — please register with your email address.`;
             inviteInfo.className = "status-line ok";
           }
           if (emailEl instanceof HTMLInputElement) {
