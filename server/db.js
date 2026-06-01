@@ -75,6 +75,25 @@ function runMigrations(database) {
   if (!inviteCols.includes("invite_code_hash")) {
     database.exec(`ALTER TABLE invites ADD COLUMN invite_code_hash TEXT`);
   }
+
+  const smtpCols = [
+    ["smtp_out_host", "TEXT"],
+    ["smtp_out_port", "INTEGER"],
+    ["smtp_out_secure", "INTEGER NOT NULL DEFAULT 0"],
+    ["smtp_out_user", "TEXT"],
+    ["smtp_out_pass_enc", "TEXT"],
+    ["smtp_from", "TEXT"],
+    ["imap_in_host", "TEXT"],
+    ["imap_in_port", "INTEGER"],
+    ["imap_in_secure", "INTEGER NOT NULL DEFAULT 1"],
+    ["imap_in_user", "TEXT"],
+  ];
+  const userColsFresh = tableColumns(database, "users");
+  for (const [name, type] of smtpCols) {
+    if (!userColsFresh.includes(name)) {
+      database.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+    }
+  }
 }
 
 export function initDb() {

@@ -195,13 +195,240 @@
     return isLoggedIn() && !isSessionGuest();
   }
 
+  function openMailSettingsModal() {
+    if (!isLoggedIn()) {
+      window.location.href = "login.html";
+      return;
+    }
+    const modal = document.getElementById("mailSettingsModal");
+    if (modal) modal.hidden = false;
+    loadProfileMailSettings();
+    if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
+  }
+
+  function closeMailSettingsModal() {
+    const modal = document.getElementById("mailSettingsModal");
+    if (modal) modal.hidden = true;
+  }
+
+  function fillMailForm(mail) {
+    const out = mail?.outgoing || {};
+    const inc = mail?.incoming || {};
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el instanceof HTMLInputElement) el.value = val ?? "";
+    };
+    set("mailOutHost", out.host);
+    set("mailOutPort", String(out.port || 465));
+    set("mailOutUser", out.user);
+    set("mailOutFrom", out.from);
+    set("mailInHost", inc.host);
+    set("mailInPort", String(inc.port || 993));
+    set("mailInUser", inc.user);
+    const secure = document.getElementById("mailOutSecure");
+    if (secure instanceof HTMLInputElement) {
+      secure.checked = Boolean(out.secure);
+    }
+    const hint = document.getElementById("mailPasswordHint");
+    if (hint) {
+      hint.textContent = mail?.hasPassword
+        ? "Passwort ist gespeichert — nur ausfüllen, wenn du es ändern willst."
+        : "Strato: Passwort deines E-Mail-Postfachs eintragen.";
+    }
+    const status = document.getElementById("profileMailStatus");
+    if (status) {
+      status.className = mail?.configured ? "status-line ok" : "status-line";
+      status.textContent = mail?.configured
+        ? "E-Mail-Versand aktiv — Einladungen gehen über dein Postfach."
+        : "Noch kein Ausgangsserver — Einladungen nur per Link/Code (manuell).";
+    }
+  }
+
+  async function fetchMailSettings() {
+    return api("/api/profile/mail");
+  }
+
+  async function saveMailSettings(payload) {
+    return api("/api/profile/mail", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function testMailSettings(to) {
+    return api("/api/profile/mail/test", {
+      method: "POST",
+      body: JSON.stringify(to ? { to } : {}),
+    });
+  }
+
+  function readMailFormPayload() {
+    const port = Number(document.getElementById("mailOutPort")?.value) || 587;
+    const secureEl = document.getElementById("mailOutSecure");
+    const secure =
+      secureEl instanceof HTMLInputElement ? secureEl.checked : port === 465;
+    const user = document.getElementById("mailOutUser")?.value?.trim() || "";
+    const payload = {
+      outgoing: {
+        host: document.getElementById("mailOutHost")?.value?.trim() || "",
+        port: secure && port === 587 ? 465 : port,
+        secure,
+        user,
+        from: document.getElementById("mailOutFrom")?.value?.trim() || user,
+      },
+      incoming: {
+        host: document.getElementById("mailInHost")?.value?.trim() || "",
+        port: Number(document.getElementById("mailInPort")?.value) || 993,
+        secure: true,
+        user: document.getElementById("mailInUser")?.value?.trim() || user,
+      },
+    };
+    const pass = document.getElementById("mailOutPassword")?.value;
+    if (pass) payload.password = pass;
+    return payload;
+  }
+
+  function initProfileMailForm() {
+    const form = document.getElementById("profileMailForm");
+    const modal = document.getElementById("mailSettingsModal");
+    const closeBtn = document.getElementById("mailSettingsModalClose");
+    const menuBtn = document.getElementById("btnMailSettings");
+    const inviteMailSetup = document.getElementById("inviteModalMailSetup");
+
+    if (closeBtn) closeBtn.addEventListener("click", closeMailSettingsModal);
+    if (menuBtn) {
+      menuBtn.addEventListener("click", () => {
+        openMailSettingsModal();
+      });
+    }
+    if (inviteMailSetup) {
+      inviteMailSetup.addEventListener("click", () => {
+        const inviteModal = document.getElementById("inviteModal");
+        if (inviteModal) inviteModal.hidden = true;
+        openMailSettingsModal();
+      });
+    }
+    if (modal) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeMailSettingsModal();
+      });
+    }
+
+    if (!form) return;
+
+    const presetBtn = document.getElementById("btnStratoMailPreset");
+    const testBtn = document.getElementById("btnMailTest");
+    const userInput = document.getElementById("mailOutUser");
+
+    if (userInput) {
+      userInput.addEventListener("change", () => {
+        const from = document.getElementById("mailOutFrom");
+        const imapUser = document.getElementById("mailInUser");
+        if (from instanceof HTMLInputElement && !from.value) from.value = userInput.value;
+        if (imapUser instanceof HTMLInputElement && !imapUser.value) imapUser.value = userInput.value;
+      });
+    }
+
+    if (presetBtn) {
+      presetBtn.addEventListener("click", async () => {
+        try {
+          const data = await fetchMailSettings();
+          const p = data.preset || {
+            outgoing: { host: "smtp.strato.de", port: 465, secure: true },
+            incoming: { host: "imap.strato.de", port: 993, secure: true },
+          };
+          fillMailForm({
+            configured: false,
+            hasPassword: false,
+            outgoing: p.outgoing,
+            incoming: p.incoming,
+          });
+        } catch (_) {
+          fillMailForm({
+            configured: false,
+            hasPassword: false,
+            outgoing: { host: "smtp.strato.de", port: 465, secure: true, user: "", from: "" },
+            incoming: { host: "imap.strato.de", port: 993, secure: true, user: "" },
+          });
+        }
+      });
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("profileMailSaveStatus");
+      if (status) {
+        status.hidden = false;
+        status.className = "status-line";
+        status.textContent = "Speichern …";
+      }
+      try {
+        const data = await saveMailSettings(readMailFormPayload());
+        fillMailForm(data.mail);
+        const passEl = document.getElementById("mailOutPassword");
+        if (passEl instanceof HTMLInputElement) passEl.value = "";
+        if (status) {
+          status.className = "status-line ok";
+          status.textContent = "E-Mail-Einstellungen gespeichert.";
+        }
+      } catch (err) {
+        if (status) {
+          status.className = "status-line err";
+          const map = {
+            invalid_mail_settings: "Ausgangsserver und E-Mail-Benutzername sind Pflicht.",
+            mail_password_required: "Bitte Postfach-Passwort eintragen.",
+            invalid_mail_password: "Passwort zu kurz.",
+          };
+          status.textContent = map[err.code] || err.message;
+        }
+      }
+    });
+
+    if (testBtn) {
+      testBtn.addEventListener("click", async () => {
+        const status = document.getElementById("profileMailSaveStatus");
+        if (status) {
+          status.hidden = false;
+          status.className = "status-line";
+          status.textContent = "Sende Test …";
+        }
+        try {
+          const result = await testMailSettings();
+          if (status) {
+            status.className = "status-line ok";
+            status.textContent = result.message || "Test gesendet.";
+          }
+        } catch (err) {
+          if (status) {
+            status.className = "status-line err";
+            status.textContent = err.message || "Test fehlgeschlagen.";
+          }
+        }
+      });
+    }
+  }
+
+  async function loadProfileMailSettings() {
+    if (!isLoggedIn()) return;
+    try {
+      const data = await fetchMailSettings();
+      fillMailForm(data.mail);
+    } catch (_) {
+      fillMailForm({ configured: false, hasPassword: false, outgoing: {}, incoming: {} });
+    }
+  }
+
   function updateAccountMenuAuthState() {
     const loggedIn = isLoggedIn();
     const session = getSession();
     const inviteBtn = document.getElementById("btnInviteByEmail");
+    const mailBtn = document.getElementById("btnMailSettings");
     const loginLink = document.getElementById("btnMemberLogin");
     const roleEl = document.querySelector(".account-role");
 
+    if (mailBtn) {
+      mailBtn.hidden = !loggedIn;
+    }
     if (inviteBtn) {
       const show = canManageInvites();
       inviteBtn.hidden = !show;
@@ -267,10 +494,14 @@
           const result = await sendInvite(email);
           const msg = result.emailSent
             ? `Einladung wurde an ${email} gesendet (Link + Einmalcode in der E-Mail).`
-            : "SMTP nicht konfiguriert — Link und Code unten manuell teilen:";
+            : "Kein E-Mail-Versand im Profil — unter Profil → E-Mail-Versand Strato eintragen, oder Link/Code manuell teilen:";
           if (status) {
             status.className = "status-line ok";
             status.textContent = msg;
+          }
+          const mailSetupBtn = document.getElementById("inviteModalMailSetup");
+          if (mailSetupBtn) {
+            mailSetupBtn.hidden = Boolean(result.emailSent);
           }
           if (!result.emailSent && status && canManageInvites()) {
             if (result.inviteUrl) {
@@ -571,6 +802,7 @@
     initLoginPage();
     initRegisterPage();
     initVerifyEmailPage();
+    initProfileMailForm();
     bootstrap();
   }
 
@@ -589,6 +821,12 @@
     updateProfile,
     sendInvite,
     validateInviteToken,
+    fetchMailSettings,
+    saveMailSettings,
+    testMailSettings,
+    loadProfileMailSettings,
+    openMailSettingsModal,
+    closeMailSettingsModal,
     onReady,
   };
 

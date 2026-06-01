@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { createHash } from "node:crypto";
+import { decryptSecret } from "./smtp-crypto.js";
 
 const SMTP_HOST = process.env.SMTP_HOST || "";
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
@@ -9,19 +10,7 @@ const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER || "noreply@tangent-club.co
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || "https://www.tangent-club.com").replace(/\/$/, "");
 const SITE_NAME = process.env.MAIL_SITE_NAME || "Tangent Club";
 
-function smtpConfigured() {
-  return Boolean(SMTP_HOST && SMTP_USER && SMTP_PASS);
-}
-
-function getTransport() {
-  if (!smtpConfigured()) return null;
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
-}
+/** @typedef {{ host: string, port: number, secure: boolean, user: string, pass: string, from: string, source: 'user'|'env' }} MailConfig */
 
 function escapeHtml(s) {
   return String(s)
@@ -33,6 +22,65 @@ function escapeHtml(s) {
 
 export function hashInviteCode(code) {
   return createHash("sha256").update(String(code).trim()).digest("hex");
+}
+
+function getGlobalMailConfig() {
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
+  return {
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    user: SMTP_USER,
+    pass: SMTP_PASS,
+    from: SMTP_FROM,
+    source: "env",
+  };
+}
+
+/**
+ * Build nodemailer config from a user DB row (per-host Strato etc.).
+ * @param {Record<string, unknown>|null|undefined} userRow
+ * @returns {MailConfig|null}
+ */
+export function getUserMailConfig(userRow) {
+  if (!userRow?.smtp_out_host || !userRow?.smtp_out_user) return null;
+  const pass = decryptSecret(userRow.smtp_out_pass_enc);
+  if (!pass) return null;
+  const port = Number(userRow.smtp_out_port) || 587;
+  return {
+    host: String(userRow.smtp_out_host).trim(),
+    port,
+    secure: Boolean(userRow.smtp_out_secure) || port === 465,
+    user: String(userRow.smtp_out_user).trim(),
+    pass,
+    from: String(userRow.smtp_from || userRow.smtp_out_user).trim(),
+    source: "user",
+  };
+}
+
+/**
+ * Prefer host profile SMTP, then server .env.
+ * @param {Record<string, unknown>|null|undefined} userRow
+ */
+export function resolveMailConfig(userRow) {
+  return getUserMailConfig(userRow) || getGlobalMailConfig();
+}
+
+export function isSmtpConfiguredForUser(userRow) {
+  return Boolean(resolveMailConfig(userRow));
+}
+
+export function isSmtpConfigured() {
+  return Boolean(getGlobalMailConfig());
+}
+
+function createTransport(config) {
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.user, pass: config.pass },
+  });
 }
 
 function emailLayout({ title, bodyHtml, footerNote }) {
@@ -53,20 +101,38 @@ function emailLayout({ title, bodyHtml, footerNote }) {
 </body></html>`;
 }
 
-async function deliverMail({ to, subject, text, html }) {
-  if (!smtpConfigured()) {
-    return { sent: false, devMode: true };
-  }
-  const transport = getTransport();
-  await transport.sendMail({ from: SMTP_FROM, to, subject, text, html });
-  console.log(`[mail] Sent to ${to}: ${subject}`);
-  return { sent: true, devMode: false };
+/**
+ * @param {MailConfig} config
+ */
+async function deliverMailWithConfig(config, { to, subject, text, html }) {
+  const transport = createTransport(config);
+  await transport.sendMail({
+    from: config.from,
+    to,
+    subject,
+    text,
+    html,
+  });
+  console.log(`[mail] Sent via ${config.source} (${config.host}) to ${to}: ${subject}`);
+  return { sent: true, devMode: false, source: config.source };
 }
 
 /**
- * @param {{ to: string, inviteUrl: string, hostName: string, inviteCode: string }} opts
+ * @param {{ to: string, subject: string, text: string, html: string, userRow?: Record<string, unknown>|null, logContext?: string }} opts
  */
-export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode }) {
+export async function sendMail({ to, subject, text, html, userRow, logContext = "mail" }) {
+  const config = resolveMailConfig(userRow);
+  if (!config) {
+    console.log(`[mail] No SMTP for ${logContext} — not sent to ${to}`);
+    return { sent: false, devMode: true, source: null };
+  }
+  return deliverMailWithConfig(config, { to, subject, text, html });
+}
+
+/**
+ * @param {{ to: string, inviteUrl: string, hostName: string, inviteCode: string, userRow?: Record<string, unknown>|null }} opts
+ */
+export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, userRow }) {
   const subject = `${hostName} lädt dich zu ${SITE_NAME} ein`;
   const text =
     `Hallo,\n\n` +
@@ -74,7 +140,7 @@ export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode }) {
     `Registrierung (einmaliger Link, 7 Tage gültig):\n${inviteUrl}\n\n` +
     `Falls der Link nicht öffnet — Einladungscode: ${inviteCode}\n` +
     `(auf der Registrierungsseite eingeben, zusammen mit deiner E-Mail-Adresse)\n\n` +
-    `Mit freundlichen Grüßen\n${SITE_NAME}`;
+    `Mit freundlichen Grüßen\n${hostName}`;
 
   const html = emailLayout({
     title: "Du bist eingeladen",
@@ -88,49 +154,101 @@ export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode }) {
     footerNote: "Dieser Link und Code sind nur für dich bestimmt und verfallen nach 7 Tagen.",
   });
 
-  if (!smtpConfigured()) {
-    console.log(
-      `[mail] SMTP not configured — invite for ${to}:\n  ${inviteUrl}\n  Code: ${inviteCode}`
-    );
-    return { sent: false, devMode: true };
-  }
+  const result = await sendMail({
+    to,
+    subject,
+    text,
+    html,
+    userRow,
+    logContext: "invite",
+  });
 
-  return deliverMail({ to, subject, text, html });
+  if (result.devMode) {
+    console.log(
+      `[mail] Invite (manual) for ${to}:\n  ${inviteUrl}\n  Code: ${inviteCode}`
+    );
+  }
+  return result;
 }
 
 /**
- * @param {{ to: string, verifyUrl: string, username: string }} opts
+ * @param {{ to: string, verifyUrl: string, username: string, userRow?: Record<string, unknown>|null }} opts
  */
-export async function sendVerificationEmail({ to, verifyUrl, username }) {
+export async function sendTestEmail({ to, username, userRow }) {
+  const subject = `${SITE_NAME} — SMTP-Test`;
+  const text =
+    `Hallo ${username},\n\n` +
+    `dein E-Mail-Ausgangsserver ist korrekt eingerichtet. Du kannst jetzt Gäste per E-Mail einladen.\n\n` +
+    `${SITE_NAME}`;
+
+  const html = emailLayout({
+    title: "SMTP-Test erfolgreich",
+    bodyHtml:
+      `<p style="line-height:1.55;color:#c8c8d0;">Hallo <strong style="color:#fff;">${escapeHtml(username)}</strong>,</p>` +
+      `<p style="line-height:1.55;color:#c8c8d0;">dein <strong>Ausgangsserver (SMTP)</strong> funktioniert. Einladungen werden von deiner E-Mail-Adresse versendet.</p>`,
+    footerNote: "Diese Nachricht dient nur dem Verbindungstest.",
+  });
+
+  return sendMail({ to, subject, text, html, userRow, logContext: "test" });
+}
+
+export async function sendVerificationEmail({ to, verifyUrl, username, userRow }) {
   const subject = `Bitte bestätige dein ${SITE_NAME}-Konto`;
   const text =
     `Hallo ${username},\n\n` +
     `bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren:\n\n${verifyUrl}\n\n` +
-    `Der Link ist 48 Stunden gültig. Wenn du dich nicht registriert hast, ignoriere diese E-Mail.\n\n` +
-    `${SITE_NAME}`;
+    `Der Link ist 48 Stunden gültig.\n\n${SITE_NAME}`;
 
   const html = emailLayout({
     title: "E-Mail bestätigen",
     bodyHtml:
       `<p style="line-height:1.55;color:#c8c8d0;">Hallo <strong style="color:#fff;">${escapeHtml(username)}</strong>,</p>` +
-      `<p style="line-height:1.55;color:#c8c8d0;">bitte bestätige deine E-Mail-Adresse, damit du dich anmelden kannst:</p>` +
+      `<p style="line-height:1.55;color:#c8c8d0;">bitte bestätige deine E-Mail-Adresse:</p>` +
       `<p style="margin:20px 0;"><a href="${escapeHtml(verifyUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">E-Mail bestätigen</a></p>` +
       `<p style="font-size:13px;color:#888;word-break:break-all;">${escapeHtml(verifyUrl)}</p>`,
-    footerNote: "Link 48 Stunden gültig. Danach auf der Anmeldeseite „Bestätigung erneut senden“ wählen.",
+    footerNote: "Link 48 Stunden gültig.",
   });
 
-  if (!smtpConfigured()) {
-    console.log(`[mail] SMTP not configured — verify ${to}:\n  ${verifyUrl}`);
-    return { sent: false, devMode: true };
-  }
+  const result = await sendMail({
+    to,
+    subject,
+    text,
+    html,
+    userRow,
+    logContext: "verify",
+  });
 
-  return deliverMail({ to, subject, text, html });
+  if (result.devMode) {
+    console.log(`[mail] Verify (manual) for ${to}:\n  ${verifyUrl}`);
+  }
+  return result;
+}
+
+/**
+ * @param {MailConfig} config
+ */
+export async function verifySmtpConnection(config) {
+  const transport = createTransport(config);
+  await transport.verify();
+  return true;
 }
 
 export function getAppPublicUrl() {
   return APP_PUBLIC_URL;
 }
 
-export function isSmtpConfigured() {
-  return smtpConfigured();
-}
+export const STRATO_MAIL_PRESET = {
+  outgoing: {
+    host: "smtp.strato.de",
+    port: 465,
+    secure: true,
+    user: "",
+    from: "",
+  },
+  incoming: {
+    host: "imap.strato.de",
+    port: 993,
+    secure: true,
+    user: "",
+  },
+};

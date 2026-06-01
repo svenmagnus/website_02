@@ -1050,12 +1050,22 @@ async function refreshMediaDeviceLists() {
 
   saveMediaDeviceSelection();
 
-  if (obsCamera) {
-    setMediaSourceStatus("OBS Virtual Camera detected — select it above, then Start as Host.", "ok");
+  const mode = getBroadcastMode();
+  if (obsCamera && mode === "camera") {
+    setMediaSourceStatus(
+      "OBS Virtual Camera erkannt — optional oben wählen. Oder eine normale Webcam.",
+      "ok"
+    );
   } else if (videoInputs.length) {
-    setMediaSourceStatus(`${videoInputs.length} camera(s) available.`, "ok");
+    setMediaSourceStatus(
+      `${videoInputs.length} Kamera(s) bereit — Webcam-Modus: Quelle wählen, dann Start as Host.`,
+      "ok"
+    );
   } else {
-    setMediaSourceStatus("No cameras found — start OBS Virtual Camera first.", "err");
+    setMediaSourceStatus(
+      "Keine Kamera gefunden — Browser-Zugriff erlauben oder OBS Virtual Camera starten.",
+      "err"
+    );
   }
 
   return true;
@@ -1168,8 +1178,8 @@ function syncBroadcastModeUi() {
   if (hint) {
     hint.textContent =
       mode === "whip"
-        ? "Use OBS WHIP for full scene output (no Virtual Camera logo). Start as Host, paste URL in OBS, then Start Streaming."
-        : "Start OBS Virtual Camera while your scene is live, select it above, then Start as Host. If only the OBS logo appears, stop and restart Virtual Camera in OBS.";
+        ? "OBS-Modus: Nach Start as Host WHIP-Daten in OBS eintragen und dort „Streaming starten“. Für reine Webcam: Broadcast „Webcam & Mikrofon“ wählen."
+        : "Webcam-Modus: Kamera und Mikrofon oben wählen (Laptop-Webcam reicht), dann Start as Host — kein OBS nötig. Optional: OBS Virtual Camera als Videoquelle.";
   }
 }
 
@@ -1529,7 +1539,10 @@ function initMediaSourceControls() {
 
   const broadcastMode = document.getElementById("broadcastMode");
   if (broadcastMode) {
-    broadcastMode.addEventListener("change", syncBroadcastModeUi);
+    broadcastMode.addEventListener("change", () => {
+      syncBroadcastModeUi();
+      refreshMediaDeviceLists().catch(() => {});
+    });
   }
   syncBroadcastModeUi();
   initWhipCopyButtons();

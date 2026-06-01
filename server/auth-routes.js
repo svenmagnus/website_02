@@ -2,12 +2,18 @@ import { Router } from "express";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { getDb } from "./db.js";
+import { encryptSecret } from "./smtp-crypto.js";
 import {
   getAppPublicUrl,
   hashInviteCode,
   isSmtpConfigured,
+  isSmtpConfiguredForUser,
+  resolveMailConfig,
   sendInviteEmail,
-  sendVerificationEmail,
+  sendTestEmail,
+  STRATO_MAIL_PRESET,
+  verifySmtpConnection,
+  getUserMailConfig,
 } from "./mail.js";
 
 const BCRYPT_ROUNDS = 12;
@@ -67,6 +73,63 @@ function rowToProfile(row) {
     techniques: Array.isArray(techniques) ? techniques : [],
     customTechniques: Array.isArray(customTechniques) ? customTechniques : [],
     createdAt: row.created_at,
+    mailConfigured: isSmtpConfiguredForUser(row),
+  };
+}
+
+function rowToMailSettings(row) {
+  return {
+    configured: isSmtpConfiguredForUser(row),
+    hasPassword: Boolean(row.smtp_out_pass_enc),
+    outgoing: {
+      host: row.smtp_out_host || "",
+      port: Number(row.smtp_out_port) || 587,
+      secure: Boolean(row.smtp_out_secure) || Number(row.smtp_out_port) === 465,
+      user: row.smtp_out_user || "",
+      from: row.smtp_from || row.smtp_out_user || "",
+    },
+    incoming: {
+      host: row.imap_in_host || "",
+      port: Number(row.imap_in_port) || 993,
+      secure: row.imap_in_secure == null ? true : Boolean(row.imap_in_secure),
+      user: row.imap_in_user || "",
+    },
+  };
+}
+
+function parseMailSettingsBody(body) {
+  const out = body?.outgoing || {};
+  const inc = body?.incoming || {};
+  const host = String(out.host || "").trim().slice(0, 255);
+  const port = Number(out.port) || 587;
+  const user = String(out.user || "").trim().slice(0, 255);
+  const from = String(out.from || out.user || "").trim().slice(0, 255);
+  const secure = Boolean(out.secure) || port === 465;
+  const password = body?.password != null ? String(body.password) : null;
+
+  const imapHost = String(inc.host || "").trim().slice(0, 255);
+  const imapPort = Number(inc.port) || 993;
+  const imapUser = String(inc.user || "").trim().slice(0, 255);
+  const imapSecure = inc.secure !== false;
+
+  if (!host || !user) {
+    return { error: "invalid_mail_settings" };
+  }
+  if (password !== null && password.length > 0 && password.length < 4) {
+    return { error: "invalid_mail_password" };
+  }
+
+  return {
+    smtp_out_host: host,
+    smtp_out_port: port,
+    smtp_out_secure: secure ? 1 : 0,
+    smtp_out_user: user,
+    smtp_from: from || user,
+    imap_in_host: imapHost,
+    imap_in_port: imapPort,
+    imap_in_secure: imapSecure ? 1 : 0,
+    imap_in_user: imapUser || user,
+    password,
   };
 }
 
@@ -159,13 +222,15 @@ async function createVerificationToken(userId) {
   return token;
 }
 
-async function sendUserVerificationEmail(user) {
+async function sendUserVerificationEmail(user, { mailUserRow } = {}) {
   const verifyToken = await createVerificationToken(user.id);
   const verifyUrl = `${getAppPublicUrl()}/verify-email.html?token=${encodeURIComponent(verifyToken)}`;
+  const senderRow = mailUserRow || user;
   const mailResult = await sendVerificationEmail({
     to: user.email,
     verifyUrl,
     username: user.username,
+    userRow: senderRow,
   });
   return { verifyUrl, mailResult };
 }
@@ -234,14 +299,15 @@ authRouter.post("/auth/resend-verification", async (req, res) => {
   }
 
   try {
-    const { verifyUrl, mailResult } = await sendUserVerificationEmail(user);
+    const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
+    const { verifyUrl, mailResult } = await sendUserVerificationEmail(fresh);
     res.json({
       ok: true,
       emailSent: mailResult.sent,
       devVerifyUrl: mailResult.devMode ? verifyUrl : undefined,
       message: mailResult.sent
         ? "Bestätigungs-E-Mail wurde erneut gesendet."
-        : "SMTP nicht konfiguriert — Link in der Server-Konsole.",
+        : "Kein E-Mail-Versand konfiguriert — Link in der Server-Konsole oder SMTP im Profil.",
     });
   } catch (err) {
     console.error("[mail] resend verification failed:", err);
@@ -323,16 +389,20 @@ authRouter.post("/auth/register", async (req, res) => {
   }
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
-  let verifyUrl;
   let emailSent = false;
 
-  if (!isSmtpConfigured()) {
+  let mailSenderRow = user;
+  if (invite) {
+    mailSenderRow =
+      db.prepare("SELECT * FROM users WHERE id = ?").get(invite.host_user_id) || user;
+  }
+
+  if (!resolveMailConfig(mailSenderRow)) {
     markEmailVerified(userId);
-    console.log(`[auth] SMTP off — ${email} auto-verified (local dev)`);
+    console.log(`[auth] No SMTP — ${email} auto-verified (dev / no mail config)`);
   } else {
     try {
-      const sent = await sendUserVerificationEmail(user);
-      verifyUrl = sent.verifyUrl;
+      const sent = await sendUserVerificationEmail(user, { mailUserRow: mailSenderRow });
       emailSent = sent.mailResult.sent;
     } catch (err) {
       console.error("[mail] verification send failed:", err);
@@ -438,6 +508,92 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
   res.json({ ok: true, profile: rowToProfile(updated) });
 });
 
+authRouter.get("/profile/mail", requireAuth, (req, res) => {
+  res.json({
+    ok: true,
+    mail: rowToMailSettings(req.authUser),
+    serverFallbackConfigured: isSmtpConfigured(),
+    preset: STRATO_MAIL_PRESET,
+  });
+});
+
+authRouter.patch("/profile/mail", requireAuth, (req, res) => {
+  const parsed = parseMailSettingsBody(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ ok: false, error: parsed.error });
+  }
+
+  const db = getDb();
+  const current = req.authUser;
+  let passEnc = current.smtp_out_pass_enc;
+  if (parsed.password && parsed.password.length > 0) {
+    passEnc = encryptSecret(parsed.password);
+  } else if (!passEnc) {
+    return res.status(400).json({
+      ok: false,
+      error: "mail_password_required",
+      message: "E-Mail-Passwort fehlt (Strato: Postfach-Passwort).",
+    });
+  }
+
+  db.prepare(
+    `UPDATE users SET
+      smtp_out_host = ?, smtp_out_port = ?, smtp_out_secure = ?,
+      smtp_out_user = ?, smtp_out_pass_enc = ?, smtp_from = ?,
+      imap_in_host = ?, imap_in_port = ?, imap_in_secure = ?, imap_in_user = ?
+     WHERE id = ?`
+  ).run(
+    parsed.smtp_out_host,
+    parsed.smtp_out_port,
+    parsed.smtp_out_secure,
+    parsed.smtp_out_user,
+    passEnc,
+    parsed.smtp_from,
+    parsed.imap_in_host,
+    parsed.imap_in_port,
+    parsed.imap_in_secure,
+    parsed.imap_in_user,
+    req.authUser.id
+  );
+
+  const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(req.authUser.id);
+  res.json({ ok: true, mail: rowToMailSettings(updated) });
+});
+
+authRouter.post("/profile/mail/test", requireAuth, async (req, res) => {
+  const db = getDb();
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.authUser.id);
+  const config = getUserMailConfig(user);
+  if (!config) {
+    return res.status(400).json({
+      ok: false,
+      error: "mail_not_configured",
+      message: "Bitte zuerst Ausgangsserver (SMTP) im Profil speichern.",
+    });
+  }
+
+  const to = validateEmail(req.body?.to) || validateEmail(user.email);
+  if (!to) {
+    return res.status(400).json({ ok: false, error: "invalid_email" });
+  }
+
+  try {
+    await verifySmtpConnection(config);
+    await sendTestEmail({ to, username: user.username, userRow: user });
+    res.json({
+      ok: true,
+      message: `Test-E-Mail wurde an ${to} gesendet.`,
+    });
+  } catch (err) {
+    console.error("[mail] test failed:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "mail_test_failed",
+      message: err.message || String(err),
+    });
+  }
+});
+
 authRouter.post("/invites", requireAuth, async (req, res) => {
   const email = validateEmail(req.body?.email);
   if (!email) {
@@ -459,9 +615,17 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
   const inviteUrl = `${getAppPublicUrl()}/register.html?token=${encodeURIComponent(inviteToken)}`;
   const hostName = req.authUser.display_name || req.authUser.username;
 
+  const hostRow = db.prepare("SELECT * FROM users WHERE id = ?").get(req.authUser.id);
+
   let mailResult = { sent: false, devMode: true };
   try {
-    mailResult = await sendInviteEmail({ to: email, inviteUrl, hostName, inviteCode });
+    mailResult = await sendInviteEmail({
+      to: email,
+      inviteUrl,
+      hostName,
+      inviteCode,
+      userRow: hostRow,
+    });
   } catch (err) {
     console.error("[mail] send failed:", err);
     return res.status(500).json({
@@ -477,7 +641,8 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
     inviteUrl: mailResult.devMode ? inviteUrl : undefined,
     inviteCode: mailResult.devMode ? inviteCode : undefined,
     emailSent: mailResult.sent,
-    smtpConfigured: isSmtpConfigured(),
+    smtpConfigured: isSmtpConfiguredForUser(hostRow),
+    mailSource: mailResult.source || null,
     expiresAt,
   });
 });
@@ -487,5 +652,6 @@ authRouter.get("/auth/status", (_req, res) => {
     ok: true,
     smtpConfigured: isSmtpConfigured(),
     appPublicUrl: getAppPublicUrl(),
+    stratoPreset: STRATO_MAIL_PRESET,
   });
 });

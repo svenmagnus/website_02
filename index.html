@@ -67,17 +67,91 @@
 
     <div class="login-overlay" id="inviteModal" hidden role="dialog" aria-modal="true" aria-labelledby="inviteModalTitle">
       <div class="login-overlay-card">
-        <h2 id="inviteModalTitle">Invite guest by email</h2>
-        <p class="login-overlay-hint">They receive a link to register and join your session.</p>
+        <h2 id="inviteModalTitle">Gast per E-Mail einladen</h2>
+        <p class="login-overlay-hint">Der Gast erhält einen Link und einen Code zur Registrierung.</p>
         <div class="login-overlay-row">
-          <label for="inviteEmailInput">Guest email</label>
-          <input type="email" id="inviteEmailInput" autocomplete="email" placeholder="guest@example.com" />
+          <label for="inviteEmailInput">E-Mail des Gastes</label>
+          <input type="email" id="inviteEmailInput" autocomplete="email" placeholder="gast@example.com" />
         </div>
         <p class="status-line" id="inviteModalStatus"></p>
         <div class="row" style="margin-top: 0.75rem">
-          <button type="button" class="primary" id="inviteSendBtn">Send invitation</button>
-          <button type="button" id="inviteModalClose">Cancel</button>
+          <button type="button" class="primary" id="inviteSendBtn">Einladung senden</button>
+          <button type="button" class="secondary" id="inviteModalMailSetup" hidden>E-Mail-Versand einrichten</button>
+          <button type="button" id="inviteModalClose">Abbrechen</button>
         </div>
+      </div>
+    </div>
+
+    <div
+      class="login-overlay"
+      id="mailSettingsModal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mailSettingsModalTitle"
+    >
+      <div class="login-overlay-card auth-card-wide">
+        <h2 id="mailSettingsModalTitle">E-Mail-Versand (Strato &amp; andere)</h2>
+        <p class="login-overlay-hint" id="profileMailHint">
+          Jeder Host nutzt sein eigenes Postfach. Für Einladungen reicht der
+          <strong>Ausgangsserver (SMTP)</strong>. IMAP (Eingang) ist optional.
+        </p>
+        <p class="status-line" id="profileMailStatus"></p>
+        <form id="profileMailForm" class="profile-form">
+          <p class="status-line profile-preset-heading">Strato-Vorlage</p>
+          <button type="button" class="secondary" id="btnStratoMailPreset">Strato-Werte eintragen</button>
+          <div class="row">
+            <label for="mailOutHost">Ausgangsserver (SMTP)</label>
+            <input type="text" id="mailOutHost" placeholder="smtp.strato.de" autocomplete="off" />
+          </div>
+          <div class="row profile-mail-port-row">
+            <label for="mailOutPort">Port</label>
+            <input type="number" id="mailOutPort" min="1" max="65535" value="465" />
+            <label class="technique-check profile-mail-secure-check">
+              <input type="checkbox" id="mailOutSecure" checked />
+              <span>SSL/TLS (465)</span>
+            </label>
+          </div>
+          <div class="row">
+            <label for="mailOutUser">E-Mail / Benutzername</label>
+            <input type="email" id="mailOutUser" placeholder="dein-name@deine-domain.de" autocomplete="username" />
+          </div>
+          <div class="row">
+            <label for="mailOutFrom">Absender-Adresse</label>
+            <input type="email" id="mailOutFrom" placeholder="wie oben" autocomplete="off" />
+          </div>
+          <div class="row">
+            <label for="mailOutPassword">Postfach-Passwort</label>
+            <input
+              type="password"
+              id="mailOutPassword"
+              autocomplete="new-password"
+              placeholder="Strato-Postfach-Passwort"
+            />
+            <p class="profile-field-hint" id="mailPasswordHint"></p>
+          </div>
+          <details class="profile-mail-incoming">
+            <summary>Eingangsserver (IMAP) — optional</summary>
+            <div class="row">
+              <label for="mailInHost">Eingangsserver</label>
+              <input type="text" id="mailInHost" placeholder="imap.strato.de" autocomplete="off" />
+            </div>
+            <div class="row">
+              <label for="mailInPort">Port</label>
+              <input type="number" id="mailInPort" min="1" max="65535" value="993" />
+            </div>
+            <div class="row">
+              <label for="mailInUser">Benutzername</label>
+              <input type="email" id="mailInUser" placeholder="meist gleich wie SMTP" autocomplete="off" />
+            </div>
+          </details>
+          <div class="row profile-mail-actions">
+            <button type="submit" class="primary">Speichern</button>
+            <button type="button" class="secondary" id="btnMailTest">Test-E-Mail</button>
+            <button type="button" id="mailSettingsModalClose">Schließen</button>
+          </div>
+          <p class="status-line" id="profileMailSaveStatus" hidden></p>
+        </form>
       </div>
     </div>
 
@@ -139,9 +213,13 @@
               <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
               <span>Member login</span>
             </a>
+            <button type="button" class="account-dropdown-item" id="btnMailSettings" hidden role="menuitem">
+              <i class="bi bi-envelope-at" aria-hidden="true"></i>
+              <span>E-Mail-Versand (SMTP)</span>
+            </button>
             <button type="button" class="account-dropdown-item" id="btnInviteByEmail" disabled role="menuitem">
               <i class="bi bi-envelope" aria-hidden="true"></i>
-              <span>Invite guest by email</span>
+              <span>Gast per E-Mail einladen</span>
             </button>
             <div class="account-dropdown-divider" role="separator"></div>
             <button type="button" class="account-dropdown-item account-dropdown-danger" id="accountLogoutBtn" role="menuitem">
@@ -296,7 +374,13 @@
           </div>
 
           <div class="panel-tab-panel" data-panel-tab-panel="setup">
-          <h2 class="panel-tab-title">Connection &amp; broadcast</h2>
+          <h2 class="panel-tab-title">Verbindung &amp; Übertragung</h2>
+          <p class="status-line setup-flow-hint">
+            <strong>Als Host starten:</strong> (1) Raum-Passwort eingeben (beim Seitenaufruf) → (2) Broadcast
+            <strong>„Webcam &amp; Mikrofon“</strong> wählen für normales Streaming ohne OBS → (3) Kamera/Mikro wählen →
+            <strong>Start as Host</strong>. Für OBS-Szenen: Broadcast „OBS (WHIP)“.
+            <span class="setup-flow-hint-member">Mitglieder-Login (Account-Menü) nur für Profil &amp; E-Mail-Einladungen.</span>
+          </p>
           <div class="row">
             <button type="button" class="primary" id="btnStartHost" disabled>
               Start as Host
@@ -307,7 +391,7 @@
           <div class="row media-source-row">
             <label for="broadcastMode">Broadcast</label>
             <select id="broadcastMode" class="media-source-select" disabled>
-              <option value="camera">Camera / Virtual Camera</option>
+              <option value="camera" selected>Webcam &amp; Mikrofon (ohne OBS)</option>
               <option value="whip">OBS Studio (WHIP)</option>
             </select>
           </div>
@@ -370,8 +454,7 @@
             </select>
           </div>
           <p class="status-line media-source-hint" id="mediaSourceHint">
-            Start OBS Virtual Camera while your scene is live, select it above, then Start as Host.
-            If only the OBS logo appears, stop and restart Virtual Camera in OBS.
+            Webcam-Modus: Kamera und Mikrofon oben wählen (oder „Standard“), dann Start as Host — kein OBS nötig.
           </p>
           <p class="status-line" id="mediaSourceStatus" hidden></p>
           <div class="row">
@@ -439,6 +522,7 @@
               </div>
               <p class="status-line" id="profileSaveStatus" hidden></p>
             </form>
+
           </div>
         </div>
 
@@ -529,9 +613,9 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/ui-shell.js?v=8405"></script>
-    <script src="assets/app.js?v=8405"></script>
-    <script src="assets/auth.js?v=8405"></script>
-    <script src="assets/member-profile.js?v=8405"></script>
+    <script src="assets/ui-shell.js?v=8408"></script>
+    <script src="assets/app.js?v=8408"></script>
+    <script src="assets/auth.js?v=8408"></script>
+    <script src="assets/member-profile.js?v=8408"></script>
   </body>
 </html>
