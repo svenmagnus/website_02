@@ -3312,6 +3312,8 @@ function setVideoAccessUi(unlocked) {
   }
 }
 
+let lovenseUiBooted = false;
+
 function grantSiteAccess() {
   try {
     sessionStorage.setItem(SESSION_VIDEO_UNLOCK_KEY, "1");
@@ -3321,6 +3323,10 @@ function grantSiteAccess() {
   setVideoAccessUi(true);
   const pass = document.getElementById("accessPassword");
   if (pass instanceof HTMLInputElement) pass.value = "";
+  if (!lovenseUiBooted) {
+    lovenseUiBooted = true;
+    initLovenseIfPresent();
+  }
 }
 
 function revokeSiteAccess() {
@@ -3347,10 +3353,17 @@ function initAccessGate() {
     revokeSiteAccess();
   });
 
+  if (global.DualPeerAuth?.onReady) {
+    global.DualPeerAuth.onReady(() => {
+      if (global.DualPeerAuth.isLoggedIn()) grantSiteAccess();
+    });
+  }
+
   requestAnimationFrame(() => {
     document.getElementById("accessUsername")?.focus();
   });
 }
+
 
 function initLogout() {
   const btn = els.logoutBtn;
@@ -3692,7 +3705,6 @@ function initVideoOverlayControls() {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  initLovenseIfPresent();
   if (window.dualPeerUi) {
     window.dualPeerUi.initShell();
   }

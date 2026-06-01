@@ -152,7 +152,8 @@
       return;
     }
     closePremiumLoginModal();
-    global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+    if (global.dualPeerSiteAccess?.grant) global.dualPeerSiteAccess.grant();
+    else global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
     if (showProfile) {
       if (global.MemberProfile?.enterProfileWorkspace) {
         global.MemberProfile.enterProfileWorkspace({ onboarding: true });
@@ -969,13 +970,17 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = document.getElementById("accessUnlock");
-      if (btn instanceof HTMLButtonElement) btn.disabled = true;
+      if (btn instanceof HTMLButtonElement) {
+        btn.disabled = true;
+        btn.textContent = "Anmeldung …";
+      }
       if (errEl) errEl.hidden = true;
 
       try {
         await login(usernameEl?.value, passwordEl?.value);
         enterAppAfterAuth({ showProfile: true });
       } catch (err) {
+        console.warn("[auth] Login failed:", err.code || err.message);
         if (errEl) {
           errEl.hidden = false;
           const map = {
@@ -990,7 +995,10 @@
         if (passwordEl instanceof HTMLInputElement) passwordEl.value = "";
         passwordEl?.focus();
       } finally {
-        if (btn instanceof HTMLButtonElement) btn.disabled = false;
+        if (btn instanceof HTMLButtonElement) {
+          btn.disabled = false;
+          btn.textContent = "Anmelden";
+        }
       }
     });
   }
@@ -1008,7 +1016,8 @@
       }
     }
     if (hasSiteAccess) {
-      global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+      if (global.dualPeerSiteAccess?.grant) global.dualPeerSiteAccess.grant();
+      else global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
       const onboard = new URLSearchParams(location.search).get("onboard") === "1";
       if (onboard) {
         queueMicrotask(() => {
