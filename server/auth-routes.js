@@ -449,9 +449,6 @@ authRouter.post("/auth/register", async (req, res) => {
   if (!invite && !devBypass && userCount > 0) {
     return res.status(400).json({ ok: false, error: "invite_required" });
   }
-  if (invite && invite.email !== email) {
-    return res.status(400).json({ ok: false, error: "email_mismatch" });
-  }
 
   const existingUser = db.prepare("SELECT id FROM users WHERE username = ? COLLATE NOCASE").get(username);
   if (existingUser) {

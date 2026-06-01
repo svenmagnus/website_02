@@ -1021,10 +1021,11 @@
           }
           if (emailEl instanceof HTMLInputElement) {
             emailEl.value = data.email || "";
-            emailEl.readOnly = true;
+            emailEl.readOnly = false;
           }
           if (emailHint) {
-            emailHint.textContent = "Email is predetermined by the invitation.";
+            emailHint.textContent =
+              "Pre-filled from your invitation. Feel free to use a different address for your account.";
           }
         })
         .catch(() => {
