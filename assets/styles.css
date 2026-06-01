@@ -606,6 +606,45 @@ body.login-locked > footer {
   font-size: 0.78rem;
 }
 
+.profile-welcome-banner {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.12), rgba(124, 92, 255, 0.08));
+  transition: opacity 0.32s ease, transform 0.32s ease, max-height 0.35s ease;
+  overflow: hidden;
+}
+
+.profile-welcome-banner.is-hiding {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.profile-welcome-banner-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.profile-welcome-manual {
+  margin: 0.5rem 0 0 !important;
+}
+
+.profile-welcome-manual-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.profile-welcome-manual-link:hover {
+  text-decoration: underline;
+}
+
 .welcome-card h1 {
   margin-bottom: 0.35rem;
 }

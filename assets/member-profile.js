@@ -4,6 +4,7 @@
 (function (global) {
   const STORAGE_KEY = "dualpeer-member-profile-v1";
   const LEGACY_NAME_KEY = "dualpeer-profile-name";
+  const WELCOME_BANNER_KEY = "dualpeer-profile-welcome-dismissed";
 
   const TECHNIQUES = [
     { id: "nipple_play", label: "Nipple Play" },
@@ -152,9 +153,13 @@
   function updateProfileTabHint() {
     const hint = document.getElementById("profileTabHint");
     if (!hint) return;
-    hint.textContent = isAccountMode()
-      ? "Synced with your member account on the server."
-      : "Saved on this device. Sign in via the account menu to sync your profile to the server.";
+    if (isAccountMode()) {
+      hint.hidden = true;
+      return;
+    }
+    hint.hidden = false;
+    hint.textContent =
+      "Nur auf diesem Gerät gespeichert. Melde dich im Startfenster an, um das Profil mit deinem Konto zu synchronisieren.";
   }
 
   function resolveTechniqueLabel(id, profile) {
@@ -483,11 +488,73 @@
     return sendFn({ type: "profile", profile: getPublicProfile(), ts: Date.now() });
   }
 
+  function isWelcomeBannerDismissed() {
+    try {
+      return localStorage.getItem(WELCOME_BANNER_KEY) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function dismissWelcomeBanner() {
+    if (isWelcomeBannerDismissed()) return;
+    try {
+      localStorage.setItem(WELCOME_BANNER_KEY, "1");
+    } catch (_) {
+      /* ignore */
+    }
+    const el = document.getElementById("profileWelcomeBanner");
+    if (!el) return;
+    el.classList.add("is-hiding");
+    window.setTimeout(() => {
+      el.hidden = true;
+      el.classList.remove("is-hiding");
+    }, 320);
+  }
+
+  function refreshWelcomeBanner() {
+    const el = document.getElementById("profileWelcomeBanner");
+    if (!el) return;
+    if (!isAccountMode() || isWelcomeBannerDismissed()) {
+      el.hidden = true;
+      return;
+    }
+    const user = global.DualPeerAuth?.getSession?.()?.user;
+    const name = user?.displayName || user?.username || "Gast";
+    const nameEl = el.querySelector("[data-welcome-name]");
+    if (nameEl) nameEl.textContent = name;
+    el.hidden = false;
+    el.classList.remove("is-hiding");
+  }
+
+  function initWelcomeBannerDismiss() {
+    const form = document.getElementById("profileForm");
+    if (!form) return;
+    const onEdit = () => dismissWelcomeBanner();
+    form.querySelectorAll("input, textarea, select").forEach((el) => {
+      el.addEventListener("input", onEdit);
+      el.addEventListener("change", onEdit);
+    });
+    const customRoot = document.getElementById("profileCustomTechniqueList");
+    const presetRoot = document.getElementById("profileTechniqueList");
+    customRoot?.addEventListener("change", onEdit);
+    presetRoot?.addEventListener("change", onEdit);
+    document.getElementById("btnAddCustomTechnique")?.addEventListener("click", onEdit);
+  }
+
+  function enterProfileWorkspace({ onboarding = false } = {}) {
+    setPanelTab("profile", { userAction: Boolean(onboarding) });
+    fillProfileForm(loadProfile());
+    renderTechniqueChecklist();
+    refreshWelcomeBanner();
+    updateProfileTabHint();
+  }
+
   function initConnectionTabs() {
     initTabGroup(getConnectionTabsRoot(), {
       tabAttr: "data-panel-tab",
       panelAttr: "data-panel-tab-panel",
-      defaultTab: "setup",
+      defaultTab: "profile",
       userPinField: true,
     });
     const openProfile = document.getElementById("btnOpenProfileTab");
@@ -519,6 +586,8 @@
     renderTechniqueChecklist();
     fillProfileForm(loadProfile());
     refreshAccountMini();
+    initWelcomeBannerDismiss();
+    refreshWelcomeBanner();
 
     const addBtn = document.getElementById("btnAddCustomTechnique");
     const addInput = document.getElementById("profileCustomTechniqueInput");
@@ -553,18 +622,17 @@
       });
     }
 
-        const form = document.getElementById("profileForm");
-    const profileUiDe = () => document.body.classList.contains("welcome-page");
+    const form = document.getElementById("profileForm");
     if (form) {
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
+        dismissWelcomeBanner();
         const msg = document.getElementById("profileSaveStatus");
         const draft = readProfileForm();
-        const de = profileUiDe();
         if (isAccountMode()) {
           if (msg) {
             msg.hidden = false;
-            msg.textContent = de ? "Speichere …" : "Saving…";
+            msg.textContent = "Speichere …";
             msg.className = "status-line";
           }
           try {
@@ -579,13 +647,14 @@
             const saved = persistLocal(profileFromAuth(updated) || draft);
             fillProfileForm(saved);
             renderTechniqueChecklist();
+            refreshWelcomeBanner();
             if (msg) {
-              msg.textContent = de ? "Profil gespeichert." : "Profile saved to your account.";
+              msg.textContent = "Profil gespeichert.";
               msg.className = "status-line ok";
             }
           } catch (err) {
             if (msg) {
-              msg.textContent = err.message || "Could not save profile.";
+              msg.textContent = err.message || "Profil konnte nicht gespeichert werden.";
               msg.className = "status-line err";
             }
             return;
@@ -596,7 +665,7 @@
           renderTechniqueChecklist();
           if (msg) {
             msg.hidden = false;
-            msg.textContent = "Profile saved on this device.";
+            msg.textContent = "Profil auf diesem Gerät gespeichert.";
             msg.className = "status-line ok";
           }
         }
@@ -614,6 +683,7 @@
     fillProfileForm(loadProfile());
     renderTechniqueChecklist();
     updateProfileTabHint();
+    refreshWelcomeBanner();
     dispatchProfileUpdate();
   }
 
@@ -634,15 +704,27 @@
 
     global.addEventListener("dualpeer-auth-change", () => {
       onAuthProfileSynced();
+      if (global.DualPeerAuth?.isLoggedIn?.()) {
+        enterProfileWorkspace();
+      }
     });
     global.addEventListener("dualpeer-profile-update", (e) => {
       if (e.detail?.profile) persistLocal(e.detail.profile);
       onAuthProfileSynced();
     });
-    global.addEventListener("dualpeer-welcome-ready", () => {
-      fillProfileForm(loadProfile());
-      renderTechniqueChecklist();
+    global.addEventListener("dualpeer-enter-profile", () => {
+      enterProfileWorkspace({ onboarding: true });
     });
+
+    if (global.DualPeerAuth?.onReady) {
+      global.DualPeerAuth.onReady(() => {
+        if (global.DualPeerAuth.isLoggedIn()) {
+          enterProfileWorkspace({
+            onboarding: new URLSearchParams(location.search).get("onboard") === "1",
+          });
+        }
+      });
+    }
   }
 
   global.MemberProfile = {
@@ -655,6 +737,9 @@
     setPartnerProfile,
     genderLabel,
     setPanelTab,
+    enterProfileWorkspace,
+    refreshWelcomeBanner,
+    dismissWelcomeBanner,
     setRemoteTab,
     maybeAutoStreamTab,
     getChatSenderName,

@@ -406,15 +406,94 @@
         <div class="cb-under-video">
         <div class="card connection-card panel-tabs-card">
           <div class="panel-tabs" role="tablist" aria-label="Session panels">
+            <button type="button" class="panel-tab is-active" role="tab" data-panel-tab="profile" aria-selected="true">
+              Profil
+            </button>
+            <button type="button" class="panel-tab" role="tab" data-panel-tab="setup" aria-selected="false">
+              Setup
+            </button>
             <button type="button" class="panel-tab" role="tab" data-panel-tab="stream" aria-selected="false">
               Stream
             </button>
-            <button type="button" class="panel-tab is-active" role="tab" data-panel-tab="setup" aria-selected="true">
-              Setup
-            </button>
-            <button type="button" class="panel-tab" role="tab" data-panel-tab="profile" aria-selected="false">
-              Profile
-            </button>
+          </div>
+
+          <div class="panel-tab-panel" data-panel-tab-panel="profile">
+            <div
+              class="profile-welcome-banner"
+              id="profileWelcomeBanner"
+              role="status"
+              hidden
+            >
+              <p class="profile-welcome-banner-text">
+                Willkommen, <strong data-welcome-name>Gast</strong>! Richte hier dein Profil ein —
+                dein Partner sieht diese Angaben in der Session.
+              </p>
+              <p class="status-line profile-welcome-manual">
+                <a href="anleitung.html" class="profile-welcome-manual-link" target="_blank" rel="noopener">
+                  <i class="bi bi-book" aria-hidden="true"></i>
+                  Gebrauchsanweisung
+                </a>
+              </p>
+            </div>
+            <h2 class="panel-tab-title">Mein Profil</h2>
+            <p class="status-line profile-tab-hint" id="profileTabHint" hidden>
+              Profil wird mit deinem Konto synchronisiert.
+            </p>
+            <form id="profileForm" class="profile-form">
+              <div class="row">
+                <label for="profileDisplayName">Anzeigename</label>
+                <input type="text" id="profileDisplayName" maxlength="32" placeholder="Name im Chat …" autocomplete="nickname" />
+              </div>
+              <div class="row">
+                <label for="profileGender">Geschlecht</label>
+                <select id="profileGender">
+                  <option value="">Keine Angabe</option>
+                  <option value="female">Weiblich</option>
+                  <option value="male">Männlich</option>
+                  <option value="nonbinary">Non-binär</option>
+                  <option value="other">Andere</option>
+                </select>
+              </div>
+              <div class="row">
+                <label for="profileBio">Über dich</label>
+                <textarea id="profileBio" rows="4" maxlength="500" placeholder="Kurz zu dir …"></textarea>
+              </div>
+              <fieldset class="profile-techniques-field">
+                <legend>Techniken, die du anbietest</legend>
+                <p class="status-line" style="margin: 0 0 0.5rem">
+                  Dein Partner kann diese während des Streams anfragen (erscheint im Chat).
+                </p>
+                <div id="profileTechniqueList" class="profile-technique-list"></div>
+                <p class="status-line profile-custom-heading">Eigene Techniken</p>
+                <div class="profile-technique-add row">
+                  <input
+                    type="text"
+                    id="profileCustomTechniqueInput"
+                    maxlength="48"
+                    placeholder="z. B. Slow massage …"
+                    autocomplete="off"
+                  />
+                  <button type="button" class="secondary" id="btnAddCustomTechnique">Hinzufügen</button>
+                </div>
+                <div id="profileCustomTechniqueList" class="profile-technique-list profile-custom-list"></div>
+              </fieldset>
+              <div class="row">
+                <label for="profileLovenseToys">Lovense-Toys (vorhanden)</label>
+                <textarea
+                  id="profileLovenseToys"
+                  rows="2"
+                  maxlength="500"
+                  placeholder="z. B. Lush 3, Edge 2 …"
+                ></textarea>
+                <p class="status-line profile-field-hint">
+                  Info für deinen Partner. Steuerung über die Lovense Cam Extension im Tab Setup/Stream.
+                </p>
+              </div>
+              <div class="row">
+                <button type="submit" class="primary">Profil speichern</button>
+              </div>
+              <p class="status-line" id="profileSaveStatus" hidden></p>
+            </form>
           </div>
 
           <div class="panel-tab-panel" data-panel-tab-panel="stream" hidden>
@@ -430,7 +509,7 @@
             <p class="status-line" data-partner-technique-summary>Partner: not connected</p>
           </div>
 
-          <div class="panel-tab-panel" data-panel-tab-panel="setup">
+          <div class="panel-tab-panel" data-panel-tab-panel="setup" hidden>
           <h2 class="panel-tab-title">Verbindung &amp; Übertragung</h2>
           <p class="status-line setup-flow-hint">
             <strong>Als Host starten:</strong> (1) Mit Benutzername anmelden (Startfenster) → (2) Broadcast
@@ -542,70 +621,6 @@
           <p class="status-line pip-native-msg" id="pipNativeMsg" role="status"></p>
           </div>
 
-          <div class="panel-tab-panel" data-panel-tab-panel="profile" hidden>
-            <h2 class="panel-tab-title">My profile</h2>
-            <p class="status-line profile-tab-hint" id="profileTabHint">
-              Saved on this device. Sign in via the account menu to sync your profile to the server.
-            </p>
-            <form id="profileForm" class="profile-form">
-              <div class="row">
-                <label for="profileDisplayName">Display name</label>
-                <input type="text" id="profileDisplayName" maxlength="32" placeholder="Your name …" autocomplete="nickname" />
-              </div>
-              <div class="row">
-                <label for="profileGender">Gender</label>
-                <select id="profileGender">
-                  <option value="">Prefer not to say</option>
-                  <option value="female">Female</option>
-                  <option value="male">Male</option>
-                  <option value="nonbinary">Non-binary</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div class="row">
-                <label for="profileBio">About you</label>
-                <textarea id="profileBio" rows="3" maxlength="500" placeholder="Short text about you …"></textarea>
-              </div>
-              <fieldset class="profile-techniques-field">
-                <legend>Techniques you are open to</legend>
-                <p class="status-line" style="margin: 0 0 0.5rem">
-                  Your partner can request these during the stream (shown in chat).
-                </p>
-                <div id="profileTechniqueList" class="profile-technique-list"></div>
-                <p class="status-line profile-custom-heading">Your own techniques</p>
-                <div class="profile-technique-add row">
-                  <input
-                    type="text"
-                    id="profileCustomTechniqueInput"
-                    maxlength="48"
-                    placeholder="e.g. Slow massage, Edge play …"
-                    autocomplete="off"
-                  />
-                  <button type="button" class="secondary" id="btnAddCustomTechnique">Add</button>
-                </div>
-                <div id="profileCustomTechniqueList" class="profile-technique-list profile-custom-list"></div>
-              </fieldset>
-              <div class="row">
-                <label for="profileLovenseToys">Lovense toys (on hand)</label>
-                <textarea
-                  id="profileLovenseToys"
-                  rows="2"
-                  maxlength="500"
-                  placeholder="e.g. Lush 3, Edge 2 …"
-                ></textarea>
-              </div>
-              <p class="status-line profile-field-hint">
-                <a href="anleitung.html" target="_blank" rel="noopener">Gebrauchsanweisung</a>
-                ·
-                <a href="welcome.html">Profil auf Willkommensseite</a>
-              </p>
-              <div class="row">
-                <button type="submit" class="primary">Save profile</button>
-              </div>
-              <p class="status-line" id="profileSaveStatus" hidden></p>
-            </form>
-
-          </div>
         </div>
 
         <div class="card remote-card panel-tabs-card" id="remoteCard">
@@ -695,10 +710,10 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/api-config.js?v=8416"></script>
-    <script src="assets/ui-shell.js?v=8416"></script>
-    <script src="assets/app.js?v=8416"></script>
-    <script src="assets/auth.js?v=8416"></script>
-    <script src="assets/member-profile.js?v=8416"></script>
+    <script src="assets/api-config.js?v=8417"></script>
+    <script src="assets/ui-shell.js?v=8417"></script>
+    <script src="assets/app.js?v=8417"></script>
+    <script src="assets/auth.js?v=8417"></script>
+    <script src="assets/member-profile.js?v=8417"></script>
   </body>
 </html>

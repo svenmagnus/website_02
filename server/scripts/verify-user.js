@@ -25,4 +25,4 @@ db.prepare("UPDATE users SET email_verified_at = ? WHERE id = ?").run(at, user.i
 db.prepare("DELETE FROM email_verifications WHERE user_id = ?").run(user.id);
 
 console.log(`OK — ${user.username} (${user.email || "no email"}) is verified.`);
-console.log("Login at: https://www.tangent-club.com/welcome.html");
+console.log("Login at: https://www.tangent-club.com/");

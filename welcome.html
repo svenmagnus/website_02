@@ -1,132 +1,14 @@
 <!DOCTYPE html>
-<html lang="de" data-theme="cb-dark">
+<html lang="de">
   <head>
-    <script>
-      (function () {
-        try {
-          var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
-          if (t === "cb-dark" || t === "cb-light" || t === "original") {
-            document.documentElement.setAttribute("data-theme", t === "original" ? "cb-dark" : t);
-          }
-        } catch (_) {}
-      })();
-    </script>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Willkommen — Tangent Club</title>
-    <link rel="stylesheet" href="assets/styles.css?v=8415" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <meta http-equiv="refresh" content="0;url=index.html?onboard=1" />
+    <title>Weiterleitung …</title>
+    <script>
+      location.replace("index.html?onboard=1");
+    </script>
   </head>
-  <body class="auth-page welcome-page">
-    <main class="auth-page-main auth-page-main-wide">
-      <a href="index.html" class="logo-link auth-logo">
-        <img src="assets/logo.png" alt="Tangent-Club Logo" />
-      </a>
-
-      <div id="welcomeLoginGate" class="login-overlay-card auth-card" hidden>
-        <h1>Anmelden</h1>
-        <p class="status-line">Melde dich an, um dein Profil zu bearbeiten.</p>
-        <form id="welcomeLoginForm">
-          <div class="row">
-            <label for="welcomeLoginUsername">Benutzername</label>
-            <input type="text" id="welcomeLoginUsername" autocomplete="username" required />
-          </div>
-          <div class="row">
-            <label for="welcomeLoginPassword">Passwort</label>
-            <input type="password" id="welcomeLoginPassword" autocomplete="current-password" required />
-          </div>
-          <p class="login-overlay-error" id="welcomeLoginError" hidden></p>
-          <button type="submit" class="primary">Anmelden</button>
-        </form>
-        <p class="status-line" id="welcomeResendHint" hidden style="margin-top: 0.75rem">
-          E-Mail nicht bestätigt?
-          <a href="index.html?premium=1">Bestätigung erneut senden</a>
-          (Premium-Login auf der Startseite).
-        </p>
-        <p class="status-line" style="margin-top: 1rem">
-          Noch kein Konto? <a href="register.html">Registrieren</a>
-        </p>
-      </div>
-
-      <div id="welcomeProfilePanel" class="login-overlay-card auth-card welcome-card" hidden>
-        <h1 id="welcomeTitle">Willkommen!</h1>
-        <p class="status-line welcome-lead">
-          Richte hier dein Profil ein — dein Partner sieht diese Angaben in der Session.
-        </p>
-        <p class="status-line welcome-manual-link">
-          <a href="anleitung.html" class="welcome-manual-btn" target="_blank" rel="noopener">
-            <i class="bi bi-book" aria-hidden="true"></i>
-            Gebrauchsanweisung öffnen
-          </a>
-        </p>
-
-        <form id="profileForm" class="profile-form">
-          <div class="row">
-            <label for="profileDisplayName">Anzeigename</label>
-            <input
-              type="text"
-              id="profileDisplayName"
-              maxlength="32"
-              placeholder="Name im Chat …"
-              autocomplete="nickname"
-            />
-          </div>
-          <div class="row">
-            <label for="profileGender">Geschlecht</label>
-            <select id="profileGender">
-              <option value="">Keine Angabe</option>
-              <option value="female">Weiblich</option>
-              <option value="male">Männlich</option>
-              <option value="nonbinary">Non-binär</option>
-              <option value="other">Andere</option>
-            </select>
-          </div>
-          <div class="row">
-            <label for="profileBio">Über dich</label>
-            <textarea id="profileBio" rows="4" maxlength="500" placeholder="Kurz zu dir …"></textarea>
-          </div>
-          <fieldset class="profile-techniques-field">
-            <legend>Techniken, die du anbietest</legend>
-            <p class="status-line" style="margin: 0 0 0.5rem">
-              Dein Partner kann diese während des Streams anfragen (erscheint im Chat).
-            </p>
-            <div id="profileTechniqueList" class="profile-technique-list"></div>
-            <p class="status-line profile-custom-heading">Eigene Techniken</p>
-            <div class="profile-technique-add row">
-              <input
-                type="text"
-                id="profileCustomTechniqueInput"
-                maxlength="48"
-                placeholder="z. B. Slow massage …"
-                autocomplete="off"
-              />
-              <button type="button" class="secondary" id="btnAddCustomTechnique">Hinzufügen</button>
-            </div>
-            <div id="profileCustomTechniqueList" class="profile-technique-list profile-custom-list"></div>
-          </fieldset>
-          <div class="row">
-            <label for="profileLovenseToys">Lovense-Toys (vorhanden)</label>
-            <textarea
-              id="profileLovenseToys"
-              rows="2"
-              maxlength="500"
-              placeholder="z. B. Lush 3, Edge 2 — was du in der Lovense Extension verbindest"
-            ></textarea>
-            <p class="status-line profile-field-hint">
-              Nur zur Info für deinen Partner. Steuerung erfolgt über die Lovense Cam Extension auf der Stream-Seite.
-            </p>
-          </div>
-          <p class="status-line" id="profileSaveStatus" hidden></p>
-          <div class="row welcome-actions">
-            <button type="submit" class="primary">Profil speichern</button>
-            <a href="index.html" class="secondary welcome-stream-link">Zum Video-Stream</a>
-          </div>
-        </form>
-      </div>
-    </main>
-    <script src="assets/api-config.js?v=8416"></script>
-    <script src="assets/ui-shell.js?v=8416"></script>
-    <script src="assets/auth.js?v=8416"></script>
-    <script src="assets/member-profile.js?v=8416"></script>
+  <body>
+    <p><a href="index.html?onboard=1">Weiter zur App</a></p>
   </body>
 </html>

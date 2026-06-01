@@ -127,8 +127,46 @@
     return Boolean(getSession()?.token);
   }
 
+  function stripAuthQueryParams() {
+    const url = new URL(location.href);
+    let changed = false;
+    ["premium", "verified", "onboard"].forEach((key) => {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        changed = true;
+      }
+    });
+    if (location.hash === "#premium") {
+      url.hash = "";
+      changed = true;
+    }
+    if (changed) {
+      history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+  }
+
+  /** Logged-in user enters main app (no welcome.html); optional Profil tab + banner. */
+  function enterAppAfterAuth({ showProfile = true } = {}) {
+    if (!document.getElementById("siteAccessForm")) {
+      window.location.href = showProfile ? "index.html?onboard=1" : "index.html";
+      return;
+    }
+    closePremiumLoginModal();
+    global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+    if (showProfile) {
+      if (global.MemberProfile?.enterProfileWorkspace) {
+        global.MemberProfile.enterProfileWorkspace({ onboarding: true });
+      } else {
+        global.dispatchEvent(
+          new CustomEvent("dualpeer-enter-profile", { detail: { onboarding: true } })
+        );
+      }
+    }
+    stripAuthQueryParams();
+  }
+
   function goToWelcomePage() {
-    window.location.href = "welcome.html";
+    enterAppAfterAuth({ showProfile: true });
   }
 
   function authHeaders() {
@@ -653,21 +691,20 @@
 
     const params = new URLSearchParams(location.search);
     const onIndex = Boolean(document.getElementById("premiumLoginModal"));
-    if (params.get("verified") === "1" || params.get("premium") === "1") {
-      if (onIndex && params.get("premium") === "1") {
-        openPremiumLoginModal();
-      }
-      if (params.get("verified") === "1") {
-        const banner = document.getElementById("loginVerifiedBanner");
-        if (banner) {
-          banner.hidden = false;
-          banner.className = "status-line ok";
-          banner.textContent = "E-Mail bestätigt — du kannst dich jetzt anmelden.";
-        }
+    if (params.get("verified") === "1") {
+      const banner = document.getElementById("loginVerifiedBanner");
+      if (banner) {
+        banner.hidden = false;
+        banner.className = "status-line ok";
+        banner.textContent = "E-Mail bestätigt — melde dich im Startfenster an.";
       }
     }
-    if (location.hash === "#premium" && onIndex) {
-      openPremiumLoginModal();
+    if (onIndex && (params.get("premium") === "1" || location.hash === "#premium")) {
+      if (isLoggedIn()) {
+        enterAppAfterAuth({ showProfile: params.get("onboard") === "1" });
+      } else if (params.get("premium") === "1" || location.hash === "#premium") {
+        openPremiumLoginModal();
+      }
     }
 
     const resendPanel = document.getElementById("loginResendPanel");
@@ -683,10 +720,9 @@
       try {
         await login(user?.value, pass?.value);
         if (document.getElementById("premiumLoginModal")) {
-          closePremiumLoginModal();
-          goToWelcomePage();
+          enterAppAfterAuth({ showProfile: true });
         } else {
-          window.location.href = "index.html";
+          window.location.href = "index.html?onboard=1";
         }
       } catch (err) {
         if (errEl) {
@@ -761,8 +797,8 @@
         }
         if (loginLink) {
           loginLink.hidden = false;
-          loginLink.href = "welcome.html";
-          loginLink.textContent = "Zum Profil / Anmelden";
+          loginLink.href = "index.html?onboard=1";
+          loginLink.textContent = "Zur App / Anmelden";
         }
       })
       .catch((err) => {
@@ -774,8 +810,8 @@
         statusEl.textContent = map[err.code] || err.message || "Bestätigung fehlgeschlagen.";
         if (loginLink) {
           loginLink.hidden = false;
-          loginLink.href = "welcome.html";
-          loginLink.textContent = "Zum Profil / Anmelden";
+          loginLink.href = "index.html?onboard=1";
+          loginLink.textContent = "Zur App / Anmelden";
         }
       });
   }
@@ -860,7 +896,8 @@
         if (result.token && result.user) {
           setSession(result.token, result.user);
           cacheProfile(userToProfile(result.user));
-          setTimeout(() => goToWelcomePage(), 800);
+          window.location.href = "index.html?onboard=1";
+          return;
         } else if (result.needsEmailVerification) {
           const devEl = document.getElementById("registerDevVerify");
           const emailHint = document.getElementById("registerEmailHint");
@@ -874,21 +911,20 @@
           if (devEl && result.devVerifyUrl) {
             devEl.hidden = false;
             devEl.className = "status-line ok";
-            devEl.innerHTML = `Bestätigung: <a href="${result.devVerifyUrl}">E-Mail jetzt bestätigen</a> — danach <a href="welcome.html">anmelden</a>`;
+            devEl.innerHTML = `Bestätigung: <a href="${result.devVerifyUrl}">E-Mail jetzt bestätigen</a> — danach <a href="index.html">anmelden</a>`;
           }
           if (successMsg && !result.devVerifyUrl) {
-            successMsg.textContent +=
-              " Auf welcome.html anmelden und „Bestätigung erneut senden“ (Premium-Login auf der Startseite).";
+            successMsg.textContent += " Danach auf der Startseite anmelden.";
           }
         } else if (username && password) {
           try {
             await login(username, password);
-            setTimeout(() => goToWelcomePage(), 800);
+            window.location.href = "index.html?onboard=1";
           } catch (_) {
-            setTimeout(() => goToWelcomePage(), 1500);
+            window.location.href = "index.html";
           }
         } else {
-          setTimeout(() => goToWelcomePage(), 1500);
+          window.location.href = "index.html";
         }
       } catch (err) {
         if (errEl) {
@@ -914,68 +950,10 @@
     });
   }
 
-  function initWelcomePage() {
-    const gate = document.getElementById("welcomeLoginGate");
-    const panel = document.getElementById("welcomeProfilePanel");
-    const title = document.getElementById("welcomeTitle");
-    if (!gate && !panel) return;
-
-    function showLoggedInUi() {
-      if (gate) gate.hidden = true;
-      if (panel) panel.hidden = false;
-      const user = getSession()?.user;
-      const name = user?.displayName || user?.username || "Gast";
-      if (title) title.textContent = `Willkommen, ${name}!`;
-    }
-
-    function showLoggedOutUi() {
-      if (gate) gate.hidden = false;
-      if (panel) panel.hidden = true;
-    }
-
-    onReady(async () => {
-      if (!isLoggedIn()) {
-        showLoggedOutUi();
-        return;
-      }
-      try {
-        await fetchProfile();
-      } catch (_) {
-        clearSession();
-        showLoggedOutUi();
-        return;
-      }
-      showLoggedInUi();
-      if (global.MemberProfile) {
-        global.dispatchEvent(new CustomEvent("dualpeer-welcome-ready"));
-      }
-    });
-
-    const loginForm = document.getElementById("welcomeLoginForm");
-    loginForm?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const errEl = document.getElementById("welcomeLoginError");
-      if (errEl) errEl.hidden = true;
-      try {
-        await login(
-          document.getElementById("welcomeLoginUsername")?.value,
-          document.getElementById("welcomeLoginPassword")?.value
-        );
-        await fetchProfile();
-        showLoggedInUi();
-        global.dispatchEvent(new CustomEvent("dualpeer-welcome-ready"));
-      } catch (err) {
-        if (errEl) {
-          errEl.hidden = false;
-          errEl.textContent =
-            err.code === "email_not_verified"
-              ? "E-Mail noch nicht bestätigt — Link aus der Registrierungs-Mail oder Bestätigung erneut senden."
-              : err.message || "Anmeldung fehlgeschlagen.";
-        }
-        const resendHint = document.getElementById("welcomeResendHint");
-        if (resendHint) resendHint.hidden = err.code !== "email_not_verified";
-      }
-    });
+  function initWelcomeRedirect() {
+    if (!document.body.classList.contains("welcome-page")) return;
+    const target = isLoggedIn() ? "index.html?onboard=1" : "index.html";
+    window.location.replace(target);
   }
 
   function initSiteAccessGate() {
@@ -994,7 +972,7 @@
 
       try {
         await login(usernameEl?.value, passwordEl?.value);
-        global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+        enterAppAfterAuth({ showProfile: true });
       } catch (err) {
         if (errEl) {
           errEl.hidden = false;
@@ -1028,6 +1006,19 @@
     }
     if (hasSiteAccess) {
       global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+      const onboard = new URLSearchParams(location.search).get("onboard") === "1";
+      if (onboard) {
+        queueMicrotask(() => {
+          if (global.MemberProfile?.enterProfileWorkspace) {
+            global.MemberProfile.enterProfileWorkspace({ onboarding: true });
+          } else {
+            global.dispatchEvent(
+              new CustomEvent("dualpeer-enter-profile", { detail: { onboarding: true } })
+            );
+          }
+          stripAuthQueryParams();
+        });
+      }
     } else {
       global.dispatchEvent(new CustomEvent("dualpeer-site-access-revoked"));
     }
@@ -1060,7 +1051,7 @@
     initPremiumLoginModal();
     initInviteModal();
     initLoginPage();
-    initWelcomePage();
+    initWelcomeRedirect();
     initRegisterPage();
     initVerifyEmailPage();
     initProfileMailForm();
@@ -1088,6 +1079,7 @@
     loadProfileMailSettings,
     openMailSettingsModal,
     closeMailSettingsModal,
+    enterAppAfterAuth,
     goToWelcomePage,
     openPremiumLoginModal,
     closePremiumLoginModal,
