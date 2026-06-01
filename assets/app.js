@@ -49,7 +49,7 @@ const PEER_OPTIONS = {
 /** Set in assets/api-config.js (loaded before app.js on auth pages). */
 const WHIP_CLOUDFLARE_TUNNEL_URL =
   (typeof window !== "undefined" && window.WHIP_CLOUDFLARE_TUNNEL_URL) ||
-  "https://outstanding-caution-discounts-apnic.trycloudflare.com";
+  "https://tangent-club.com";
 
 function isTangentClubSite() {
   return /(^|\.)tangent-club\.com$/i.test(location.hostname);

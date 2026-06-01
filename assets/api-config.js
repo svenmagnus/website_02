@@ -1,8 +1,7 @@
 /**
- * API origin for tangent-club.com (GitHub Pages → Cloudflare tunnel → local server).
- * Update after each `npm run tunnel`, then commit & push.
+ * API + WHIP origin for www.tangent-club.com (Hetzner VPS).
+ * DNS: tangent-club.com + www → server IP. HTTPS via nginx + certbot on the VPS.
  */
 (function (global) {
-  global.WHIP_CLOUDFLARE_TUNNEL_URL =
-    "https://outstanding-caution-discounts-apnic.trycloudflare.com";
+  global.WHIP_CLOUDFLARE_TUNNEL_URL = "https://tangent-club.com";
 })(window);
