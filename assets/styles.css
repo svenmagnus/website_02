@@ -486,6 +486,12 @@ body.login-locked > footer {
 
 .login-overlay[hidden] {
   display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+body.has-auth-modal-open {
+  overflow: hidden;
 }
 
 .login-overlay-card {

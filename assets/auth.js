@@ -298,20 +298,27 @@
       window.location.href = "index.html?premium=1";
       return;
     }
-    modal.hidden = false;
+    if (global.dualPeerUi?.openAuthModal) {
+      global.dualPeerUi.openAuthModal("premiumLoginModal");
+    } else {
+      modal.hidden = false;
+      if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
+    }
     const params = new URLSearchParams(location.search);
     const banner = document.getElementById("loginVerifiedBanner");
     if (banner && params.get("verified") === "1") {
       banner.hidden = false;
-      banner.textContent = "E-Mail bestätigt — du kannst dich jetzt anmelden.";
+      banner.textContent = "Email confirmed — you can sign in now.";
     }
-    if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
     document.getElementById("loginUsername")?.focus();
   }
 
   function closePremiumLoginModal() {
-    const modal = document.getElementById("premiumLoginModal");
-    if (modal) modal.hidden = true;
+    if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
+    else {
+      const modal = document.getElementById("premiumLoginModal");
+      if (modal) modal.hidden = true;
+    }
     const errEl = document.getElementById("loginError");
     if (errEl) errEl.hidden = true;
   }
@@ -321,15 +328,22 @@
       openPremiumLoginModal();
       return;
     }
-    const modal = document.getElementById("mailSettingsModal");
-    if (modal) modal.hidden = false;
+    if (global.dualPeerUi?.openAuthModal) {
+      global.dualPeerUi.openAuthModal("mailSettingsModal");
+    } else {
+      const modal = document.getElementById("mailSettingsModal");
+      if (modal) modal.hidden = false;
+      if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
+    }
     loadProfileMailSettings();
-    if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
   }
 
   function closeMailSettingsModal() {
-    const modal = document.getElementById("mailSettingsModal");
-    if (modal) modal.hidden = true;
+    if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
+    else {
+      const modal = document.getElementById("mailSettingsModal");
+      if (modal) modal.hidden = true;
+    }
   }
 
   function fillMailForm(mail) {
@@ -416,9 +430,18 @@
     const menuBtn = document.getElementById("btnMailSettings");
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
 
-    if (closeBtn) closeBtn.addEventListener("click", closeMailSettingsModal);
+    if (closeBtn) {
+      closeBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMailSettingsModal();
+      });
+    }
     if (menuBtn) {
-      menuBtn.addEventListener("click", () => {
+      menuBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
         openMailSettingsModal();
       });
     }
@@ -431,7 +454,10 @@
     }
     if (modal) {
       modal.addEventListener("click", (e) => {
-        if (e.target === modal) closeMailSettingsModal();
+        if (e.target === modal) {
+          e.stopPropagation();
+          closeMailSettingsModal();
+        }
       });
     }
 
@@ -591,7 +617,8 @@
     const status = document.getElementById("inviteModalStatus");
 
     const close = () => {
-      if (modal) modal.hidden = true;
+      if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
+      else if (modal) modal.hidden = true;
     };
     const open = () => {
       if (!isLoggedIn()) {
@@ -601,13 +628,28 @@
       if (!canManageInvites()) {
         return;
       }
-      if (modal) modal.hidden = false;
+      if (global.dualPeerUi?.openAuthModal) {
+        global.dualPeerUi.openAuthModal("inviteModal");
+      } else if (modal) modal.hidden = false;
       if (emailInput instanceof HTMLInputElement) emailInput.focus();
       if (status) status.textContent = "";
     };
 
-    if (openBtn) openBtn.addEventListener("click", open);
-    if (closeBtn) closeBtn.addEventListener("click", close);
+    if (openBtn) {
+      openBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
+        open();
+      });
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      });
+    }
     if (modal) {
       modal.addEventListener("click", (e) => {
         if (e.target === modal) close();

@@ -92,6 +92,37 @@
     }
   }
 
+  const AUTH_MODAL_IDS = ["mailSettingsModal", "inviteModal", "premiumLoginModal"];
+
+  function setModalVisible(el, visible) {
+    if (!el) return;
+    el.hidden = !visible;
+    if (visible) el.removeAttribute("aria-hidden");
+    else el.setAttribute("aria-hidden", "true");
+  }
+
+  function getOpenAuthModal() {
+    for (const id of AUTH_MODAL_IDS) {
+      const el = document.getElementById(id);
+      if (el && !el.hidden) return el;
+    }
+    return null;
+  }
+
+  function closeAuthModals() {
+    AUTH_MODAL_IDS.forEach((id) => setModalVisible(document.getElementById(id), false));
+    document.body.classList.remove("has-auth-modal-open");
+  }
+
+  function openAuthModal(id) {
+    closeAuthModals();
+    closeAccountMenu();
+    const el = document.getElementById(id);
+    setModalVisible(el, true);
+    if (el) document.body.classList.add("has-auth-modal-open");
+    return el;
+  }
+
   function closeAccountMenu() {
     const menu = document.getElementById("accountMenu");
     const btn = document.getElementById("accountMenuBtn");
@@ -102,6 +133,7 @@
   }
 
   function openAccountMenu() {
+    if (getOpenAuthModal()) closeAuthModals();
     const menu = document.getElementById("accountMenu");
     const btn = document.getElementById("accountMenuBtn");
     const panel = document.getElementById("accountDropdown");
@@ -131,19 +163,21 @@
       });
     }
 
-    document.addEventListener(
-      "click",
-      (e) => {
-        const menu = document.getElementById("accountMenu");
-        if (!menu || !menu.classList.contains("is-open")) return;
-        if (e.target instanceof Node && menu.contains(e.target)) return;
-        closeAccountMenu();
-      },
-      true
-    );
+    document.addEventListener("click", (e) => {
+      const menu = document.getElementById("accountMenu");
+      if (!menu || !menu.classList.contains("is-open")) return;
+      if (e.target instanceof Node && menu.contains(e.target)) return;
+      closeAccountMenu();
+    });
 
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeAccountMenu();
+      if (e.key !== "Escape") return;
+      if (getOpenAuthModal()) {
+        closeAuthModals();
+        e.preventDefault();
+        return;
+      }
+      closeAccountMenu();
     });
 
     if (darkToggle instanceof HTMLInputElement) {
@@ -216,5 +250,8 @@
     getProfileName,
     closeAccountMenu,
     openAccountMenu,
+    closeAuthModals,
+    openAuthModal,
+    getOpenAuthModal,
   };
 })(window);
