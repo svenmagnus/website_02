@@ -763,8 +763,17 @@ body.has-auth-modal-open {
   color: var(--muted);
 }
 
-.register-pre-submit-hint {
-  margin-bottom: 1.25rem;
+/* Fixed gap before submit — margin alone can collapse with hidden error line */
+#registerForm .register-submit-gap {
+  height: 1.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  flex: none;
+}
+
+#registerForm > button.primary[type="submit"] {
+  margin-top: 0;
 }
 
 .profile-mail-field {
