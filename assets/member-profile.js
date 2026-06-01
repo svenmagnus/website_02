@@ -31,22 +31,54 @@
       gender: "",
       bio: "",
       techniques: [],
+      customTechniques: [],
       updatedAt: Date.now(),
     };
+  }
+
+  function makeCustomTechniqueId(label) {
+    const slug = String(label || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "")
+      .slice(0, 32);
+    return `custom_${slug || "technique"}_${Date.now().toString(36).slice(-5)}`;
+  }
+
+  function normalizeCustomTechniques(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const item of raw) {
+      const label = String(item?.label || "").trim().slice(0, 48);
+      let id = String(item?.id || "").trim();
+      if (!label) continue;
+      if (!id) id = makeCustomTechniqueId(label);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push({ id, label });
+    }
+    return out;
   }
 
   function normalizeProfile(raw) {
     const base = defaultProfile();
     if (!raw || typeof raw !== "object") return base;
+
+    const customTechniques = normalizeCustomTechniques(raw.customTechniques);
+    const builtInIds = new Set(TECHNIQUES.map((t) => t.id));
+    const customIds = new Set(customTechniques.map((c) => c.id));
     const techniques = Array.isArray(raw.techniques)
-      ? raw.techniques.filter((id) => TECHNIQUES.some((t) => t.id === id))
+      ? [...new Set(raw.techniques.filter((id) => builtInIds.has(id) || customIds.has(id)))]
       : [];
+
     const displayName = String(raw.displayName || raw.name || "Guest").trim().slice(0, 32) || "Guest";
     return {
       displayName,
       gender: GENDERS.some((g) => g.value === raw.gender) ? raw.gender : "",
       bio: String(raw.bio || "").trim().slice(0, 500),
       techniques,
+      customTechniques,
       updatedAt: raw.updatedAt || Date.now(),
     };
   }
@@ -78,6 +110,21 @@
     return next;
   }
 
+  function resolveTechniqueLabel(id, profile) {
+    const p = profile || loadProfile();
+    const builtIn = TECHNIQUES.find((t) => t.id === id);
+    if (builtIn) return builtIn.label;
+    const custom = (p.customTechniques || []).find((c) => c.id === id);
+    if (custom) return custom.label;
+    return String(id || "").replace(/_/g, " ");
+  }
+
+  /** Techniques the profile owner has enabled (freigegeben). */
+  function getEnabledTechniques(profile) {
+    const p = normalizeProfile(profile);
+    return p.techniques.map((id) => ({ id, label: resolveTechniqueLabel(id, p) }));
+  }
+
   function getPublicProfile() {
     const p = loadProfile();
     return {
@@ -85,11 +132,17 @@
       gender: p.gender,
       bio: p.bio,
       techniques: [...p.techniques],
+      customTechniques: p.customTechniques.map((c) => ({ ...c })),
     };
   }
 
   function getPartnerProfile() {
-    return partnerProfile ? { ...partnerProfile, techniques: [...(partnerProfile.techniques || [])] } : null;
+    if (!partnerProfile) return null;
+    return {
+      ...partnerProfile,
+      techniques: [...partnerProfile.techniques],
+      customTechniques: (partnerProfile.customTechniques || []).map((c) => ({ ...c })),
+    };
   }
 
   function setPartnerProfile(raw) {
@@ -133,28 +186,54 @@
       const pc = partner.techniques.length;
       el.textContent =
         pc === 0
-          ? `${partner.displayName}: no techniques listed`
+          ? `${partner.displayName}: no techniques enabled`
           : `${partner.displayName}: ${pc} technique${pc === 1 ? "" : "s"} available`;
     });
   }
 
+  function setTabInGroup(root, tabId, tabAttr, panelAttr, { userPinField } = {}) {
+    if (!root) return;
+    if (userPinField) userPinnedTab = true;
+    root.querySelectorAll(`[${tabAttr}]`).forEach((btn) => {
+      const on = btn.getAttribute(tabAttr) === tabId;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    root.querySelectorAll(`[${panelAttr}]`).forEach((panel) => {
+      panel.hidden = panel.getAttribute(panelAttr) !== tabId;
+    });
+  }
+
+  function initTabGroup(root, { tabAttr, panelAttr, defaultTab, userPinField = false }) {
+    if (!root) return;
+    root.querySelectorAll(`[${tabAttr}]`).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setTabInGroup(root, btn.getAttribute(tabAttr), tabAttr, panelAttr, {
+          userPinField: userPinField && tabAttr === "data-panel-tab",
+        });
+      });
+    });
+    setTabInGroup(root, defaultTab, tabAttr, panelAttr);
+  }
+
+  function getConnectionTabsRoot() {
+    return document.querySelector(".connection-card.panel-tabs-card");
+  }
+
   function getActivePanelTab() {
-    const btn = document.querySelector(".panel-tab.is-active");
+    const root = getConnectionTabsRoot();
+    const btn = root?.querySelector(".panel-tab.is-active");
     return btn?.getAttribute("data-panel-tab") || "setup";
   }
 
   function setPanelTab(tabId, { userAction = false } = {}) {
-    const id = tabId || "setup";
     if (userAction) userPinnedTab = true;
-    document.querySelectorAll(".panel-tab").forEach((btn) => {
-      const on = btn.getAttribute("data-panel-tab") === id;
-      btn.classList.toggle("is-active", on);
-      btn.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    document.querySelectorAll("[data-panel-tab-panel]").forEach((panel) => {
-      const on = panel.getAttribute("data-panel-tab-panel") === id;
-      panel.hidden = !on;
-    });
+    setTabInGroup(getConnectionTabsRoot(), tabId || "setup", "data-panel-tab", "data-panel-tab-panel");
+  }
+
+  function setRemoteTab(tabId) {
+    const root = document.getElementById("remoteCard");
+    setTabInGroup(root, tabId || "techniques", "data-remote-tab", "data-remote-tab-panel");
   }
 
   function maybeAutoStreamTab(isLive) {
@@ -167,6 +246,7 @@
     const nameEl = document.getElementById("profileDisplayName");
     const genderEl = document.getElementById("profileGender");
     const bioEl = document.getElementById("profileBio");
+    const current = loadProfile();
     const techniques = [];
     document.querySelectorAll('input[name="profileTechnique"]:checked').forEach((el) => {
       if (el instanceof HTMLInputElement && el.value) techniques.push(el.value);
@@ -176,6 +256,7 @@
       gender: genderEl instanceof HTMLSelectElement ? genderEl.value : "",
       bio: bioEl instanceof HTMLTextAreaElement ? bioEl.value : "",
       techniques,
+      customTechniques: current.customTechniques,
     });
   }
 
@@ -196,24 +277,85 @@
   }
 
   function renderTechniqueChecklist() {
-    const root = document.getElementById("profileTechniqueList");
-    if (!root) return;
+    const presetRoot = document.getElementById("profileTechniqueList");
+    const customRoot = document.getElementById("profileCustomTechniqueList");
     const p = loadProfile();
-    root.innerHTML = "";
-    TECHNIQUES.forEach((t) => {
-      const label = document.createElement("label");
-      label.className = "technique-check";
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      input.name = "profileTechnique";
-      input.value = t.id;
-      input.checked = p.techniques.includes(t.id);
-      const span = document.createElement("span");
-      span.textContent = t.label;
-      label.appendChild(input);
-      label.appendChild(span);
-      root.appendChild(label);
-    });
+    if (presetRoot) {
+      presetRoot.innerHTML = "";
+      const presetTitle = document.createElement("p");
+      presetTitle.className = "status-line profile-preset-heading";
+      presetTitle.textContent = "Presets";
+      presetRoot.appendChild(presetTitle);
+      TECHNIQUES.forEach((t) => {
+        presetRoot.appendChild(buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), false));
+      });
+    }
+    if (customRoot) {
+      customRoot.innerHTML = "";
+      if (!p.customTechniques.length) {
+        const empty = document.createElement("p");
+        empty.className = "technique-empty-note";
+        empty.textContent = "No custom techniques yet — add one below.";
+        customRoot.appendChild(empty);
+        return;
+      }
+      p.customTechniques.forEach((t) => {
+        const row = buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), true);
+        customRoot.appendChild(row);
+      });
+    }
+  }
+
+  function buildTechniqueCheckbox(id, label, checked, isCustom) {
+    const labelEl = document.createElement("label");
+    labelEl.className = "technique-check" + (isCustom ? " technique-check-custom" : "");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = "profileTechnique";
+    input.value = id;
+    input.checked = checked;
+    const span = document.createElement("span");
+    span.textContent = label;
+    labelEl.appendChild(input);
+    labelEl.appendChild(span);
+    if (isCustom) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "technique-remove-btn";
+      removeBtn.textContent = "Remove";
+      removeBtn.title = "Remove custom technique";
+      removeBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        removeCustomTechnique(id);
+      });
+      labelEl.appendChild(removeBtn);
+    }
+    return labelEl;
+  }
+
+  function addCustomTechnique(label) {
+    const trimmed = String(label || "").trim().slice(0, 48);
+    if (!trimmed) return { ok: false, error: "Enter a technique name." };
+    const profile = loadProfile();
+    const duplicate = profile.customTechniques.some(
+      (c) => c.label.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (duplicate) return { ok: false, error: "This technique already exists." };
+    const id = makeCustomTechniqueId(trimmed);
+    profile.customTechniques.push({ id, label: trimmed });
+    if (!profile.techniques.includes(id)) profile.techniques.push(id);
+    saveProfile(profile);
+    renderTechniqueChecklist();
+    return { ok: true };
+  }
+
+  function removeCustomTechnique(id) {
+    const profile = loadProfile();
+    profile.customTechniques = profile.customTechniques.filter((c) => c.id !== id);
+    profile.techniques = profile.techniques.filter((tid) => tid !== id);
+    saveProfile(profile);
+    renderTechniqueChecklist();
   }
 
   function renderPartnerTechniqueButtons() {
@@ -223,17 +365,17 @@
     const partner = getPartnerProfile();
     if (!partner) {
       root.innerHTML =
-        '<p class="technique-empty-note">Connect to a partner to request techniques from their profile list.</p>';
+        '<p class="technique-empty-note">Connect to a partner to see their enabled techniques.</p>';
       return;
     }
-    const allowed = TECHNIQUES.filter((t) => partner.techniques.includes(t.id));
+    const allowed = getEnabledTechniques(partner);
     if (!allowed.length) {
-      root.innerHTML = `<p class="technique-empty-note">${partner.displayName} has not selected any techniques on their profile yet.</p>`;
+      root.innerHTML = `<p class="technique-empty-note">${partner.displayName} has not enabled any techniques on their profile yet.</p>`;
       return;
     }
     const intro = document.createElement("p");
     intro.className = "status-line technique-request-intro";
-    intro.textContent = `Request from ${partner.displayName} (appears in chat):`;
+    intro.textContent = `Enabled by ${partner.displayName} (tap to request in chat):`;
     root.appendChild(intro);
     const grid = document.createElement("div");
     grid.className = "technique-request-grid";
@@ -259,8 +401,7 @@
 
   function requestTechnique(techniqueId, label) {
     const id = String(techniqueId || "");
-    const techLabel =
-      label || TECHNIQUES.find((t) => t.id === id)?.label || id.replace(/_/g, " ");
+    const techLabel = label || resolveTechniqueLabel(id, loadProfile());
     if (!id) return false;
     global.dispatchEvent(
       new CustomEvent("dualpeer-technique-request", {
@@ -291,11 +432,12 @@
     return sendFn({ type: "profile", profile: getPublicProfile(), ts: Date.now() });
   }
 
-  function initPanelTabs() {
-    document.querySelectorAll(".panel-tab").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        setPanelTab(btn.getAttribute("data-panel-tab"), { userAction: true });
-      });
+  function initConnectionTabs() {
+    initTabGroup(getConnectionTabsRoot(), {
+      tabAttr: "data-panel-tab",
+      panelAttr: "data-panel-tab-panel",
+      defaultTab: "setup",
+      userPinField: true,
     });
     const openProfile = document.getElementById("btnOpenProfileTab");
     if (openProfile) {
@@ -305,13 +447,21 @@
         else document.getElementById("accountMenu")?.classList.remove("is-open");
         document.getElementById("accountDropdown")?.setAttribute("hidden", "");
         fillProfileForm(loadProfile());
+        renderTechniqueChecklist();
       });
     }
     const openSetup = document.getElementById("btnOpenSetupTab");
     if (openSetup) {
       openSetup.addEventListener("click", () => setPanelTab("setup", { userAction: true }));
     }
-    setPanelTab("setup");
+  }
+
+  function initRemoteTabs() {
+    initTabGroup(document.getElementById("remoteCard"), {
+      tabAttr: "data-remote-tab",
+      panelAttr: "data-remote-tab-panel",
+      defaultTab: "techniques",
+    });
   }
 
   function initProfileForm() {
@@ -319,12 +469,46 @@
     fillProfileForm(loadProfile());
     refreshAccountMini();
 
+    const addBtn = document.getElementById("btnAddCustomTechnique");
+    const addInput = document.getElementById("profileCustomTechniqueInput");
+    const runAdd = () => {
+      const result = addCustomTechnique(addInput?.value || "");
+      const msg = document.getElementById("profileSaveStatus");
+      if (!result.ok) {
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = result.error || "Could not add technique.";
+          msg.className = "status-line err";
+        }
+        return;
+      }
+      if (addInput instanceof HTMLInputElement) addInput.value = "";
+      if (msg) {
+        msg.hidden = false;
+        msg.textContent = "Custom technique added — click Save profile to sync if needed.";
+        msg.className = "status-line ok";
+        setTimeout(() => {
+          msg.hidden = true;
+        }, 2200);
+      }
+    };
+    if (addBtn) addBtn.addEventListener("click", runAdd);
+    if (addInput) {
+      addInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          runAdd();
+        }
+      });
+    }
+
     const form = document.getElementById("profileForm");
     if (form) {
       form.addEventListener("submit", (e) => {
         e.preventDefault();
         const saved = saveProfile(readProfileForm());
         fillProfileForm(saved);
+        renderTechniqueChecklist();
         const msg = document.getElementById("profileSaveStatus");
         if (msg) {
           msg.hidden = false;
@@ -340,7 +524,8 @@
   }
 
   function init() {
-    initPanelTabs();
+    initConnectionTabs();
+    initRemoteTabs();
     initProfileForm();
     dispatchProfileUpdate();
   }
@@ -351,12 +536,15 @@
     saveProfile,
     getPublicProfile,
     getPartnerProfile,
+    getEnabledTechniques,
     setPartnerProfile,
     genderLabel,
     setPanelTab,
+    setRemoteTab,
     maybeAutoStreamTab,
     getChatSenderName,
     requestTechnique,
+    addCustomTechnique,
     handleIncomingTechniqueRequest,
     handleIncomingProfile,
     shareProfileOverDataChannel,

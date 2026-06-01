@@ -1383,6 +1383,65 @@ video {
   cursor: pointer;
 }
 
+.technique-check-custom {
+  flex-wrap: wrap;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.technique-check-custom:last-child {
+  border-bottom: none;
+}
+
+.technique-remove-btn {
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.technique-remove-btn:hover {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+}
+
+.profile-preset-heading,
+.profile-custom-heading {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0.65rem 0 0.35rem;
+}
+
+.profile-technique-add {
+  margin-top: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.profile-technique-add input {
+  flex: 1;
+  min-width: 8rem;
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.remote-card.panel-tabs-card {
+  padding-top: 0.75rem;
+}
+
+.remote-card .panel-tab-panel:not([hidden]) {
+  border-top: 2px solid var(--accent);
+}
+
 .technique-request-list {
   margin-bottom: 0.85rem;
 }
