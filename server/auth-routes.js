@@ -684,7 +684,7 @@ authRouter.patch("/profile/mail", requireAuth, (req, res) => {
     return res.status(400).json({
       ok: false,
       error: "mail_password_required",
-      message: "E-Mail-Passwort fehlt (Strato: Postfach-Passwort).",
+      message: "Mailbox password is required.",
     });
   }
 
@@ -720,7 +720,7 @@ authRouter.post("/profile/mail/test", requireAuth, async (req, res) => {
     return res.status(400).json({
       ok: false,
       error: "mail_not_configured",
-      message: "Bitte zuerst Ausgangsserver (SMTP) im Profil speichern.",
+      message: "Save outgoing SMTP settings in Email server (SMTP) first.",
     });
   }
 

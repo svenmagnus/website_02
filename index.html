@@ -34,7 +34,7 @@
       // Direct motor via lovense.sendCommand — no Stream Master Basic Levels needed
       window.DUALPEER_DIRECT_MOTOR = true;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8424"></script>
+    <script src="assets/lovense-broadcast.js?v=8425"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -147,17 +147,17 @@
       aria-labelledby="mailSettingsModalTitle"
     >
       <div class="login-overlay-card auth-card-wide">
-        <h2 id="mailSettingsModalTitle">E-Mail-Server (Ausgang / SMTP)</h2>
+        <h2 id="mailSettingsModalTitle">Email Server (Outgoing / SMTP)</h2>
         <p class="login-overlay-hint" id="profileMailHint">
-          Technische Einstellungen für dein Postfach (z.&nbsp;B. Strato) — kein Login. Nur
-          <strong>Ausgangsserver (SMTP)</strong> wird zum Versenden von Einladungen benötigt.
+          Technical settings for your mailbox (e.g., Strato) — no login. Only the outgoing server (SMTP) is
+          required to send invitations.
         </p>
         <p class="status-line" id="profileMailStatus"></p>
         <form id="profileMailForm" class="profile-form">
-          <p class="status-line profile-preset-heading">Strato-Vorlage</p>
-          <button type="button" class="secondary" id="btnStratoMailPreset">Strato-Werte eintragen</button>
+          <p class="status-line profile-preset-heading">Strato Template</p>
+          <button type="button" class="secondary" id="btnStratoMailPreset">Fill Strato values</button>
           <div class="row">
-            <label for="mailOutHost">Ausgangsserver (SMTP)</label>
+            <label for="mailOutHost">Outgoing server (SMTP)</label>
             <input type="text" id="mailOutHost" placeholder="smtp.strato.de" autocomplete="off" />
           </div>
           <div class="row profile-mail-port-row">
@@ -169,12 +169,12 @@
             </label>
           </div>
           <div class="row">
-            <label for="mailOutUser">E-Mail / Benutzername</label>
-            <input type="email" id="mailOutUser" placeholder="dein-name@deine-domain.de" autocomplete="username" />
+            <label for="mailOutUser">Email / Username</label>
+            <input type="email" id="mailOutUser" placeholder="your-name@your-domain.de" autocomplete="username" />
           </div>
           <div class="row">
-            <label for="mailOutFrom">Absender-Adresse</label>
-            <input type="email" id="mailOutFrom" placeholder="wie oben" autocomplete="off" />
+            <label for="mailOutFrom">Sender address</label>
+            <input type="email" id="mailOutFrom" placeholder="same as above" autocomplete="off" />
           </div>
           <div class="row">
             <label for="mailOutPassword">Mailbox password</label>
@@ -188,9 +188,9 @@
             <p class="profile-field-hint" id="mailPasswordHint"></p>
           </div>
           <details class="profile-mail-incoming">
-            <summary>Eingangsserver (IMAP) — optional</summary>
+            <summary>Incoming server (IMAP) — optional</summary>
             <div class="row">
-              <label for="mailInHost">Eingangsserver</label>
+              <label for="mailInHost">Incoming server</label>
               <input type="text" id="mailInHost" placeholder="imap.strato.de" autocomplete="off" />
             </div>
             <div class="row">
@@ -198,14 +198,14 @@
               <input type="number" id="mailInPort" min="1" max="65535" value="993" />
             </div>
             <div class="row">
-              <label for="mailInUser">Benutzername</label>
-              <input type="email" id="mailInUser" placeholder="meist gleich wie SMTP" autocomplete="off" />
+              <label for="mailInUser">Username</label>
+              <input type="email" id="mailInUser" placeholder="usually same as SMTP" autocomplete="off" />
             </div>
           </details>
           <div class="row profile-mail-actions">
-            <button type="submit" class="primary">Speichern</button>
-            <button type="button" class="secondary" id="btnMailTest">Test-E-Mail</button>
-            <button type="button" id="mailSettingsModalClose">Schließen</button>
+            <button type="submit" class="primary">Save</button>
+            <button type="button" class="secondary" id="btnMailTest">Test Email</button>
+            <button type="button" id="mailSettingsModalClose">Close</button>
           </div>
           <p class="status-line" id="profileMailSaveStatus" hidden></p>
         </form>
@@ -705,12 +705,12 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/api-config.js?v=8424"></script>
-    <script src="assets/lovense-lan-loader.js?v=8424"></script>
-    <script src="assets/technique-presets.js?v=8424"></script>
-    <script src="assets/ui-shell.js?v=8424"></script>
-    <script src="assets/app.js?v=8424"></script>
-    <script src="assets/auth.js?v=8424"></script>
-    <script src="assets/member-profile.js?v=8424"></script>
+    <script src="assets/api-config.js?v=8425"></script>
+    <script src="assets/lovense-lan-loader.js?v=8425"></script>
+    <script src="assets/technique-presets.js?v=8425"></script>
+    <script src="assets/ui-shell.js?v=8425"></script>
+    <script src="assets/app.js?v=8425"></script>
+    <script src="assets/auth.js?v=8425"></script>
+    <script src="assets/member-profile.js?v=8425"></script>
   </body>
 </html>

@@ -21,9 +21,25 @@ bash /root/website_02/server/scripts/setup-hetzner.sh
 
 ## 3. HTTPS (nach DNS-Propagierung)
 
+Both hostnames need DNS **A** records to the server IP (otherwise invite links get NXDOMAIN):
+
 ```bash
+# Check from your Mac:
+dig +short tangent-club.com A
+dig +short www.tangent-club.com A
+
 certbot --nginx -d tangent-club.com -d www.tangent-club.com
 ```
+
+In `server/.env` on the VPS (invite/register links in emails):
+
+```bash
+APP_PUBLIC_URL=https://tangent-club.com
+```
+
+Use `https://www.tangent-club.com` only if `www` resolves in DNS. Restart after change: `systemctl restart tangent-club`.
+
+Reference nginx site config: `docs/nginx-tangent-club.conf`.
 
 ## 4. Konto freischalten
 

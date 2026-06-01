@@ -452,8 +452,8 @@
     if (status) {
       status.className = mail?.configured ? "status-line ok" : "status-line";
       status.textContent = mail?.configured
-        ? "E-Mail-Versand aktiv — Einladungen gehen über dein Postfach."
-        : "Noch kein Ausgangsserver — Einladungen nur per Link/Code (manuell).";
+        ? "Email delivery active — invitations are sent via your mailbox."
+        : "No outgoing server yet — share invite link/code manually.";
     }
   }
 
@@ -599,14 +599,14 @@
       if (status) {
         status.hidden = false;
         status.className = "status-line";
-        status.textContent = "Speichern …";
+        status.textContent = "Saving…";
       }
       try {
         const data = await saveMailSettings(readMailFormPayload());
         fillMailForm(data.mail);
         if (status) {
           status.className = "status-line ok";
-          status.textContent = "E-Mail-Einstellungen gespeichert.";
+          status.textContent = "Email settings saved.";
         }
       } catch (err) {
         if (status) {

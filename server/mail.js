@@ -7,7 +7,18 @@ const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
 const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
 const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER || "noreply@tangent-club.com";
-const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL || "https://www.tangent-club.com").replace(/\/$/, "");
+/** Canonical site URL for invite/verify links (Hetzner: set APP_PUBLIC_URL in server/.env). */
+const APP_PUBLIC_URL = normalizeAppPublicUrl(
+  process.env.APP_PUBLIC_URL || process.env.PUBLIC_BASE_URL || "https://tangent-club.com"
+);
+
+function normalizeAppPublicUrl(raw) {
+  let url = String(raw || "https://tangent-club.com").trim().replace(/\/$/, "");
+  if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`;
+  }
+  return url;
+}
 const SITE_NAME = process.env.MAIL_SITE_NAME || "Tangent Club";
 
 /** @typedef {{ host: string, port: number, secure: boolean, user: string, pass: string, from: string, source: 'user'|'env' }} MailConfig */
