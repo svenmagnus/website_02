@@ -400,6 +400,18 @@
                   Your partner can request these during the stream (shown in chat).
                 </p>
                 <div id="profileTechniqueList" class="profile-technique-list"></div>
+                <p class="status-line profile-custom-heading">Your own techniques</p>
+                <div class="profile-technique-add row">
+                  <input
+                    type="text"
+                    id="profileCustomTechniqueInput"
+                    maxlength="48"
+                    placeholder="e.g. Slow massage, Edge play …"
+                    autocomplete="off"
+                  />
+                  <button type="button" class="secondary" id="btnAddCustomTechnique">Add</button>
+                </div>
+                <div id="profileCustomTechniqueList" class="profile-technique-list profile-custom-list"></div>
               </fieldset>
               <div class="row">
                 <button type="submit" class="primary">Save profile</button>
@@ -409,25 +421,51 @@
           </div>
         </div>
 
-        <div class="card remote-card">
-          <h2>Technique requests</h2>
-          <p class="status-line" style="margin: 0 0 0.5rem">
-            Choose a technique your partner listed on their profile — it appears in Live Chat.
-          </p>
-          <div id="techniqueRequestList" class="technique-request-list" aria-live="polite">
-            <p class="technique-empty-note">Connect to a partner to see their technique list.</p>
+        <div class="card remote-card panel-tabs-card" id="remoteCard">
+          <div class="panel-tabs remote-tabs" role="tablist" aria-label="Partner control">
+            <button
+              type="button"
+              class="panel-tab is-active"
+              role="tab"
+              data-remote-tab="techniques"
+              aria-selected="true"
+            >
+              Technique Requests
+            </button>
+            <button
+              type="button"
+              class="panel-tab"
+              role="tab"
+              data-remote-tab="toys"
+              aria-selected="false"
+            >
+              Remote Control (Toys)
+            </button>
           </div>
-          <h2 class="remote-toys-heading">Remote Control (toys)</h2>
-          <p class="status-line" style="margin: 0 0 0.5rem">
-            Controls your partner&apos;s toys (host and guest share lists). Low/Medium/High use mapped tip tokens; 0 = stop.
-          </p>
-          <div id="toyControlList" class="toy-control-list" aria-live="polite">
-            <div class="toy-empty-note">Waiting for partner toys — connect via PeerJS.</div>
+
+          <div class="panel-tab-panel" data-remote-tab-panel="techniques">
+            <h2 class="panel-tab-title">Technique requests</h2>
+            <p class="status-line" style="margin: 0 0 0.5rem">
+              Only techniques your partner enabled on their profile. Each click posts to Live Chat.
+            </p>
+            <div id="techniqueRequestList" class="technique-request-list" aria-live="polite">
+              <p class="technique-empty-note">Connect to a partner to see their allowed techniques.</p>
+            </div>
           </div>
-          <p class="status-line toy-hold-hint" style="margin: 0.65rem 0 0">
-            Hold: active preset again or slider 0 to stop. Specials need tokens in Stream Master;
-            unchecking restores your last preset level.
-          </p>
+
+          <div class="panel-tab-panel" data-remote-tab-panel="toys" hidden>
+            <h2 class="panel-tab-title">Remote Control (toys)</h2>
+            <p class="status-line" style="margin: 0 0 0.5rem">
+              Controls your partner&apos;s toys (host and guest share lists). Low/Medium/High use mapped tip tokens; 0 = stop.
+            </p>
+            <div id="toyControlList" class="toy-control-list" aria-live="polite">
+              <div class="toy-empty-note">Waiting for partner toys — connect via PeerJS.</div>
+            </div>
+            <p class="status-line toy-hold-hint" style="margin: 0.65rem 0 0">
+              Hold: active preset again or slider 0 to stop. Specials need tokens in Stream Master;
+              unchecking restores your last preset level.
+            </p>
+          </div>
         </div>
         </div>
 
