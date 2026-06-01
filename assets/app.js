@@ -46,7 +46,10 @@ const PEER_OPTIONS = {
  * Terminal 1:  cd server && npm run restart
  * Terminal 2:  cd server && npm run tunnel
  */
-const WHIP_CLOUDFLARE_TUNNEL_URL = "https://outstanding-caution-discounts-apnic.trycloudflare.com";
+/** Set in assets/api-config.js (loaded before app.js on auth pages). */
+const WHIP_CLOUDFLARE_TUNNEL_URL =
+  (typeof window !== "undefined" && window.WHIP_CLOUDFLARE_TUNNEL_URL) ||
+  "https://outstanding-caution-discounts-apnic.trycloudflare.com";
 
 function isTangentClubSite() {
   return /(^|\.)tangent-club\.com$/i.test(location.hostname);
