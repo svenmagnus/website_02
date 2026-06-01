@@ -863,13 +863,22 @@
           setTimeout(() => goToWelcomePage(), 800);
         } else if (result.needsEmailVerification) {
           const devEl = document.getElementById("registerDevVerify");
+          const emailHint = document.getElementById("registerEmailHint");
+          if (emailHint) {
+            emailHint.hidden = false;
+            emailHint.className = "status-line";
+            emailHint.textContent = result.emailSent
+              ? "Keine Mail? Spam-Ordner prüfen — oder unten den Bestätigungslink nutzen."
+              : "E-Mail-Versand ist nicht aktiv — bitte den Bestätigungslink unten öffnen.";
+          }
           if (devEl && result.devVerifyUrl) {
             devEl.hidden = false;
-            devEl.innerHTML = `Dev: <a href="${result.devVerifyUrl}">Bestätigung testen</a> — danach <a href="welcome.html">anmelden</a>`;
+            devEl.className = "status-line ok";
+            devEl.innerHTML = `Bestätigung: <a href="${result.devVerifyUrl}">E-Mail jetzt bestätigen</a> — danach <a href="welcome.html">anmelden</a>`;
           }
-          if (successMsg) {
+          if (successMsg && !result.devVerifyUrl) {
             successMsg.textContent +=
-              " Nach der Bestätigung: unter Willkommensseite anmelden und Profil ausfüllen.";
+              " Auf welcome.html anmelden und „Bestätigung erneut senden“ (Premium-Login auf der Startseite).";
           }
         } else if (username && password) {
           try {
@@ -960,9 +969,11 @@
           errEl.hidden = false;
           errEl.textContent =
             err.code === "email_not_verified"
-              ? "E-Mail noch nicht bestätigt — Link in der Registrierungs-Mail öffnen."
+              ? "E-Mail noch nicht bestätigt — Link aus der Registrierungs-Mail oder Bestätigung erneut senden."
               : err.message || "Anmeldung fehlgeschlagen.";
         }
+        const resendHint = document.getElementById("welcomeResendHint");
+        if (resendHint) resendHint.hidden = err.code !== "email_not_verified";
       }
     });
   }

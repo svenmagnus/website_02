@@ -22,6 +22,19 @@ const INVITE_DAYS = 7;
 const VERIFY_HOURS = 48;
 /** Host/dev bypass when no invite row (4 digits). Override: DEV_INVITE_CODE in .env */
 const DEV_INVITE_CODE = String(process.env.DEV_INVITE_CODE || "1234").trim();
+/** Skip verification emails — accounts are active immediately (dev/small deployments). */
+const SKIP_EMAIL_VERIFY = /^(1|true|yes)$/i.test(String(process.env.SKIP_EMAIL_VERIFY || ""));
+/** Return confirm link in API + server log when mail did not send (dev troubleshooting). */
+const DEV_EXPOSE_VERIFY_URL = /^(1|true|yes)$/i.test(
+  String(process.env.DEV_EXPOSE_VERIFY_URL || "")
+);
+
+function verificationLinkForUserId(userId) {
+  const db = getDb();
+  const row = db.prepare("SELECT token FROM email_verifications WHERE user_id = ?").get(userId);
+  if (!row?.token) return null;
+  return `${getAppPublicUrl()}/verify-email.html?token=${encodeURIComponent(row.token)}`;
+}
 
 export const authRouter = Router();
 
@@ -399,6 +412,7 @@ authRouter.post("/auth/register", async (req, res) => {
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
   let emailSent = false;
+  let devVerifyUrl = null;
 
   let mailSenderRow = user;
   if (invite) {
@@ -406,13 +420,25 @@ authRouter.post("/auth/register", async (req, res) => {
       db.prepare("SELECT * FROM users WHERE id = ?").get(invite.host_user_id) || user;
   }
 
-  if (!resolveMailConfig(mailSenderRow)) {
+  if (SKIP_EMAIL_VERIFY) {
+    markEmailVerified(userId);
+    console.log(`[auth] SKIP_EMAIL_VERIFY — ${email} auto-verified`);
+  } else if (!resolveMailConfig(mailSenderRow)) {
     markEmailVerified(userId);
     console.log(`[auth] No SMTP — ${email} auto-verified (dev / no mail config)`);
   } else {
     try {
       const sent = await sendUserVerificationEmail(user, { mailUserRow: mailSenderRow });
       emailSent = sent.mailResult.sent;
+      if (DEV_EXPOSE_VERIFY_URL || sent.mailResult.devMode) {
+        devVerifyUrl = sent.verifyUrl;
+      }
+      if (!emailSent) {
+        devVerifyUrl = devVerifyUrl || sent.verifyUrl;
+        console.log(
+          `[mail] Verify link for ${email} (not sent — check SMTP):\n  ${sent.verifyUrl}`
+        );
+      }
     } catch (err) {
       console.error("[mail] verification send failed:", err);
       db.prepare("DELETE FROM users WHERE id = ?").run(userId);
@@ -431,6 +457,10 @@ authRouter.post("/auth/register", async (req, res) => {
     );
   }
 
+  if (!verifiedUser.email_verified_at && DEV_EXPOSE_VERIFY_URL && !devVerifyUrl) {
+    devVerifyUrl = verificationLinkForUserId(userId);
+  }
+
   res.status(201).json({
     ok: true,
     needsEmailVerification: !verifiedUser.email_verified_at,
@@ -439,9 +469,12 @@ authRouter.post("/auth/register", async (req, res) => {
     username,
     token: token || undefined,
     user: token ? rowToProfile(verifiedUser) : undefined,
+    devVerifyUrl: devVerifyUrl || undefined,
     message: verifiedUser.email_verified_at
       ? "Konto erstellt — richte jetzt dein Profil ein."
-      : "Konto erstellt. Bitte bestätige deine E-Mail — wir haben dir einen Link geschickt.",
+      : emailSent
+        ? "Konto erstellt. Bitte bestätige deine E-Mail (auch Spam-Ordner prüfen)."
+        : "Konto erstellt. E-Mail-Versand nicht aktiv — Bestätigungslink siehe unten oder Server-Konsole.",
   });
 });
 
