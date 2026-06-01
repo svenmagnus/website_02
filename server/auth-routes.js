@@ -38,7 +38,10 @@ const DEV_LOGIN_PASSWORD = String(process.env.DEV_LOGIN_PASS || "london12");
 
 function isDevLoginFallback(username, password) {
   if (!DEV_LOGIN_FALLBACK_ENABLED) return false;
-  return username === DEV_LOGIN_USERNAME && password === DEV_LOGIN_PASSWORD;
+  return (
+    String(username || "").toLowerCase() === DEV_LOGIN_USERNAME.toLowerCase() &&
+    password === DEV_LOGIN_PASSWORD
+  );
 }
 
 async function ensureDevLoginUser(db) {

@@ -217,9 +217,11 @@
   }
 
   async function login(username, password) {
+    const u = String(username ?? "").trim();
+    const p = String(password ?? "");
     const data = await api("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username: u, password: p }),
     });
     setSession(data.token, data.user);
     return data.user;
@@ -996,12 +998,13 @@
   async function bootstrap() {
     updateAccountMenuAuthState();
     let hasSiteAccess = false;
-    if (isLoggedIn()) {
+    const tokenAtStart = getSession()?.token;
+    if (tokenAtStart) {
       try {
         await fetchProfile();
-        hasSiteAccess = true;
+        if (getSession()?.token === tokenAtStart) hasSiteAccess = true;
       } catch (_) {
-        clearSession();
+        if (getSession()?.token === tokenAtStart) clearSession();
       }
     }
     if (hasSiteAccess) {
