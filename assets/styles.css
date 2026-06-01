@@ -1269,34 +1269,53 @@ video {
 
 .panel-tabs {
   display: flex;
-  gap: 0.35rem;
+  gap: 0.4rem;
   margin-bottom: 0.85rem;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0.5rem;
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--border) 28%, var(--bg));
 }
 
 .panel-tab {
   appearance: none;
+  flex: 1;
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: 0.82rem;
   font-weight: 600;
-  padding: 0.35rem 0.65rem;
+  padding: 0.45rem 0.75rem;
   border-radius: 6px;
   cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.panel-tab:hover {
+.panel-tab:hover:not(.is-active) {
   color: var(--text);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--secondary-bg);
+  border-color: var(--secondary-border);
 }
 
 .panel-tab.is-active {
-  color: var(--text);
-  border-color: var(--border);
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: #ffffff;
+  border-color: var(--accent-dim);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dim) 100%);
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--accent) 45%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent);
+}
+
+.panel-tab.is-active:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, #ffffff);
+  outline-offset: 2px;
+}
+
+.panel-tab-panel:not([hidden]) {
+  padding-top: 0.15rem;
+  border-top: 2px solid var(--accent);
+  margin-top: -0.1rem;
 }
 
 .panel-tab-title {
