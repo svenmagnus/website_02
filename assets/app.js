@@ -99,6 +99,7 @@ function whipUnreachableMessage() {
   return "WHIP server not reachable. Run: cd server && npm run restart — then open http://127.0.0.1:8787/";
 }
 
+window.WHIP_CLOUDFLARE_TUNNEL_URL = WHIP_CLOUDFLARE_TUNNEL_URL;
 window.DUALPEER_WHIP_URL = resolveWhipApiBase();
 const WHIP_API_BASE = window.DUALPEER_WHIP_URL;
 
@@ -172,6 +173,21 @@ let camExtensionInstance = null;
 let lovenseReady = false;
 /** @type {"host"|"guest"|null} */
 let sessionRole = null;
+
+function notifySessionRole() {
+  window.dispatchEvent(
+    new CustomEvent("dualpeer-session-role", { detail: { role: sessionRole } })
+  );
+}
+
+window.dualPeerSession = {
+  getRole() {
+    return sessionRole;
+  },
+  isHost() {
+    return sessionRole === "host";
+  },
+};
 let whipBroadcast = null;
 let whipPollTimer = null;
 
@@ -1572,6 +1588,7 @@ function hangup() {
     peer = null;
   }
   sessionRole = null;
+  notifySessionRole();
   partnerRemoteToys = [];
   renderToyControls([]);
   clearTimeout(obsCaptureRetryTimer);
@@ -3140,6 +3157,7 @@ function setupPeerHandlers() {
 els.btnStartHost.addEventListener("click", async () => {
   hangup();
   sessionRole = "host";
+  notifySessionRole();
   const whipMode = getBroadcastMode() === "whip";
 
   try {
@@ -3185,6 +3203,7 @@ els.btnConnect.addEventListener("click", async () => {
   }
   hangup();
   sessionRole = "guest";
+  notifySessionRole();
   try {
     await startSessionMedia();
     peer = new Peer(undefined, PEER_OPTIONS);

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="cb-dark">
+  <head>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
+          if (t === "cb-dark" || t === "cb-light" || t === "original") {
+            document.documentElement.setAttribute("data-theme", t === "original" ? "cb-dark" : t);
+          }
+        } catch (_) {}
+      })();
+    </script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>E-Mail bestätigen — Dual-Peer</title>
+    <link rel="stylesheet" href="assets/styles.css?v=8406" />
+  </head>
+  <body class="auth-page">
+    <main class="auth-page-main">
+      <a href="index.html" class="logo-link auth-logo">
+        <img src="assets/logo.png" alt="Tangent-Club Logo" />
+      </a>
+      <div class="login-overlay-card auth-card">
+        <h1>E-Mail bestätigen</h1>
+        <p class="status-line" id="verifyStatus">Bestätigung läuft …</p>
+        <p class="status-line" id="verifyHint" hidden></p>
+        <p class="status-line" style="margin-top: 1rem">
+          <a href="login.html" id="verifyLoginLink" hidden>Zur Anmeldung</a>
+        </p>
+      </div>
+    </main>
+    <script src="assets/app.js?v=8406"></script>
+    <script src="assets/auth.js?v=8406"></script>
+  </body>
+</html>

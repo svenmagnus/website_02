@@ -64,6 +64,23 @@
         <button type="button" class="primary" id="accessUnlock">Sign in</button>
       </div>
      </div>
+
+    <div class="login-overlay" id="inviteModal" hidden role="dialog" aria-modal="true" aria-labelledby="inviteModalTitle">
+      <div class="login-overlay-card">
+        <h2 id="inviteModalTitle">Invite guest by email</h2>
+        <p class="login-overlay-hint">They receive a link to register and join your session.</p>
+        <div class="login-overlay-row">
+          <label for="inviteEmailInput">Guest email</label>
+          <input type="email" id="inviteEmailInput" autocomplete="email" placeholder="guest@example.com" />
+        </div>
+        <p class="status-line" id="inviteModalStatus"></p>
+        <div class="row" style="margin-top: 0.75rem">
+          <button type="button" class="primary" id="inviteSendBtn">Send invitation</button>
+          <button type="button" id="inviteModalClose">Cancel</button>
+        </div>
+      </div>
+    </div>
+
      <header class="main-header">
       <div class="header-left">
           <a href="index.html" class="logo-link">
@@ -118,9 +135,13 @@
                 <span class="account-switch-track" aria-hidden="true"></span>
               </span>
             </label>
-            <button type="button" class="account-dropdown-item" disabled role="menuitem" title="Phase 2 — email invitations">
+            <a href="login.html" class="account-dropdown-item" id="btnMemberLogin" role="menuitem">
+              <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+              <span>Member login</span>
+            </a>
+            <button type="button" class="account-dropdown-item" id="btnInviteByEmail" disabled role="menuitem">
               <i class="bi bi-envelope" aria-hidden="true"></i>
-              <span>Invite by email (Phase 2)</span>
+              <span>Invite guest by email</span>
             </button>
             <div class="account-dropdown-divider" role="separator"></div>
             <button type="button" class="account-dropdown-item account-dropdown-danger" id="accountLogoutBtn" role="menuitem">
@@ -372,8 +393,8 @@
 
           <div class="panel-tab-panel" data-panel-tab-panel="profile" hidden>
             <h2 class="panel-tab-title">My profile</h2>
-            <p class="status-line profile-tab-hint">
-              Saved on this device (Phase 1). Phase 2 adds accounts and email invites.
+            <p class="status-line profile-tab-hint" id="profileTabHint">
+              Saved on this device. Sign in via the account menu to sync your profile to the server.
             </p>
             <form id="profileForm" class="profile-form">
               <div class="row">
@@ -508,8 +529,9 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/ui-shell.js?v=8403"></script>
-    <script src="assets/member-profile.js?v=8404"></script>
-    <script src="assets/app.js?v=8403"></script>
+    <script src="assets/ui-shell.js?v=8405"></script>
+    <script src="assets/app.js?v=8405"></script>
+    <script src="assets/auth.js?v=8405"></script>
+    <script src="assets/member-profile.js?v=8405"></script>
   </body>
 </html>

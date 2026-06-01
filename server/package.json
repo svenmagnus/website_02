@@ -16,8 +16,11 @@
   },
   "dependencies": {
     "@werift/whip-server": "^0.0.2",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.8.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "nodemailer": "^6.10.0",
     "werift": "^0.23.0"
   }
 }

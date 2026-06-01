@@ -14,6 +14,8 @@ import express from "express";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { initDb } from "./db.js";
+import { authRouter } from "./auth-routes.js";
 import { WhipReceiver } from "@werift/whip-server";
 import {
   RTCPeerConnection,
@@ -640,6 +642,8 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.tangent-club.com",
 ]);
 
+initDb();
+
 const app = express();
 app.use(
   cors({
@@ -662,6 +666,8 @@ app.use(express.text({ type: ["application/sdp", "text/plain", "*/*"], limit: "2
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "tangent-club-whip", sessions: whipSessions.size });
 });
+
+app.use("/api", authRouter);
 
 app.post("/api/broadcast/register", (req, res) => {
   const peerId = typeof req.body?.peerId === "string" ? req.body.peerId.trim() : "";

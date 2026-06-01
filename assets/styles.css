@@ -512,6 +512,70 @@ body.login-locked {
   width: 100%;
 }
 
+.login-overlay-row input[type="text"],
+.login-overlay-row input[type="email"] {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-page-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem 3rem;
+  max-width: 28rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.auth-page-main-wide {
+  max-width: 36rem;
+}
+
+.auth-logo {
+  margin-bottom: 1.25rem;
+}
+
+.auth-logo img {
+  height: 2.5rem;
+  width: auto;
+}
+
+.auth-card h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
+}
+
+.auth-success-panel {
+  margin-top: 1rem;
+}
+
+.auth-resend-panel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.profile-field-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 main {
   flex: 1;
   padding: 0.5rem 0.75rem 1rem;

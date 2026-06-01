@@ -1,5 +1,5 @@
 /**
- * Phase 1 — member profile (localStorage) + technique requests via PeerJS data channel.
+ * Member profile — localStorage (guest) or server sync when logged in (Phase 2).
  */
 (function (global) {
   const STORAGE_KEY = "dualpeer-member-profile-v1";
@@ -83,7 +83,39 @@
     };
   }
 
+  function isAccountMode() {
+    return Boolean(global.DualPeerAuth?.isLoggedIn?.());
+  }
+
+  function profileFromAuth(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    return normalizeProfile({
+      displayName: raw.displayName,
+      gender: raw.gender,
+      bio: raw.bio,
+      techniques: raw.techniques,
+      customTechniques: raw.customTechniques,
+    });
+  }
+
+  function persistLocal(profile) {
+    const next = normalizeProfile(profile);
+    next.updatedAt = Date.now();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      localStorage.setItem(LEGACY_NAME_KEY, next.displayName);
+    } catch (_) {
+      /* ignore */
+    }
+    return next;
+  }
+
   function loadProfile() {
+    if (isAccountMode()) {
+      const cached = global.DualPeerAuth.getCachedProfile();
+      const fromAuth = profileFromAuth(cached);
+      if (fromAuth) return fromAuth;
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return normalizeProfile(JSON.parse(raw));
@@ -98,16 +130,28 @@
   }
 
   function saveProfile(profile) {
-    const next = normalizeProfile(profile);
-    next.updatedAt = Date.now();
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      localStorage.setItem(LEGACY_NAME_KEY, next.displayName);
-    } catch (_) {
-      /* ignore */
+    const next = persistLocal(profile);
+    if (isAccountMode()) {
+      global.DualPeerAuth.updateProfile({
+        displayName: next.displayName,
+        gender: next.gender,
+        bio: next.bio,
+        techniques: next.techniques,
+        customTechniques: next.customTechniques,
+      }).catch(() => {
+        /* keep local copy; user can retry save */
+      });
     }
     dispatchProfileUpdate();
     return next;
+  }
+
+  function updateProfileTabHint() {
+    const hint = document.getElementById("profileTabHint");
+    if (!hint) return;
+    hint.textContent = isAccountMode()
+      ? "Synced with your member account on the server."
+      : "Saved on this device. Sign in via the account menu to sync your profile to the server.";
   }
 
   function resolveTechniqueLabel(id, profile) {
@@ -504,16 +548,49 @@
 
     const form = document.getElementById("profileForm");
     if (form) {
-      form.addEventListener("submit", (e) => {
+      form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const saved = saveProfile(readProfileForm());
-        fillProfileForm(saved);
-        renderTechniqueChecklist();
         const msg = document.getElementById("profileSaveStatus");
+        const draft = readProfileForm();
+        if (isAccountMode()) {
+          if (msg) {
+            msg.hidden = false;
+            msg.textContent = "Saving…";
+            msg.className = "status-line";
+          }
+          try {
+            const updated = await global.DualPeerAuth.updateProfile({
+              displayName: draft.displayName,
+              gender: draft.gender,
+              bio: draft.bio,
+              techniques: draft.techniques,
+              customTechniques: draft.customTechniques,
+            });
+            const saved = persistLocal(profileFromAuth(updated) || draft);
+            fillProfileForm(saved);
+            renderTechniqueChecklist();
+            if (msg) {
+              msg.textContent = "Profile saved to your account.";
+              msg.className = "status-line ok";
+            }
+          } catch (err) {
+            if (msg) {
+              msg.textContent = err.message || "Could not save profile.";
+              msg.className = "status-line err";
+            }
+            return;
+          }
+        } else {
+          const saved = saveProfile(draft);
+          fillProfileForm(saved);
+          renderTechniqueChecklist();
+          if (msg) {
+            msg.hidden = false;
+            msg.textContent = "Profile saved on this device.";
+            msg.className = "status-line ok";
+          }
+        }
         if (msg) {
-          msg.hidden = false;
-          msg.textContent = "Profile saved on this device.";
-          msg.className = "status-line ok";
           setTimeout(() => {
             msg.hidden = true;
           }, 2500);
@@ -523,11 +600,35 @@
     }
   }
 
-  function init() {
-    initConnectionTabs();
-    initRemoteTabs();
-    initProfileForm();
+  function onAuthProfileSynced() {
+    fillProfileForm(loadProfile());
+    renderTechniqueChecklist();
+    updateProfileTabHint();
     dispatchProfileUpdate();
+  }
+
+  function init() {
+    const start = () => {
+      initConnectionTabs();
+      initRemoteTabs();
+      initProfileForm();
+      updateProfileTabHint();
+      dispatchProfileUpdate();
+    };
+
+    if (global.DualPeerAuth?.onReady) {
+      global.DualPeerAuth.onReady(start);
+    } else {
+      start();
+    }
+
+    global.addEventListener("dualpeer-auth-change", () => {
+      onAuthProfileSynced();
+    });
+    global.addEventListener("dualpeer-profile-update", (e) => {
+      if (e.detail?.profile) persistLocal(e.detail.profile);
+      onAuthProfileSynced();
+    });
   }
 
   global.MemberProfile = {
