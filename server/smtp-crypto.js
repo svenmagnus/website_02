@@ -27,13 +27,18 @@ export function decryptSecret(payload) {
   if (!raw) return "";
   const parts = raw.split(":");
   if (parts.length !== 3) return "";
-  const [ivHex, tagHex, dataHex] = parts;
-  const key = deriveKey();
-  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
-  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
-  const dec = Buffer.concat([
-    decipher.update(Buffer.from(dataHex, "hex")),
-    decipher.final(),
-  ]);
-  return dec.toString("utf8");
+  try {
+    const [ivHex, tagHex, dataHex] = parts;
+    const key = deriveKey();
+    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+    const dec = Buffer.concat([
+      decipher.update(Buffer.from(dataHex, "hex")),
+      decipher.final(),
+    ]);
+    return dec.toString("utf8");
+  } catch (err) {
+    console.warn("[smtp-crypto] decrypt failed (re-save SMTP password in profile):", err.message);
+    return "";
+  }
 }
