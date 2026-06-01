@@ -763,6 +763,10 @@ body.has-auth-modal-open {
   color: var(--muted);
 }
 
+.register-pre-submit-hint {
+  margin-bottom: 1.25rem;
+}
+
 .profile-mail-field {
   margin-top: 1.25rem;
   padding-top: 1rem;
