@@ -19,19 +19,48 @@
     readyResolve = r;
   });
 
+  function isTangentClubSite() {
+    return /(^|\.)tangent-club\.com$/i.test(location.hostname);
+  }
+
   function resolveApiBase() {
-    if (global.DUALPEER_WHIP_URL) return String(global.DUALPEER_WHIP_URL).replace(/\/$/, "");
+    const fromWindow = global.DUALPEER_WHIP_URL;
+    if (fromWindow && String(fromWindow).trim()) {
+      return String(fromWindow).replace(/\/$/, "");
+    }
     if (location.port === "8787") return location.origin;
-    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+    if (
+      location.hostname === "localhost" ||
+      location.hostname === "127.0.0.1" ||
+      location.hostname === "[::1]"
+    ) {
       return `${location.protocol}//${location.hostname}:8787`;
     }
-    if (/(^|\.)tangent-club\.com$/i.test(location.hostname)) {
-      const tunnel = global.WHIP_CLOUDFLARE_TUNNEL_URL;
-      if (tunnel && /^https:\/\//i.test(tunnel) && !/REPLACE/i.test(tunnel)) {
-        return String(tunnel).replace(/\/$/, "");
+    if (isTangentClubSite()) {
+      const tunnel = String(global.WHIP_CLOUDFLARE_TUNNEL_URL || "").trim().replace(/\/$/, "");
+      if (tunnel && /^https:\/\//i.test(tunnel) && !/REPLACE|YOUR[-_]?SUBDOMAIN/i.test(tunnel)) {
+        return tunnel;
       }
+      return "";
     }
     return "http://127.0.0.1:8787";
+  }
+
+  function apiUnreachableMessage(base) {
+    if (isTangentClubSite()) {
+      if (!base) {
+        return (
+          "API-Server nicht konfiguriert: In assets/app.js WHIP_CLOUDFLARE_TUNNEL_URL setzen, " +
+          "zu GitHub pushen, dann Seite neu laden."
+        );
+      }
+      return (
+        `API nicht erreichbar unter ${base}. Auf dem Mac: cd server && npm run restart ` +
+        "und in einem zweiten Terminal npm run tunnel — neue Tunnel-URL in assets/app.js eintragen und pushen."
+      );
+    }
+    if (!base) return "API-Server nicht konfiguriert.";
+    return `API nicht erreichbar (${base}). Läuft der Server? cd server && npm run restart`;
   }
 
   function getSession() {
@@ -100,10 +129,23 @@
   }
 
   async function api(path, options = {}) {
-    const resp = await fetch(`${resolveApiBase()}${path}`, {
-      ...options,
-      headers: { ...authHeaders(), ...(options.headers || {}) },
-    });
+    const base = resolveApiBase();
+    if (!base) {
+      const err = new Error(apiUnreachableMessage(""));
+      err.code = "api_not_configured";
+      throw err;
+    }
+    let resp;
+    try {
+      resp = await fetch(`${base}${path}`, {
+        ...options,
+        headers: { ...authHeaders(), ...(options.headers || {}) },
+      });
+    } catch (_) {
+      const err = new Error(apiUnreachableMessage(base));
+      err.code = "network_error";
+      throw err;
+    }
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
       const err = new Error(data.message || data.error || `Request failed (${resp.status})`);
@@ -113,6 +155,17 @@
       throw err;
     }
     return data;
+  }
+
+  async function checkApiHealth() {
+    const base = resolveApiBase();
+    if (!base) return { ok: false, base, error: "api_not_configured" };
+    try {
+      const resp = await fetch(`${base}/health`, { cache: "no-store" });
+      return { ok: resp.ok, base };
+    } catch (_) {
+      return { ok: false, base, error: "network_error" };
+    }
   }
 
   async function login(username, password) {
@@ -723,6 +776,18 @@
     const form = document.getElementById("registerForm");
     if (!form) return;
 
+    const apiBanner = document.getElementById("registerApiStatus");
+    checkApiHealth().then((health) => {
+      if (!apiBanner) return;
+      if (health.ok) {
+        apiBanner.className = "status-line ok";
+        apiBanner.textContent = "Server verbunden.";
+        return;
+      }
+      apiBanner.className = "status-line err";
+      apiBanner.textContent = apiUnreachableMessage(health.base);
+    });
+
     const params = new URLSearchParams(location.search);
     const token = params.get("token") || "";
     const tokenInput = document.getElementById("registerInviteToken");
@@ -831,7 +896,11 @@
             invalid_password: "Passwort mindestens 8 Zeichen.",
             invalid_email: "Bitte eine gültige E-Mail-Adresse eingeben.",
           };
-          errEl.textContent = map[err.code] || err.message;
+          const extra = {
+            network_error: apiUnreachableMessage(resolveApiBase()),
+            api_not_configured: apiUnreachableMessage(""),
+          };
+          errEl.textContent = map[err.code] || extra[err.code] || err.message;
         }
       }
     });
@@ -861,6 +930,8 @@
             invalid_credentials: "Benutzername oder Passwort ungültig.",
             email_not_verified:
               "E-Mail noch nicht bestätigt — Link in der Registrierungs-Mail öffnen.",
+            network_error: apiUnreachableMessage(resolveApiBase()),
+            api_not_configured: apiUnreachableMessage(""),
           };
           errEl.textContent = map[err.code] || err.message || "Anmeldung fehlgeschlagen.";
         }

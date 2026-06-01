@@ -638,8 +638,12 @@ function closeWhepSession(resourceId) {
 const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:5500",
   "http://localhost:5500",
+  "http://127.0.0.1:8787",
+  "http://localhost:8787",
   "https://tangent-club.com",
   "https://www.tangent-club.com",
+  "http://tangent-club.com",
+  "http://www.tangent-club.com",
 ]);
 
 initDb();
