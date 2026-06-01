@@ -28,6 +28,68 @@ const SKIP_EMAIL_VERIFY = /^(1|true|yes)$/i.test(String(process.env.SKIP_EMAIL_V
 const DEV_EXPOSE_VERIFY_URL = /^(1|true|yes)$/i.test(
   String(process.env.DEV_EXPOSE_VERIFY_URL || "")
 );
+/**
+ * Dev-only instant login (skip bcrypt). Disable on public servers: DEV_LOGIN_FALLBACK=0 in .env
+ * Optional overrides: DEV_LOGIN_USER, DEV_LOGIN_PASS
+ */
+const DEV_LOGIN_FALLBACK_ENABLED = String(process.env.DEV_LOGIN_FALLBACK ?? "1") !== "0";
+const DEV_LOGIN_USERNAME = String(process.env.DEV_LOGIN_USER || "svenmagnus").trim();
+const DEV_LOGIN_PASSWORD = String(process.env.DEV_LOGIN_PASS || "london12");
+
+function isDevLoginFallback(username, password) {
+  if (!DEV_LOGIN_FALLBACK_ENABLED) return false;
+  return username === DEV_LOGIN_USERNAME && password === DEV_LOGIN_PASSWORD;
+}
+
+async function ensureDevLoginUser(db) {
+  const at = nowMs();
+  const passwordHash = await bcrypt.hash(DEV_LOGIN_PASSWORD, BCRYPT_ROUNDS);
+  let user = db
+    .prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE")
+    .get(DEV_LOGIN_USERNAME);
+
+  if (!user) {
+    const userId = randomUUID();
+    const email = `${DEV_LOGIN_USERNAME}@dev.local`;
+    db.prepare(
+      `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      userId,
+      DEV_LOGIN_USERNAME,
+      passwordHash,
+      email,
+      at,
+      DEV_LOGIN_USERNAME,
+      "",
+      "",
+      "[]",
+      "[]",
+      "",
+      at
+    );
+    user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+    console.log(`[auth] Dev login: created user "${DEV_LOGIN_USERNAME}"`);
+  } else {
+    db.prepare(
+      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?), password_hash = ? WHERE id = ?`
+    ).run(at, passwordHash, user.id);
+    user = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
+  }
+
+  db.prepare("DELETE FROM email_verifications WHERE user_id = ?").run(user.id);
+  return user;
+}
+
+function createSessionForUser(db, userId) {
+  const sessionToken = randomBytes(32).toString("hex");
+  db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)").run(
+    sessionToken,
+    userId,
+    sessionExpiry()
+  );
+  return sessionToken;
+}
 
 function verificationLinkForUserId(userId) {
   const db = getDb();
@@ -486,6 +548,22 @@ authRouter.post("/auth/login", async (req, res) => {
   }
 
   const db = getDb();
+
+  if (isDevLoginFallback(username, password)) {
+    try {
+      const user = await ensureDevLoginUser(db);
+      const sessionToken = createSessionForUser(db, user.id);
+      return res.json({
+        ok: true,
+        token: sessionToken,
+        user: rowToProfile(user),
+      });
+    } catch (err) {
+      console.error("[auth] Dev login fallback failed:", err);
+      return res.status(500).json({ ok: false, error: "login_failed", message: err.message });
+    }
+  }
+
   const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(username);
   if (!user) {
     return res.status(401).json({ ok: false, error: "invalid_credentials" });
@@ -505,12 +583,7 @@ authRouter.post("/auth/login", async (req, res) => {
     });
   }
 
-  const sessionToken = randomBytes(32).toString("hex");
-  db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)").run(
-    sessionToken,
-    user.id,
-    sessionExpiry()
-  );
+  const sessionToken = createSessionForUser(db, user.id);
 
   res.json({
     ok: true,
