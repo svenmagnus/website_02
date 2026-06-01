@@ -606,6 +606,88 @@ body.login-locked > footer {
   font-size: 0.78rem;
 }
 
+.welcome-card h1 {
+  margin-bottom: 0.35rem;
+}
+
+.welcome-lead {
+  margin-bottom: 0.75rem;
+}
+
+.welcome-manual-link {
+  margin-bottom: 1.25rem;
+}
+
+.welcome-manual-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.welcome-manual-btn:hover {
+  border-color: var(--accent);
+}
+
+.welcome-actions {
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.welcome-stream-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.manual-card {
+  max-width: 40rem;
+  text-align: left;
+}
+
+.manual-section {
+  margin: 1.25rem 0;
+}
+
+.manual-section h2 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+}
+
+.manual-section ol,
+.manual-section ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.manual-section li + li {
+  margin-top: 0.35rem;
+}
+
+.manual-intro {
+  margin-bottom: 0.5rem;
+}
+
+.manual-footer {
+  margin-top: 1.5rem;
+}
+
 .auth-logo {
   margin-bottom: 1.25rem;
 }

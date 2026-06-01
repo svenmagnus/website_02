@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="cb-dark">
+  <head>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
+          if (t === "cb-dark" || t === "cb-light" || t === "original") {
+            document.documentElement.setAttribute("data-theme", t === "original" ? "cb-dark" : t);
+          }
+        } catch (_) {}
+      })();
+    </script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gebrauchsanweisung — Tangent Club</title>
+    <link rel="stylesheet" href="assets/styles.css?v=8415" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  </head>
+  <body class="auth-page manual-page">
+    <main class="auth-page-main auth-page-main-wide">
+      <a href="welcome.html" class="logo-link auth-logo">
+        <img src="assets/logo.png" alt="Tangent-Club Logo" />
+      </a>
+      <article class="login-overlay-card auth-card manual-card">
+        <h1>Gebrauchsanweisung</h1>
+        <p class="status-line manual-intro">
+          Kurzanleitung für Gäste und Hosts von Tangent Club (privater Video-Chat mit Lovense-Fernsteuerung).
+        </p>
+
+        <section class="manual-section">
+          <h2>1. Konto &amp; Profil</h2>
+          <ol>
+            <li>Mit Einladung unter <strong>Registrieren</strong> anlegen (E-Mail, 4-stelliger Code, Benutzername, Passwort).</li>
+            <li>Falls nötig: E-Mail-Link zur Bestätigung öffnen.</li>
+            <li>Auf der <strong>Willkommensseite</strong> Anzeigename, „Über dich“, Techniken und Lovense-Toys eintragen.</li>
+            <li><strong>Profil speichern</strong>, dann <strong>Zum Video-Stream</strong>.</li>
+          </ol>
+        </section>
+
+        <section class="manual-section">
+          <h2>2. Raum betreten</h2>
+          <ol>
+            <li>Auf der Startseite mit <strong>Benutzername + Passwort</strong> anmelden (Raum-Zugang).</li>
+            <li>Kamera/Mikrofon im Browser erlauben.</li>
+            <li>Als <strong>Gast</strong>: Host-Peer-ID einfügen und verbinden. Als <strong>Host</strong>: „Start as Host“.</li>
+          </ol>
+        </section>
+
+        <section class="manual-section">
+          <h2>3. Lovense (Chrome)</h2>
+          <ol>
+            <li><strong>Lovense Cam Extension</strong> installieren (Google Chrome).</li>
+            <li>In der Extension die Site <code>test:Tangent-Club</code> hinzufügen.</li>
+            <li>Toys in der Extension verbinden — auf der Stream-Seite muss das Lovense-Widget erscheinen.</li>
+            <li>Status „Extension bereit“ abwarten. Toys im Profil textlich notieren (Info für den Partner).</li>
+            <li>Broadcast-URL im Lovense Developer Dashboard als „Model Broadcasting URL Pattern“ eintragen.</li>
+          </ol>
+        </section>
+
+        <section class="manual-section">
+          <h2>4. Technik-Anfragen &amp; Toys</h2>
+          <ul>
+            <li>Rechts Tab <strong>Technique Requests</strong>: nur Techniken, die der Partner im Profil freigegeben hat.</li>
+            <li>Tab <strong>Remote Control (Toys)</strong>: Intensität / Impulse an verbundene Lovense-Geräte des Partners.</li>
+          </ul>
+        </section>
+
+        <section class="manual-section">
+          <h2>5. Fehlerbehebung</h2>
+          <ul>
+            <li>Keine Kamera: Browserberechtigung prüfen, Seite neu laden.</li>
+            <li>Verbindung scheitert: Peer-ID prüfen, beide online, VPN/Firewall testweise aus.</li>
+            <li>„Server nicht erreichbar“: Host muss API-Tunnel laufen haben (Cloudflare → Port 8787).</li>
+          </ul>
+        </section>
+
+        <p class="status-line manual-footer">
+          <a href="welcome.html">← Zurück zum Profil</a>
+          ·
+          <a href="index.html">Zum Stream</a>
+        </p>
+      </article>
+    </main>
+  </body>
+</html>

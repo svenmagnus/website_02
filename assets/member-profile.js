@@ -30,6 +30,7 @@
       displayName: "Guest",
       gender: "",
       bio: "",
+      lovenseToys: "",
       techniques: [],
       customTechniques: [],
       updatedAt: Date.now(),
@@ -77,6 +78,7 @@
       displayName,
       gender: GENDERS.some((g) => g.value === raw.gender) ? raw.gender : "",
       bio: String(raw.bio || "").trim().slice(0, 500),
+      lovenseToys: String(raw.lovenseToys || "").trim().slice(0, 500),
       techniques,
       customTechniques,
       updatedAt: raw.updatedAt || Date.now(),
@@ -93,6 +95,7 @@
       displayName: raw.displayName,
       gender: raw.gender,
       bio: raw.bio,
+      lovenseToys: raw.lovenseToys,
       techniques: raw.techniques,
       customTechniques: raw.customTechniques,
     });
@@ -290,6 +293,7 @@
     const nameEl = document.getElementById("profileDisplayName");
     const genderEl = document.getElementById("profileGender");
     const bioEl = document.getElementById("profileBio");
+    const toysEl = document.getElementById("profileLovenseToys");
     const current = loadProfile();
     const techniques = [];
     document.querySelectorAll('input[name="profileTechnique"]:checked').forEach((el) => {
@@ -299,6 +303,7 @@
       displayName: nameEl instanceof HTMLInputElement ? nameEl.value : "Guest",
       gender: genderEl instanceof HTMLSelectElement ? genderEl.value : "",
       bio: bioEl instanceof HTMLTextAreaElement ? bioEl.value : "",
+      lovenseToys: toysEl instanceof HTMLTextAreaElement ? toysEl.value : "",
       techniques,
       customTechniques: current.customTechniques,
     });
@@ -309,11 +314,13 @@
     const nameEl = document.getElementById("profileDisplayName");
     const genderEl = document.getElementById("profileGender");
     const bioEl = document.getElementById("profileBio");
+    const toysEl = document.getElementById("profileLovenseToys");
     if (nameEl instanceof HTMLInputElement) {
       nameEl.value = p.displayName === "Guest" ? "" : p.displayName;
     }
     if (genderEl instanceof HTMLSelectElement) genderEl.value = p.gender;
     if (bioEl instanceof HTMLTextAreaElement) bioEl.value = p.bio;
+    if (toysEl instanceof HTMLTextAreaElement) toysEl.value = p.lovenseToys || "";
     document.querySelectorAll('input[name="profileTechnique"]').forEach((el) => {
       if (!(el instanceof HTMLInputElement)) return;
       el.checked = p.techniques.includes(el.value);
@@ -546,16 +553,18 @@
       });
     }
 
-    const form = document.getElementById("profileForm");
+        const form = document.getElementById("profileForm");
+    const profileUiDe = () => document.body.classList.contains("welcome-page");
     if (form) {
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const msg = document.getElementById("profileSaveStatus");
         const draft = readProfileForm();
+        const de = profileUiDe();
         if (isAccountMode()) {
           if (msg) {
             msg.hidden = false;
-            msg.textContent = "Saving…";
+            msg.textContent = de ? "Speichere …" : "Saving…";
             msg.className = "status-line";
           }
           try {
@@ -563,6 +572,7 @@
               displayName: draft.displayName,
               gender: draft.gender,
               bio: draft.bio,
+              lovenseToys: draft.lovenseToys,
               techniques: draft.techniques,
               customTechniques: draft.customTechniques,
             });
@@ -570,7 +580,7 @@
             fillProfileForm(saved);
             renderTechniqueChecklist();
             if (msg) {
-              msg.textContent = "Profile saved to your account.";
+              msg.textContent = de ? "Profil gespeichert." : "Profile saved to your account.";
               msg.className = "status-line ok";
             }
           } catch (err) {
@@ -628,6 +638,10 @@
     global.addEventListener("dualpeer-profile-update", (e) => {
       if (e.detail?.profile) persistLocal(e.detail.profile);
       onAuthProfileSynced();
+    });
+    global.addEventListener("dualpeer-welcome-ready", () => {
+      fillProfileForm(loadProfile());
+      renderTechniqueChecklist();
     });
   }
 

@@ -79,6 +79,7 @@ function rowToProfile(row) {
     bio: row.bio || "",
     techniques: Array.isArray(techniques) ? techniques : [],
     customTechniques: Array.isArray(customTechniques) ? customTechniques : [],
+    lovenseToys: String(row.lovense_toys || "").slice(0, 500),
     createdAt: row.created_at,
     mailConfigured: isSmtpConfiguredForUser(row),
   };
@@ -420,6 +421,15 @@ authRouter.post("/auth/register", async (req, res) => {
   }
 
   const verifiedUser = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  let token = null;
+  if (verifiedUser.email_verified_at) {
+    token = randomBytes(32).toString("hex");
+    db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)").run(
+      token,
+      userId,
+      sessionExpiry()
+    );
+  }
 
   res.status(201).json({
     ok: true,
@@ -427,8 +437,10 @@ authRouter.post("/auth/register", async (req, res) => {
     emailSent,
     email,
     username,
+    token: token || undefined,
+    user: token ? rowToProfile(verifiedUser) : undefined,
     message: verifiedUser.email_verified_at
-      ? "Konto erstellt. Du kannst dich anmelden."
+      ? "Konto erstellt — richte jetzt dein Profil ein."
       : "Konto erstellt. Bitte bestätige deine E-Mail — wir haben dir einen Link geschickt.",
   });
 });
@@ -499,9 +511,13 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
   const techniques = req.body?.techniques != null ? req.body.techniques : current.techniques;
   const customTechniques =
     req.body?.customTechniques != null ? req.body.customTechniques : current.customTechniques;
+  const lovenseToys =
+    req.body?.lovenseToys != null
+      ? String(req.body.lovenseToys).trim().slice(0, 500)
+      : current.lovenseToys;
 
   db.prepare(
-    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?
+    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, lovense_toys = ?
      WHERE id = ?`
   ).run(
     displayName,
@@ -509,6 +525,7 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     bio,
     JSON.stringify(Array.isArray(techniques) ? techniques : []),
     JSON.stringify(Array.isArray(customTechniques) ? customTechniques : []),
+    lovenseToys,
     req.authUser.id
   );
 

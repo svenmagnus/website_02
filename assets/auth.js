@@ -98,6 +98,7 @@
       displayName: user.displayName || user.username || "Guest",
       gender: user.gender || "",
       bio: user.bio || "",
+      lovenseToys: user.lovenseToys || "",
       techniques: user.techniques || [],
       customTechniques: user.customTechniques || [],
       username: user.username,
@@ -124,6 +125,10 @@
 
   function isLoggedIn() {
     return Boolean(getSession()?.token);
+  }
+
+  function goToWelcomePage() {
+    window.location.href = "welcome.html";
   }
 
   function authHeaders() {
@@ -679,6 +684,7 @@
         await login(user?.value, pass?.value);
         if (document.getElementById("premiumLoginModal")) {
           closePremiumLoginModal();
+          goToWelcomePage();
         } else {
           window.location.href = "index.html";
         }
@@ -755,8 +761,8 @@
         }
         if (loginLink) {
           loginLink.hidden = false;
-          loginLink.href = "index.html?premium=1&verified=1";
-          loginLink.textContent = "Premium anmelden";
+          loginLink.href = "welcome.html";
+          loginLink.textContent = "Zum Profil / Anmelden";
         }
       })
       .catch((err) => {
@@ -768,8 +774,8 @@
         statusEl.textContent = map[err.code] || err.message || "Bestätigung fehlgeschlagen.";
         if (loginLink) {
           loginLink.hidden = false;
-          loginLink.href = "index.html?premium=1";
-          loginLink.textContent = "Premium anmelden";
+          loginLink.href = "welcome.html";
+          loginLink.textContent = "Zum Profil / Anmelden";
         }
       });
   }
@@ -849,16 +855,31 @@
         if (successMsg) {
           successMsg.textContent = result.message || "Konto erstellt.";
         }
-        if (result.needsEmailVerification) {
+        const username = document.getElementById("registerUsername")?.value;
+        const password = document.getElementById("registerPassword")?.value;
+        if (result.token && result.user) {
+          setSession(result.token, result.user);
+          cacheProfile(userToProfile(result.user));
+          setTimeout(() => goToWelcomePage(), 800);
+        } else if (result.needsEmailVerification) {
           const devEl = document.getElementById("registerDevVerify");
           if (devEl && result.devVerifyUrl) {
             devEl.hidden = false;
-            devEl.innerHTML = `Dev: <a href="${result.devVerifyUrl}">Bestätigung testen</a>`;
+            devEl.innerHTML = `Dev: <a href="${result.devVerifyUrl}">Bestätigung testen</a> — danach <a href="welcome.html">anmelden</a>`;
+          }
+          if (successMsg) {
+            successMsg.textContent +=
+              " Nach der Bestätigung: unter Willkommensseite anmelden und Profil ausfüllen.";
+          }
+        } else if (username && password) {
+          try {
+            await login(username, password);
+            setTimeout(() => goToWelcomePage(), 800);
+          } catch (_) {
+            setTimeout(() => goToWelcomePage(), 1500);
           }
         } else {
-          setTimeout(() => {
-            window.location.href = "index.html?premium=1&verified=1";
-          }, 1500);
+          setTimeout(() => goToWelcomePage(), 1500);
         }
       } catch (err) {
         if (errEl) {
@@ -879,6 +900,68 @@
             api_not_configured: apiUnreachableMessage(""),
           };
           errEl.textContent = map[err.code] || extra[err.code] || err.message;
+        }
+      }
+    });
+  }
+
+  function initWelcomePage() {
+    const gate = document.getElementById("welcomeLoginGate");
+    const panel = document.getElementById("welcomeProfilePanel");
+    const title = document.getElementById("welcomeTitle");
+    if (!gate && !panel) return;
+
+    function showLoggedInUi() {
+      if (gate) gate.hidden = true;
+      if (panel) panel.hidden = false;
+      const user = getSession()?.user;
+      const name = user?.displayName || user?.username || "Gast";
+      if (title) title.textContent = `Willkommen, ${name}!`;
+    }
+
+    function showLoggedOutUi() {
+      if (gate) gate.hidden = false;
+      if (panel) panel.hidden = true;
+    }
+
+    onReady(async () => {
+      if (!isLoggedIn()) {
+        showLoggedOutUi();
+        return;
+      }
+      try {
+        await fetchProfile();
+      } catch (_) {
+        clearSession();
+        showLoggedOutUi();
+        return;
+      }
+      showLoggedInUi();
+      if (global.MemberProfile) {
+        global.dispatchEvent(new CustomEvent("dualpeer-welcome-ready"));
+      }
+    });
+
+    const loginForm = document.getElementById("welcomeLoginForm");
+    loginForm?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById("welcomeLoginError");
+      if (errEl) errEl.hidden = true;
+      try {
+        await login(
+          document.getElementById("welcomeLoginUsername")?.value,
+          document.getElementById("welcomeLoginPassword")?.value
+        );
+        await fetchProfile();
+        showLoggedInUi();
+        global.dispatchEvent(new CustomEvent("dualpeer-welcome-ready"));
+      } catch (err) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent =
+            err.code === "email_not_verified"
+              ? "E-Mail noch nicht bestätigt — Link in der Registrierungs-Mail öffnen."
+              : err.message || "Anmeldung fehlgeschlagen.";
         }
       }
     });
@@ -966,6 +1049,7 @@
     initPremiumLoginModal();
     initInviteModal();
     initLoginPage();
+    initWelcomePage();
     initRegisterPage();
     initVerifyEmailPage();
     initProfileMailForm();
@@ -993,6 +1077,7 @@
     loadProfileMailSettings,
     openMailSettingsModal,
     closeMailSettingsModal,
+    goToWelcomePage,
     openPremiumLoginModal,
     closePremiumLoginModal,
     onReady,

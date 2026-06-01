@@ -26,6 +26,7 @@ function runMigrations(database) {
       bio TEXT NOT NULL DEFAULT '',
       techniques_json TEXT NOT NULL DEFAULT '[]',
       custom_techniques_json TEXT NOT NULL DEFAULT '[]',
+      lovense_toys TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL
     );
 
@@ -69,6 +70,9 @@ function runMigrations(database) {
   if (!userCols.includes("email_verified_at")) {
     database.exec(`ALTER TABLE users ADD COLUMN email_verified_at INTEGER`);
     database.exec(`UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL`);
+  }
+  if (!userCols.includes("lovense_toys")) {
+    database.exec(`ALTER TABLE users ADD COLUMN lovense_toys TEXT NOT NULL DEFAULT ''`);
   }
 
   const inviteCols = tableColumns(database, "invites");
