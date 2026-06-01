@@ -27,7 +27,6 @@
     />
     <!-- Lovense Cam Extension SDK — load order per developer docs -->
     <script src="https://api.lovense-api.com/cam-extension/static/js-sdk/broadcast.js"></script>
-    <script src="https://api.lovense.com/api/lan/v2/lan.js"></script>
     <script>
       // Match Lovense Developer Dashboard (test phase: test: + site name)
       window.LOVENSE_SITE_NAME = "test:Tangent-Club";
@@ -35,7 +34,7 @@
       // Direct motor via lovense.sendCommand — no Stream Master Basic Levels needed
       window.DUALPEER_DIRECT_MOTOR = true;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8401"></script>
+    <script src="assets/lovense-broadcast.js?v=8422"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -610,7 +609,7 @@
             <span class="status-line">Your current Peer ID:</span>
             <div class="peer-id-box" id="peerIdOut">—</div>
           </div>
-          <p class="lovense-hint" id="lovenseStatus">Lovense: initializing …</p>
+          <p class="lovense-hint" id="lovenseStatus">Lovense: open Setup or Remote Control (Toys) to connect.</p>
           <p class="lovense-hint" id="lovenseToyStatus"></p>
           <p class="lovense-hint lovense-url-hint" id="lovenseUrlHint"></p>
           <p class="status-line pip-native-msg" id="pipNativeMsg" role="status"></p>
@@ -705,11 +704,12 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/api-config.js?v=8420"></script>
-    <script src="assets/technique-presets.js?v=8420"></script>
-    <script src="assets/ui-shell.js?v=8420"></script>
-    <script src="assets/app.js?v=8420"></script>
-    <script src="assets/auth.js?v=8420"></script>
-    <script src="assets/member-profile.js?v=8420"></script>
+    <script src="assets/api-config.js?v=8422"></script>
+    <script src="assets/lovense-lan-loader.js?v=8422"></script>
+    <script src="assets/technique-presets.js?v=8422"></script>
+    <script src="assets/ui-shell.js?v=8422"></script>
+    <script src="assets/app.js?v=8422"></script>
+    <script src="assets/auth.js?v=8422"></script>
+    <script src="assets/member-profile.js?v=8422"></script>
   </body>
 </html>

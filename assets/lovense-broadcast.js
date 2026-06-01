@@ -949,7 +949,11 @@
   }
 
   /** Extension bridge is ready only after the page + content script have connected. */
+  let bootScheduled = false;
+
   function scheduleBoot() {
+    if (bootScheduled) return;
+    bootScheduled = true;
     const boot = () => init();
 
     if (document.readyState === "complete") {
@@ -1015,7 +1019,6 @@
     },
     init,
     retryInit,
+    requestBoot: scheduleBoot,
   };
-
-  scheduleBoot();
 })(window);

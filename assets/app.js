@@ -3,6 +3,9 @@
  * Lovense: when broadcast.js is loaded and CamExtension is ready, receiveTip() runs locally.
  */
 
+/** Browser global (app.js is not wrapped in an IIFE). */
+const global = globalThis;
+
 /** Site access unlocked after successful account login (see auth.js). */
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
 
@@ -2820,6 +2823,8 @@ function onLovenseReady(detail) {
 function onLovenseError(detail) {
   syncLovenseFromBridge();
   lovenseReady = false;
+  const code = detail && (detail.code || detail.error);
+  if (code === "NO_SDK") return;
   const msg =
     detail && detail.message
       ? detail.message
@@ -3313,6 +3318,37 @@ function setVideoAccessUi(unlocked) {
 }
 
 let lovenseUiBooted = false;
+let lovenseBootInFlight = false;
+
+/** Load LAN SDK + Cam Extension bridge only when user opens Lovense-related UI. */
+async function ensureLovenseInitialized() {
+  if (lovenseUiBooted || lovenseBootInFlight) return;
+  lovenseBootInFlight = true;
+  try {
+    if (typeof loadLovenseLanScript === "function") {
+      await loadLovenseLanScript().catch(() => false);
+    }
+    window.dualPeerLovense?.requestBoot?.();
+    if (!lovenseUiBooted) {
+      lovenseUiBooted = true;
+      initLovenseIfPresent();
+    } else if (typeof window.dualPeerLovense?.retryInit === "function") {
+      window.dualPeerLovense.retryInit();
+    }
+  } finally {
+    lovenseBootInFlight = false;
+  }
+}
+
+function initLovenseLazyBoot() {
+  const trigger = (e) => {
+    const hit = e.target?.closest?.(
+      '[data-panel-tab="setup"], [data-panel-tab="stream"], [data-remote-tab="toys"], #localToyTestList, .local-test-card'
+    );
+    if (hit) ensureLovenseInitialized();
+  };
+  document.addEventListener("click", trigger);
+}
 
 function grantSiteAccess() {
   try {
@@ -3323,10 +3359,6 @@ function grantSiteAccess() {
   setVideoAccessUi(true);
   const pass = document.getElementById("accessPassword");
   if (pass instanceof HTMLInputElement) pass.value = "";
-  if (!lovenseUiBooted) {
-    lovenseUiBooted = true;
-    initLovenseIfPresent();
-  }
 }
 
 function revokeSiteAccess() {
@@ -3724,6 +3756,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindVideoOverlayRefresh(els.remoteVideo);
   refreshVideoOverlays();
   initAccessGate();
+  initLovenseLazyBoot();
   initLogout();
   initMediaSourceControls();
   initVideoOverlayControls();

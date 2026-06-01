@@ -120,6 +120,7 @@
 
     if (btn && panel) {
       btn.addEventListener("click", (e) => {
+        e.preventDefault();
         e.stopPropagation();
         const menu = document.getElementById("accountMenu");
         if (menu && menu.classList.contains("is-open")) {
@@ -130,12 +131,16 @@
       });
     }
 
-    document.addEventListener("click", (e) => {
-      const menu = document.getElementById("accountMenu");
-      if (!menu || !menu.classList.contains("is-open")) return;
-      if (e.target instanceof Node && menu.contains(e.target)) return;
-      closeAccountMenu();
-    });
+    document.addEventListener(
+      "click",
+      (e) => {
+        const menu = document.getElementById("accountMenu");
+        if (!menu || !menu.classList.contains("is-open")) return;
+        if (e.target instanceof Node && menu.contains(e.target)) return;
+        closeAccountMenu();
+      },
+      true
+    );
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeAccountMenu();
