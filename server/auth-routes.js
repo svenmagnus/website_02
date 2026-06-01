@@ -10,6 +10,7 @@ import {
   isSmtpConfiguredForUser,
   resolveMailConfig,
   sendInviteEmail,
+  sendVerificationEmail,
   sendTestEmail,
   STRATO_MAIL_PRESET,
   verifySmtpConnection,
