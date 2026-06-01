@@ -837,14 +837,56 @@
     });
   }
 
+  function initSiteAccessGate() {
+    const form = document.getElementById("siteAccessForm");
+    if (!form) return;
+
+    const usernameEl = document.getElementById("accessUsername");
+    const passwordEl = document.getElementById("accessPassword");
+    const errEl = document.getElementById("accessError");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("accessUnlock");
+      if (btn instanceof HTMLButtonElement) btn.disabled = true;
+      if (errEl) errEl.hidden = true;
+
+      try {
+        await login(usernameEl?.value, passwordEl?.value);
+        global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+      } catch (err) {
+        if (errEl) {
+          errEl.hidden = false;
+          const map = {
+            invalid_credentials: "Benutzername oder Passwort ungültig.",
+            email_not_verified:
+              "E-Mail noch nicht bestätigt — Link in der Registrierungs-Mail öffnen.",
+          };
+          errEl.textContent = map[err.code] || err.message || "Anmeldung fehlgeschlagen.";
+        }
+        if (passwordEl instanceof HTMLInputElement) passwordEl.value = "";
+        passwordEl?.focus();
+      } finally {
+        if (btn instanceof HTMLButtonElement) btn.disabled = false;
+      }
+    });
+  }
+
   async function bootstrap() {
     updateAccountMenuAuthState();
+    let hasSiteAccess = false;
     if (isLoggedIn()) {
       try {
         await fetchProfile();
+        hasSiteAccess = true;
       } catch (_) {
         clearSession();
       }
+    }
+    if (hasSiteAccess) {
+      global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+    } else {
+      global.dispatchEvent(new CustomEvent("dualpeer-site-access-revoked"));
     }
     readyResolve();
   }
@@ -871,6 +913,7 @@
   });
 
   function init() {
+    initSiteAccessGate();
     initPremiumLoginModal();
     initInviteModal();
     initLoginPage();

@@ -3,8 +3,7 @@
  * Lovense: when broadcast.js is loaded and CamExtension is ready, receiveTip() runs locally.
  */
 
-/** App access gate (video UI) — demo only, not a security boundary. */
-const VIDEO_ACCESS_PASSWORD = "Velvet_Touch";
+/** Site access unlocked after successful account login (see auth.js). */
 const SESSION_VIDEO_UNLOCK_KEY = "dualpeer-app-session-v2";
 
 // TURN example (OpenRelay placeholders — replace in production)
@@ -3310,60 +3309,44 @@ function setVideoAccessUi(unlocked) {
   }
 }
 
-function initAccessGate() {
-  const input = els.accessPassword;
-  const btn = els.accessUnlock;
-  const err = els.accessError;
-
-  function showAccessErr(msg) {
-    if (!err) return;
-    err.textContent = msg || "";
-    err.hidden = !msg;
-  }
-
-  function unlockFromGate() {
-    showAccessErr("");
-    try {
-      sessionStorage.setItem(SESSION_VIDEO_UNLOCK_KEY, "1");
-    } catch (_) {
-      /* ignore */
-    }
-    setVideoAccessUi(true);
-    if (input) input.value = "";
-  }
-
+function grantSiteAccess() {
   try {
-    if (sessionStorage.getItem(SESSION_VIDEO_UNLOCK_KEY) === "1") {
-      unlockFromGate();
-      return;
-    }
+    sessionStorage.setItem(SESSION_VIDEO_UNLOCK_KEY, "1");
   } catch (_) {
     /* ignore */
   }
+  setVideoAccessUi(true);
+  const pass = document.getElementById("accessPassword");
+  if (pass instanceof HTMLInputElement) pass.value = "";
+}
 
+function revokeSiteAccess() {
+  try {
+    sessionStorage.removeItem(SESSION_VIDEO_UNLOCK_KEY);
+  } catch (_) {
+    /* ignore */
+  }
+  setVideoAccessUi(false);
+}
+
+window.dualPeerSiteAccess = {
+  grant: grantSiteAccess,
+  revoke: revokeSiteAccess,
+};
+
+function initAccessGate() {
   setVideoAccessUi(false);
 
-  if (btn) {
-    btn.addEventListener("click", () => {
-      const v = (input && input.value ? input.value : "").trim();
-      if (v === VIDEO_ACCESS_PASSWORD) {
-        unlockFromGate();
-      } else {
-        showAccessErr("Invalid password.");
-        if (input) {
-          input.value = "";
-          input.focus();
-        }
-      }
-    });
-  }
+  global.addEventListener("dualpeer-site-access-granted", () => {
+    grantSiteAccess();
+  });
+  global.addEventListener("dualpeer-site-access-revoked", () => {
+    revokeSiteAccess();
+  });
 
-  if (input) {
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && btn) btn.click();
-    });
-    requestAnimationFrame(() => input.focus());
-  }
+  requestAnimationFrame(() => {
+    document.getElementById("accessUsername")?.focus();
+  });
 }
 
 function initLogout() {
@@ -3376,6 +3359,7 @@ function initLogout() {
     } catch (_) {
       /* ignore */
     }
+    global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
     try {
       hangup();
     } catch (_) {

@@ -519,7 +519,8 @@ body.login-locked {
   min-width: 4.5rem;
 }
 
-.login-overlay-row input[type="password"] {
+.login-overlay-row input[type="password"],
+.login-overlay-row input[type="text"] {
   flex: 1;
   min-width: 140px;
   padding: 0.5rem 0.65rem;

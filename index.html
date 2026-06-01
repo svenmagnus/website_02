@@ -47,21 +47,37 @@
       aria-labelledby="loginOverlayTitle"
     >
       <div class="login-overlay-card">
-        <h2 id="loginOverlayTitle">Dual-Peer — Sign in</h2>
+        <h2 id="loginOverlayTitle">Tangent Club — Anmelden</h2>
         <p class="login-overlay-hint">
-          Enter password to access video panels and camera connection.
+          Benutzername und Passwort eingeben, um Video, Chat und Übertragung zu nutzen.
         </p>
-        <div class="login-overlay-row">
-          <label for="accessPassword">Password</label>
-          <input
-            type="password"
-            id="accessPassword"
-            autocomplete="current-password"
-            placeholder="Password …"
-          />
-        </div>
-        <p class="login-overlay-error" id="accessError" hidden></p>
-        <button type="button" class="primary" id="accessUnlock">Sign in</button>
+        <form id="siteAccessForm">
+          <div class="login-overlay-row">
+            <label for="accessUsername">Benutzername</label>
+            <input
+              type="text"
+              id="accessUsername"
+              autocomplete="username"
+              required
+              placeholder="Dein Benutzername …"
+            />
+          </div>
+          <div class="login-overlay-row">
+            <label for="accessPassword">Passwort</label>
+            <input
+              type="password"
+              id="accessPassword"
+              autocomplete="current-password"
+              required
+              placeholder="Dein Passwort …"
+            />
+          </div>
+          <p class="login-overlay-error" id="accessError" hidden></p>
+          <button type="submit" class="primary" id="accessUnlock">Anmelden</button>
+        </form>
+        <p class="status-line" style="margin-top: 1rem">
+          Noch kein Konto? <a href="register.html">Registrieren</a>
+        </p>
       </div>
      </div>
 
@@ -417,7 +433,7 @@
           <div class="panel-tab-panel" data-panel-tab-panel="setup">
           <h2 class="panel-tab-title">Verbindung &amp; Übertragung</h2>
           <p class="status-line setup-flow-hint">
-            <strong>Als Host starten:</strong> (1) Raum-Passwort eingeben (beim Seitenaufruf) → (2) Broadcast
+            <strong>Als Host starten:</strong> (1) Mit Benutzername anmelden (Startfenster) → (2) Broadcast
             <strong>„Webcam &amp; Mikrofon“</strong> wählen für normales Streaming ohne OBS → (3) Kamera/Mikro wählen →
             <strong>Start as Host</strong>. Für OBS-Szenen: Broadcast „OBS (WHIP)“.
             <span class="setup-flow-hint-member"
@@ -665,9 +681,9 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/ui-shell.js?v=8409"></script>
-    <script src="assets/app.js?v=8409"></script>
-    <script src="assets/auth.js?v=8409"></script>
-    <script src="assets/member-profile.js?v=8409"></script>
+    <script src="assets/ui-shell.js?v=8410"></script>
+    <script src="assets/app.js?v=8410"></script>
+    <script src="assets/auth.js?v=8410"></script>
+    <script src="assets/member-profile.js?v=8410"></script>
   </body>
 </html>
