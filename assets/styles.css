@@ -269,8 +269,13 @@ html[data-theme="cb-light"] .account-name {
   color: #00809a;
 }
 
-.account-role.is-premium {
-  color: #f97316;
+.account-role.is-host {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.account-role.is-guest {
+  color: #9d8cff;
   font-weight: 600;
 }
 
@@ -415,24 +420,40 @@ button.linkish {
   border: 0 !important;
 }
 
-/* Leuchtender, pulsierender Hinweis oben rechts */
-.privat-badge {
+/* Account role in header (replaces inactive PRIVATE badge) */
+.header-role-badge {
   flex: 0 0 auto;
   width: fit-content;
-  padding: 0.45rem 0.95rem;
+  padding: 0.4rem 0.85rem;
   border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #fff;
-  background: linear-gradient(135deg, #2a1844 0%, #4a1a6e 50%, #1a3d4a 100%);
-  border: 1px solid rgba(180, 140, 255, 0.55);
-  box-shadow:
-    0 0 12px rgba(124, 92, 255, 0.65),
-    0 0 28px rgba(124, 92, 255, 0.35),
-    inset 0 0 12px rgba(255, 255, 255, 0.08);
-  animation: privat-glow 2.2s ease-in-out infinite;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.header-role-badge.is-host {
+  color: var(--accent);
+  border-color: rgba(244, 115, 33, 0.45);
+  background: var(--secondary-bg);
+}
+
+.header-role-badge.is-guest {
+  color: #9d8cff;
+  border-color: rgba(157, 140, 255, 0.4);
+  background: rgba(157, 140, 255, 0.1);
+}
+
+html[data-theme="cb-light"] .header-role-badge.is-guest {
+  color: #5b4fd6;
+  background: rgba(91, 79, 214, 0.1);
+}
+
+.header-role-badge.is-visitor {
+  color: var(--muted);
 }
 
 @keyframes privat-glow {

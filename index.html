@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8432" />
+    <link rel="stylesheet" href="assets/styles.css?v=8433" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -106,15 +106,15 @@
       aria-labelledby="premiumLoginModalTitle"
     >
       <div class="login-overlay-card auth-card">
-        <h2 id="premiumLoginModalTitle">Premium — Host-Konto</h2>
+        <h2 id="premiumLoginModalTitle">Sign in to your account</h2>
         <p class="login-overlay-hint">
-          Zugang für Hosts: Profil, Gäste einladen und eigener E-Mail-Versand (z.&nbsp;B. Strato). Nicht das
-          Raum-Passwort der Startseite.
+          Same username and password as on the start screen. Host accounts can invite guests; guest accounts join
+          via Connect to Host.
         </p>
         <p class="status-line ok" id="loginVerifiedBanner" hidden></p>
         <form id="memberLoginForm">
           <div class="login-overlay-row">
-            <label for="loginUsername">Benutzername</label>
+            <label for="loginUsername">Username</label>
             <input type="text" id="loginUsername" autocomplete="username" required />
           </div>
           <div class="login-overlay-row">
@@ -122,7 +122,7 @@
             <input type="password" id="loginPassword" autocomplete="current-password" required />
           </div>
           <p class="login-overlay-error" id="loginError" hidden></p>
-          <button type="submit" class="primary">Premium anmelden</button>
+          <button type="submit" class="primary">Sign in</button>
         </form>
         <div id="loginResendPanel" class="auth-resend-panel" hidden>
           <p class="status-line">E-Mail noch nicht bestätigt?</p>
@@ -130,7 +130,7 @@
           <p class="status-line" id="loginResendStatus" hidden></p>
         </div>
         <p class="status-line" style="margin-top: 1rem">
-          Eingeladen? <a href="register.html">Premium registrieren</a>
+          Invited? <a href="register.html">Create account</a>
         </p>
         <p class="status-line">
           <button type="button" class="linkish" id="premiumLoginModalClose">Schließen</button>
@@ -252,11 +252,11 @@
               <i class="bi bi-person-badge" aria-hidden="true"></i>
               <span>My profile</span>
             </button>
-            <button type="button" class="account-dropdown-item account-dropdown-premium-only" id="btnMailSettings" hidden role="menuitem">
+            <button type="button" class="account-dropdown-item" id="btnMailSettings" hidden role="menuitem">
               <i class="bi bi-hdd-network" aria-hidden="true"></i>
               <span>Email server (SMTP)</span>
             </button>
-            <button type="button" class="account-dropdown-item account-dropdown-premium-only" id="btnInviteByEmail" hidden role="menuitem">
+            <button type="button" class="account-dropdown-item" id="btnInviteByEmail" hidden role="menuitem">
               <i class="bi bi-envelope" aria-hidden="true"></i>
               <span>Invite guest</span>
             </button>
@@ -282,7 +282,7 @@
           </div>
         </div>
 
-        <span class="privat-badge">PRIVATE</span>
+        <span class="header-role-badge is-visitor" id="headerRoleBadge" aria-live="polite">Visitor</span>
         <button type="button" id="logoutBtn" class="logout-link visually-hidden" aria-hidden="true">Logout</button>
       </nav>
   </header>
@@ -512,16 +512,16 @@
             <strong>Webcam &amp; microphone</strong> for normal streaming without OBS → (3) Pick camera/mic →
             <strong>Start as Host</strong>. For OBS scenes: broadcast <strong>OBS (WHIP)</strong>.
             <span class="setup-flow-hint-member"
-              >Premium (host account) for profile, invites, and email server — use the account menu, not this tab.</span
+              >Host accounts: Start as Host and invite guests from the menu. Guest accounts: Connect to Host only.</span
             >
           </p>
           <div class="row premium-setup-row" id="premiumSetupRow">
             <button type="button" class="secondary premium-setup-btn" id="btnPremiumFromSetup">
               <i class="bi bi-star-fill" aria-hidden="true"></i>
-              Premium — host account
+              Premium — become a host (coming soon)
             </button>
             <p class="status-line profile-field-hint" id="premiumSetupHint">
-              Sign in or register (after email invite).
+              Sign in to join a session. Invited? Use the account from your email.
             </p>
           </div>
           <div class="row">
@@ -710,8 +710,8 @@
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
     <script src="assets/ui-shell.js?v=8425"></script>
-    <script src="assets/app.js?v=8425"></script>
-    <script src="assets/auth.js?v=8425"></script>
+    <script src="assets/app.js?v=8433"></script>
+    <script src="assets/auth.js?v=8433"></script>
     <script src="assets/member-profile.js?v=8425"></script>
   </body>
 </html>

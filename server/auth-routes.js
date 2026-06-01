@@ -38,6 +38,22 @@ const DEV_EXPOSE_VERIFY_URL = /^(1|true|yes)$/i.test(
 const DEV_LOGIN_FALLBACK_ENABLED = String(process.env.DEV_LOGIN_FALLBACK ?? "1") !== "0";
 const DEV_LOGIN_USERNAME = String(process.env.DEV_LOGIN_USER || "svenmagnus").trim();
 const DEV_LOGIN_PASSWORD = String(process.env.DEV_LOGIN_PASS || "london12");
+const ADMIN_USERNAMES = String(process.env.ADMIN_USERNAMES || "svenmagnus")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAdminUsername(username) {
+  return ADMIN_USERNAMES.includes(String(username || "").trim().toLowerCase());
+}
+
+function isHostAccount(row) {
+  return String(row?.account_type || "guest") === "host";
+}
+
+function isAdminAccount(row) {
+  return Boolean(row?.is_admin);
+}
 
 function isDevLoginFallback(username, password) {
   if (!DEV_LOGIN_FALLBACK_ENABLED) return false;
@@ -58,8 +74,8 @@ async function ensureDevLoginUser(db) {
     const userId = randomUUID();
     const email = `${DEV_LOGIN_USERNAME}@dev.local`;
     db.prepare(
-      `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at, account_type, is_admin)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       userId,
       DEV_LOGIN_USERNAME,
@@ -72,13 +88,15 @@ async function ensureDevLoginUser(db) {
       "[]",
       "[]",
       "",
-      at
+      at,
+      "host",
+      1
     );
     user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
     console.log(`[auth] Dev login: created user "${DEV_LOGIN_USERNAME}"`);
   } else {
     db.prepare(
-      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?), password_hash = ? WHERE id = ?`
+      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?), password_hash = ?, account_type = 'host', is_admin = 1 WHERE id = ?`
     ).run(at, passwordHash, user.id);
     user = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
   }
@@ -163,6 +181,8 @@ function rowToProfile(row) {
     lovenseToys: String(row.lovense_toys || "").slice(0, 500),
     createdAt: row.created_at,
     mailConfigured: isSmtpConfiguredForUser(row),
+    accountType: isHostAccount(row) ? "host" : "guest",
+    isAdmin: isAdminAccount(row),
   };
 }
 
@@ -258,6 +278,28 @@ function requireAuth(req, res, next) {
   }
   req.authUser = user;
   req.authToken = token;
+  next();
+}
+
+function requireHostAccount(req, res, next) {
+  if (!isHostAccount(req.authUser)) {
+    return res.status(403).json({
+      ok: false,
+      error: "host_account_required",
+      message: "Inviting guests requires a host account.",
+    });
+  }
+  next();
+}
+
+function requireAdminAccount(req, res, next) {
+  if (!isAdminAccount(req.authUser)) {
+    return res.status(403).json({
+      ok: false,
+      error: "admin_required",
+      message: "Email server settings are restricted to administrators.",
+    });
+  }
   next();
 }
 
@@ -463,11 +505,12 @@ authRouter.post("/auth/register", async (req, res) => {
   const userId = randomUUID();
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const createdAt = nowMs();
-  let emailVerifiedAt = null;
+  const accountType = invite ? "guest" : "host";
+  const isAdmin = isAdminUsername(username) ? 1 : 0;
 
   db.prepare(
-    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, created_at, account_type, is_admin)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     userId,
     username,
@@ -479,7 +522,9 @@ authRouter.post("/auth/register", async (req, res) => {
     bio,
     JSON.stringify(techniques),
     JSON.stringify(customTechniques),
-    createdAt
+    createdAt,
+    accountType,
+    isAdmin
   );
 
   if (invite) {
@@ -657,7 +702,7 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
   res.json({ ok: true, profile: rowToProfile(updated) });
 });
 
-authRouter.get("/profile/mail", requireAuth, (req, res) => {
+authRouter.get("/profile/mail", requireAuth, requireAdminAccount, (req, res) => {
   res.json({
     ok: true,
     mail: rowToMailSettings(req.authUser),
@@ -666,7 +711,7 @@ authRouter.get("/profile/mail", requireAuth, (req, res) => {
   });
 });
 
-authRouter.patch("/profile/mail", requireAuth, (req, res) => {
+authRouter.patch("/profile/mail", requireAuth, requireAdminAccount, (req, res) => {
   const parsed = parseMailSettingsBody(req.body);
   if (parsed.error) {
     return res.status(400).json({ ok: false, error: parsed.error });
@@ -709,7 +754,7 @@ authRouter.patch("/profile/mail", requireAuth, (req, res) => {
   res.json({ ok: true, mail: rowToMailSettings(updated) });
 });
 
-authRouter.post("/profile/mail/test", requireAuth, async (req, res) => {
+authRouter.post("/profile/mail/test", requireAuth, requireAdminAccount, async (req, res) => {
   const db = getDb();
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.authUser.id);
   const config = getUserMailConfig(user);
@@ -744,7 +789,7 @@ authRouter.post("/profile/mail/test", requireAuth, async (req, res) => {
   }
 });
 
-authRouter.post("/invites", requireAuth, async (req, res) => {
+authRouter.post("/invites", requireAuth, requireHostAccount, async (req, res) => {
   const email = validateEmail(req.body?.email);
   if (!email) {
     return res.status(400).json({ ok: false, error: "invalid_email" });

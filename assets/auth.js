@@ -95,7 +95,39 @@
       techniques: user.techniques || [],
       customTechniques: user.customTechniques || [],
       username: user.username,
+      accountType: user.accountType === "host" ? "host" : "guest",
+      isAdmin: Boolean(user.isAdmin),
     };
+  }
+
+  function getAccountUser() {
+    return getSession()?.user || null;
+  }
+
+  function isAccountHost() {
+    const u = getAccountUser();
+    return u?.accountType === "host";
+  }
+
+  function isAccountGuest() {
+    const u = getAccountUser();
+    return Boolean(u) && u.accountType !== "host";
+  }
+
+  function isAdmin() {
+    return Boolean(getAccountUser()?.isAdmin);
+  }
+
+  function syncSessionUserFromProfile(profile) {
+    const session = getSession();
+    if (!session?.token || !profile) return;
+    setSession(session.token, {
+      ...session.user,
+      username: profile.username ?? session.user?.username,
+      displayName: profile.displayName,
+      accountType: profile.accountType,
+      isAdmin: profile.isAdmin,
+    });
   }
 
   function cacheProfile(profile) {
@@ -280,8 +312,9 @@
       method: "POST",
       body: JSON.stringify({ username: u, password: p }),
     });
-    setSession(data.token, data.user);
-    return data.user;
+    const user = userToProfile(data.user) || data.user;
+    setSession(data.token, { ...data.user, ...user });
+    return user;
   }
 
   async function register(payload) {
@@ -315,9 +348,11 @@
     const data = await api("/api/profile");
     const profile = userToProfile(data.profile);
     cacheProfile(profile);
+    syncSessionUserFromProfile(profile);
     if (global.dualPeerUi?.setProfileName) {
       global.dualPeerUi.setProfileName(profile.displayName);
     }
+    updateAccountMenuAuthState();
     return profile;
   }
 
@@ -328,9 +363,11 @@
     });
     const profile = userToProfile(data.profile);
     cacheProfile(profile);
+    syncSessionUserFromProfile(profile);
     if (global.dualPeerUi?.setProfileName) {
       global.dualPeerUi.setProfileName(profile.displayName);
     }
+    updateAccountMenuAuthState();
     global.dispatchEvent(new CustomEvent("dualpeer-profile-update", { detail: { profile } }));
     return profile;
   }
@@ -352,9 +389,13 @@
     return global.dualPeerSession?.getRole?.() === "guest";
   }
 
-  /** Logged-in host account; hidden only while connected as session guest. */
+  /** Host account may send guest invites (not session role). */
   function canManageInvites() {
-    return isLoggedIn() && !isSessionGuest();
+    return isLoggedIn() && isAccountHost();
+  }
+
+  function canAccessMailSettings() {
+    return isLoggedIn() && isAdmin();
   }
 
   function openPremiumLoginModal() {
@@ -390,7 +431,9 @@
 
   function openMailSettingsModal() {
     if (!isLoggedIn()) {
-      openPremiumLoginModal();
+      return;
+    }
+    if (!canAccessMailSettings()) {
       return;
     }
     if (global.dualPeerUi?.openAuthModal) {
@@ -666,6 +709,22 @@
     }
   }
 
+  function getHeaderRoleLabel() {
+    if (!isLoggedIn()) return "Visitor";
+    return isAccountHost() ? "Host" : "Guest";
+  }
+
+  function updateHeaderRoleBadge() {
+    const badge = document.getElementById("headerRoleBadge");
+    if (!badge) return;
+    const label = getHeaderRoleLabel();
+    badge.textContent = label;
+    badge.classList.remove("is-host", "is-guest", "is-visitor");
+    if (label === "Host") badge.classList.add("is-host");
+    else if (label === "Guest") badge.classList.add("is-guest");
+    else badge.classList.add("is-visitor");
+  }
+
   function updateAccountMenuAuthState() {
     const loggedIn = isLoggedIn();
     const session = getSession();
@@ -674,35 +733,58 @@
     const roleEl = document.getElementById("accountRoleLabel") || document.querySelector(".account-role");
     const premiumSetupRow = document.getElementById("premiumSetupRow");
     const premiumSetupHint = document.getElementById("premiumSetupHint");
+    const premiumSetupBtn = document.getElementById("btnPremiumFromSetup");
 
-    document.querySelectorAll(".account-dropdown-premium-only").forEach((el) => {
-      el.hidden = !loggedIn;
-    });
-
-    if (mailBtn) mailBtn.hidden = !loggedIn;
+    if (mailBtn) mailBtn.hidden = !canAccessMailSettings();
 
     if (inviteBtn) {
-      const show = loggedIn && canManageInvites();
+      const show = canManageInvites();
       inviteBtn.hidden = !show;
-      inviteBtn.title = show
-        ? "Invite a guest by email"
-        : loggedIn
-          ? "Unavailable while you are connected as a session guest"
-          : "";
+      inviteBtn.title = show ? "Invite a guest by email" : "";
     }
 
     if (roleEl) {
-      roleEl.textContent = loggedIn ? "Premium" : "Guest";
-      roleEl.classList.toggle("is-premium", loggedIn);
+      if (!loggedIn) {
+        roleEl.textContent = "Not signed in";
+        roleEl.classList.remove("is-host", "is-guest");
+      } else {
+        roleEl.textContent = isAccountHost() ? "Host account" : "Guest account";
+        roleEl.classList.toggle("is-host", isAccountHost());
+        roleEl.classList.toggle("is-guest", isAccountGuest());
+      }
     }
-    document.body.classList.toggle("has-premium", loggedIn);
 
-    if (premiumSetupRow) premiumSetupRow.hidden = loggedIn;
-    if (premiumSetupHint) {
-      premiumSetupHint.textContent = loggedIn
-        ? ""
-        : "Host features: profile, guest invites, your own SMTP.";
+    document.body.classList.toggle("account-host", loggedIn && isAccountHost());
+    document.body.classList.toggle("account-guest", loggedIn && isAccountGuest());
+
+    if (premiumSetupRow) {
+      premiumSetupRow.hidden = loggedIn && isAccountHost();
     }
+    if (premiumSetupBtn instanceof HTMLButtonElement) {
+      if (loggedIn && isAccountGuest()) {
+        premiumSetupBtn.disabled = true;
+        premiumSetupBtn.title = "Premium subscription (coming soon) unlocks a host account.";
+      } else {
+        premiumSetupBtn.disabled = false;
+        premiumSetupBtn.title = "";
+      }
+    }
+    if (premiumSetupHint) {
+      if (!loggedIn) {
+        premiumSetupHint.textContent = "Sign in to join a session. Invited? Use the account from your email.";
+      } else if (isAccountGuest()) {
+        premiumSetupHint.textContent =
+          "You have a guest account — use Connect to Host. Premium (coming soon) will unlock hosting and invites.";
+      } else {
+        premiumSetupHint.textContent = "";
+      }
+    }
+
+    const inviteMailSetup = document.getElementById("inviteModalMailSetup");
+    if (inviteMailSetup) inviteMailSetup.hidden = !canAccessMailSettings();
+
+    updateHeaderRoleBadge();
+    global.dispatchEvent(new CustomEvent("dualpeer-account-role-change"));
 
     if (loggedIn && session?.user && global.dualPeerUi?.setProfileName) {
       global.dualPeerUi.setProfileName(session.user.displayName || session.user.username);
@@ -844,7 +926,15 @@
     const closeBtn = document.getElementById("premiumLoginModalClose");
     const setupBtn = document.getElementById("btnPremiumFromSetup");
     if (closeBtn) closeBtn.addEventListener("click", closePremiumLoginModal);
-    if (setupBtn) setupBtn.addEventListener("click", openPremiumLoginModal);
+    if (setupBtn) {
+      setupBtn.addEventListener("click", () => {
+        if (isAccountGuest()) return;
+        if (!isLoggedIn()) {
+          document.getElementById("accessUsername")?.focus();
+          return;
+        }
+      });
+    }
     if (modal) {
       modal.addEventListener("click", (e) => {
         if (e.target === modal) closePremiumLoginModal();
@@ -1235,6 +1325,11 @@
     PRESET_TECHNIQUES,
     resolveApiBase,
     isLoggedIn,
+    isAccountHost,
+    isAccountGuest,
+    isAdmin,
+    canManageInvites,
+    canAccessMailSettings,
     getSession,
     getCachedProfile,
     login,

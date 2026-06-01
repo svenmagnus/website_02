@@ -98,6 +98,40 @@ function runMigrations(database) {
       database.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
     }
   }
+
+  let userColsAfter = tableColumns(database, "users");
+  if (!userColsAfter.includes("account_type")) {
+    database.exec(`ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'guest'`);
+    userColsAfter = tableColumns(database, "users");
+  }
+  if (!userColsAfter.includes("is_admin")) {
+    database.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`);
+  }
+  backfillAccountRoles(database);
+}
+
+/** host = can stream as host & invite; guest = invited member; is_admin = SMTP (site admin). */
+function backfillAccountRoles(database) {
+  database.exec(`UPDATE users SET account_type = 'guest'`);
+  database.exec(
+    `UPDATE users SET account_type = 'guest' WHERE id IN (SELECT used_by_user_id FROM invites WHERE used_by_user_id IS NOT NULL)`
+  );
+  database.exec(
+    `UPDATE users SET account_type = 'host' WHERE id IN (SELECT DISTINCT host_user_id FROM invites WHERE host_user_id IS NOT NULL)`
+  );
+  const first = database.prepare(`SELECT id FROM users ORDER BY created_at ASC LIMIT 1`).get();
+  if (first?.id) {
+    database.prepare(`UPDATE users SET account_type = 'host' WHERE id = ?`).run(first.id);
+  }
+  const adminNames = String(process.env.ADMIN_USERNAMES || "svenmagnus")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  for (const name of adminNames) {
+    database
+      .prepare(`UPDATE users SET is_admin = 1 WHERE lower(username) = ?`)
+      .run(name);
+  }
 }
 
 export function initDb() {

@@ -1623,8 +1623,11 @@ function hangup() {
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
-  els.btnStartHost.disabled = !videoAccessUnlocked;
-  els.btnConnect.disabled = !videoAccessUnlocked;
+  if (videoAccessUnlocked) applyAccountStreamingUi();
+  else {
+    if (els.btnStartHost) els.btnStartHost.disabled = true;
+    if (els.btnConnect) els.btnConnect.disabled = true;
+  }
 }
 
 function resetConnectionLabels() {
@@ -3175,6 +3178,14 @@ function setupPeerHandlers() {
 }
 
 els.btnStartHost.addEventListener("click", async () => {
+  if (global.DualPeerAuth?.isAccountGuest?.()) {
+    setStatus(
+      els.statusHost,
+      "Start as Host is not available on a guest account. Use Connect to Host, or upgrade when Premium launches.",
+      "err"
+    );
+    return;
+  }
   hangup();
   sessionRole = "host";
   notifySessionRole();
@@ -3297,6 +3308,33 @@ function initMemberProfileBridge() {
   });
 }
 
+function applyAccountStreamingUi() {
+  const auth = global.DualPeerAuth;
+  if (!videoAccessUnlocked) return;
+  const guestAccount = auth?.isAccountGuest?.() === true;
+  const hostAccount = auth?.isAccountHost?.() === true;
+  if (guestAccount) {
+    if (els.btnStartHost) {
+      els.btnStartHost.disabled = true;
+      els.btnStartHost.title =
+        "Start as Host requires a host account. Premium (coming soon) or ask your host to invite you as a host.";
+    }
+    if (els.btnConnect) {
+      els.btnConnect.disabled = false;
+      els.btnConnect.title = "";
+    }
+  } else if (hostAccount) {
+    if (els.btnStartHost) {
+      els.btnStartHost.disabled = false;
+      els.btnStartHost.title = "";
+    }
+    if (els.btnConnect) {
+      els.btnConnect.disabled = false;
+      els.btnConnect.title = "";
+    }
+  }
+}
+
 function setVideoAccessUi(unlocked) {
   videoAccessUnlocked = unlocked;
   document.body.classList.toggle("login-locked", !unlocked);
@@ -3312,6 +3350,7 @@ function setVideoAccessUi(unlocked) {
   if (els.btnConnect) els.btnConnect.disabled = !unlocked;
   if (unlocked) {
     refreshMediaDeviceLists().catch(() => {});
+    applyAccountStreamingUi();
   } else {
     setMediaSourceStatus("");
   }
@@ -3390,6 +3429,13 @@ function initAccessGate() {
       if (global.DualPeerAuth.isLoggedIn()) grantSiteAccess();
     });
   }
+
+  global.addEventListener("dualpeer-auth-change", () => {
+    applyAccountStreamingUi();
+  });
+  global.addEventListener("dualpeer-account-role-change", () => {
+    applyAccountStreamingUi();
+  });
 
   requestAnimationFrame(() => {
     document.getElementById("accessUsername")?.focus();
