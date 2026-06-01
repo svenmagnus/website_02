@@ -14,6 +14,9 @@ import {
   STRATO_MAIL_PRESET,
   verifySmtpConnection,
   getUserMailConfig,
+  mapSmtpError,
+  withMailTimeout,
+  resolveSmtpSecure,
 } from "./mail.js";
 
 const BCRYPT_ROUNDS = 12;
@@ -183,6 +186,19 @@ function rowToMailSettings(row) {
   };
 }
 
+const PLACEHOLDER_MAIL_PASSWORDS = new Set([
+  "strato-postfach-passwort",
+  "strato postfach-passwort",
+  "••••••••",
+  "********",
+]);
+
+function isPlaceholderMailboxPassword(value) {
+  const v = String(value || "").trim().toLowerCase();
+  if (!v) return true;
+  return PLACEHOLDER_MAIL_PASSWORDS.has(v);
+}
+
 function parseMailSettingsBody(body) {
   const out = body?.outgoing || {};
   const inc = body?.incoming || {};
@@ -190,8 +206,9 @@ function parseMailSettingsBody(body) {
   const port = Number(out.port) || 587;
   const user = String(out.user || "").trim().slice(0, 255);
   const from = String(out.from || out.user || "").trim().slice(0, 255);
-  const secure = Boolean(out.secure) || port === 465;
-  const password = body?.password != null ? String(body.password) : null;
+  const secure = resolveSmtpSecure(port, out.secure);
+  let password = body?.password != null ? String(body.password).trim() : null;
+  if (password && isPlaceholderMailboxPassword(password)) password = "";
 
   const imapHost = String(inc.host || "").trim().slice(0, 255);
   const imapPort = Number(inc.port) || 993;
@@ -201,6 +218,7 @@ function parseMailSettingsBody(body) {
   if (!host || !user) {
     return { error: "invalid_mail_settings" };
   }
+  if (password === "") password = null;
   if (password !== null && password.length > 0 && password.length < 4) {
     return { error: "invalid_mail_password" };
   }
@@ -712,18 +730,19 @@ authRouter.post("/profile/mail/test", requireAuth, async (req, res) => {
   }
 
   try {
-    await verifySmtpConnection(config);
-    await sendTestEmail({ to, username: user.username, userRow: user });
+    await withMailTimeout(verifySmtpConnection(config));
+    await withMailTimeout(sendTestEmail({ to, username: user.username, userRow: user }));
     res.json({
       ok: true,
-      message: `Test-E-Mail wurde an ${to} gesendet.`,
+      message: `Test email sent to ${to}.`,
     });
   } catch (err) {
     console.error("[mail] test failed:", err);
-    return res.status(500).json({
+    const mapped = mapSmtpError(err);
+    return res.status(mapped.status).json({
       ok: false,
-      error: "mail_test_failed",
-      message: err.message || String(err),
+      error: mapped.error,
+      message: mapped.message,
     });
   }
 });
@@ -753,19 +772,22 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
 
   let mailResult = { sent: false, devMode: true };
   try {
-    mailResult = await sendInviteEmail({
-      to: email,
-      inviteUrl,
-      hostName,
-      inviteCode,
-      userRow: hostRow,
-    });
+    mailResult = await withMailTimeout(
+      sendInviteEmail({
+        to: email,
+        inviteUrl,
+        hostName,
+        inviteCode,
+        userRow: hostRow,
+      })
+    );
   } catch (err) {
     console.error("[mail] send failed:", err);
-    return res.status(500).json({
+    const mapped = mapSmtpError(err);
+    return res.status(mapped.status).json({
       ok: false,
-      error: "email_failed",
-      message: err.message || String(err),
+      error: mapped.error,
+      message: mapped.message,
     });
   }
 

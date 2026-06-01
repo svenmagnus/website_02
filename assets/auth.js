@@ -170,6 +170,35 @@
       : { "Content-Type": "application/json" };
   }
 
+  const MAIL_PASSWORD_PLACEHOLDERS = new Set([
+    "strato-postfach-passwort",
+    "strato postfach-passwort",
+    "••••••••",
+    "********",
+  ]);
+
+  function isPlaceholderMailPassword(value) {
+    const v = String(value ?? "").trim().toLowerCase();
+    if (!v) return true;
+    return MAIL_PASSWORD_PLACEHOLDERS.has(v);
+  }
+
+  function syncMailPortSecureUi() {
+    const portEl = document.getElementById("mailOutPort");
+    const secureEl = document.getElementById("mailOutSecure");
+    if (!(portEl instanceof HTMLInputElement) || !(secureEl instanceof HTMLInputElement)) return;
+    const port = Number(portEl.value) || 587;
+    if (port === 465) {
+      secureEl.checked = true;
+      secureEl.disabled = true;
+    } else if (port === 587) {
+      secureEl.checked = false;
+      secureEl.disabled = true;
+    } else {
+      secureEl.disabled = false;
+    }
+  }
+
   async function api(path, options = {}) {
     const base = resolveApiBase();
     if (!base) {
@@ -177,16 +206,50 @@
       err.code = "api_not_configured";
       throw err;
     }
+    const { timeoutMs = 0, signal: externalSignal, ...fetchOptions } = options;
+    const controller = new AbortController();
+    let timeoutId = null;
+    let abortedByUser = false;
+    if (timeoutMs > 0) {
+      timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    }
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        abortedByUser = true;
+        controller.abort();
+      } else {
+        externalSignal.addEventListener(
+          "abort",
+          () => {
+            abortedByUser = true;
+            controller.abort();
+          },
+          { once: true }
+        );
+      }
+    }
     let resp;
     try {
       resp = await fetch(`${base}${path}`, {
-        ...options,
-        headers: { ...authHeaders(), ...(options.headers || {}) },
+        ...fetchOptions,
+        signal: controller.signal,
+        headers: { ...authHeaders(), ...(fetchOptions.headers || {}) },
       });
-    } catch (_) {
+    } catch (fetchErr) {
+      if (fetchErr?.name === "AbortError") {
+        const err = new Error(
+          abortedByUser
+            ? "Request cancelled."
+            : "Request timed out. Check SMTP settings or try again."
+        );
+        err.code = abortedByUser ? "request_aborted" : "timeout";
+        throw err;
+      }
       const err = new Error(apiUnreachableMessage(base));
       err.code = "network_error";
       throw err;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
@@ -272,10 +335,12 @@
     return profile;
   }
 
-  async function sendInvite(email) {
+  async function sendInvite(email, options = {}) {
     return api("/api/invites", {
       method: "POST",
       body: JSON.stringify({ email }),
+      timeoutMs: 20000,
+      ...options,
     });
   }
 
@@ -360,15 +425,28 @@
     set("mailInHost", inc.host);
     set("mailInPort", String(inc.port || 993));
     set("mailInUser", inc.user);
+    const passEl = document.getElementById("mailOutPassword");
+    if (passEl instanceof HTMLInputElement) {
+      passEl.type = "password";
+      passEl.value = "";
+      passEl.autocomplete = "new-password";
+      passEl.placeholder = mail?.hasPassword
+        ? "••••••••  (saved — leave blank to keep)"
+        : "Mailbox password";
+    }
     const secure = document.getElementById("mailOutSecure");
     if (secure instanceof HTMLInputElement) {
-      secure.checked = Boolean(out.secure);
+      const port = Number(out.port) || 587;
+      if (port === 465) secure.checked = true;
+      else if (port === 587) secure.checked = false;
+      else secure.checked = Boolean(out.secure);
     }
+    syncMailPortSecureUi();
     const hint = document.getElementById("mailPasswordHint");
     if (hint) {
       hint.textContent = mail?.hasPassword
-        ? "Passwort ist gespeichert — nur ausfüllen, wenn du es ändern willst."
-        : "Strato: Passwort deines E-Mail-Postfachs eintragen.";
+        ? "Password is saved — only fill in if you want to change it."
+        : "Enter your mailbox password (e.g. Strato webmail password).";
     }
     const status = document.getElementById("profileMailStatus");
     if (status) {
@@ -383,30 +461,38 @@
     return api("/api/profile/mail");
   }
 
-  async function saveMailSettings(payload) {
+  async function saveMailSettings(payload, options = {}) {
     return api("/api/profile/mail", {
       method: "PATCH",
       body: JSON.stringify(payload),
+      timeoutMs: 15000,
+      ...options,
     });
   }
 
-  async function testMailSettings(to) {
+  async function testMailSettings(to, options = {}) {
     return api("/api/profile/mail/test", {
       method: "POST",
       body: JSON.stringify(to ? { to } : {}),
+      timeoutMs: 20000,
+      ...options,
     });
   }
 
   function readMailFormPayload() {
     const port = Number(document.getElementById("mailOutPort")?.value) || 587;
-    const secureEl = document.getElementById("mailOutSecure");
-    const secure =
-      secureEl instanceof HTMLInputElement ? secureEl.checked : port === 465;
+    let secure = false;
+    if (port === 465) secure = true;
+    else if (port === 587) secure = false;
+    else {
+      const secureEl = document.getElementById("mailOutSecure");
+      secure = secureEl instanceof HTMLInputElement ? secureEl.checked : false;
+    }
     const user = document.getElementById("mailOutUser")?.value?.trim() || "";
     const payload = {
       outgoing: {
         host: document.getElementById("mailOutHost")?.value?.trim() || "",
-        port: secure && port === 587 ? 465 : port,
+        port,
         secure,
         user,
         from: document.getElementById("mailOutFrom")?.value?.trim() || user,
@@ -418,8 +504,8 @@
         user: document.getElementById("mailInUser")?.value?.trim() || user,
       },
     };
-    const pass = document.getElementById("mailOutPassword")?.value;
-    if (pass) payload.password = pass;
+    const pass = document.getElementById("mailOutPassword")?.value?.trim() || "";
+    if (pass && !isPlaceholderMailPassword(pass)) payload.password = pass;
     return payload;
   }
 
@@ -476,6 +562,12 @@
       });
     }
 
+    const portInput = document.getElementById("mailOutPort");
+    if (portInput) {
+      portInput.addEventListener("change", syncMailPortSecureUi);
+      portInput.addEventListener("input", syncMailPortSecureUi);
+    }
+
     if (presetBtn) {
       presetBtn.addEventListener("click", async () => {
         try {
@@ -512,8 +604,6 @@
       try {
         const data = await saveMailSettings(readMailFormPayload());
         fillMailForm(data.mail);
-        const passEl = document.getElementById("mailOutPassword");
-        if (passEl instanceof HTMLInputElement) passEl.value = "";
         if (status) {
           status.className = "status-line ok";
           status.textContent = "E-Mail-Einstellungen gespeichert.";
@@ -522,9 +612,12 @@
         if (status) {
           status.className = "status-line err";
           const map = {
-            invalid_mail_settings: "Ausgangsserver und E-Mail-Benutzername sind Pflicht.",
-            mail_password_required: "Bitte Postfach-Passwort eintragen.",
-            invalid_mail_password: "Passwort zu kurz.",
+            invalid_mail_settings: "SMTP host and email username are required.",
+            mail_password_required: "Enter your mailbox password.",
+            invalid_mail_password: "Password is too short.",
+            smtp_timeout: "SMTP connection timed out. Try port 465 (SSL) or 587 (STARTTLS).",
+            smtp_auth_failed: "SMTP login failed — check email and password.",
+            smtp_connection_failed: "Cannot reach the mail server. Check host and port.",
           };
           status.textContent = map[err.code] || err.message;
         }
@@ -539,17 +632,25 @@
           status.className = "status-line";
           status.textContent = "Sende Test …";
         }
+        testBtn.disabled = true;
         try {
-          const result = await testMailSettings();
+          const result = await testMailSettings(undefined, { timeoutMs: 20000 });
           if (status) {
             status.className = "status-line ok";
-            status.textContent = result.message || "Test gesendet.";
+            status.textContent = result.message || "Test email sent.";
           }
         } catch (err) {
           if (status) {
             status.className = "status-line err";
-            status.textContent = err.message || "Test fehlgeschlagen.";
+            const map = {
+              smtp_timeout: "SMTP connection timed out. Check port 465 or 587.",
+              smtp_auth_failed: "SMTP login failed — check mailbox password.",
+              timeout: "Request timed out.",
+            };
+            status.textContent = map[err.code] || err.message || "Test failed.";
           }
+        } finally {
+          testBtn.disabled = false;
         }
       });
     }
@@ -615,8 +716,20 @@
     const sendBtn = document.getElementById("inviteSendBtn");
     const emailInput = document.getElementById("inviteEmailInput");
     const status = document.getElementById("inviteModalStatus");
+    const INVITE_SEND_TIMEOUT_MS = 15000;
+    let inviteSendAbort = null;
+
+    const resetInviteSendUi = () => {
+      if (sendBtn instanceof HTMLButtonElement) sendBtn.disabled = false;
+      inviteSendAbort = null;
+    };
 
     const close = () => {
+      if (inviteSendAbort) {
+        inviteSendAbort.abort();
+        inviteSendAbort = null;
+      }
+      resetInviteSendUi();
       if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
       else if (modal) modal.hidden = true;
     };
@@ -659,19 +772,28 @@
       sendBtn.addEventListener("click", async () => {
         const email = emailInput instanceof HTMLInputElement ? emailInput.value.trim() : "";
         if (!email) return;
+        if (inviteSendAbort) inviteSendAbort.abort();
+        inviteSendAbort = new AbortController();
+        const signal = inviteSendAbort.signal;
         sendBtn.disabled = true;
         if (status) {
           status.className = "status-line";
           status.textContent = "Sending…";
+          status.replaceChildren();
+          status.appendChild(document.createTextNode("Sending…"));
         }
         try {
-          const result = await sendInvite(email);
+          const result = await sendInvite(email, {
+            signal,
+            timeoutMs: INVITE_SEND_TIMEOUT_MS,
+          });
           const msg = result.emailSent
-            ? `Einladung wurde an ${email} gesendet (Link + Einmalcode in der E-Mail).`
-            : "Kein E-Mail-Versand im Profil — unter Profil → E-Mail-Versand Strato eintragen, oder Link/Code manuell teilen:";
+            ? `Invite sent to ${email} (link and code in the email).`
+            : "No SMTP configured — set up Email server (SMTP) in the account menu, or share the link/code below:";
           if (status) {
             status.className = "status-line ok";
-            status.textContent = msg;
+            status.replaceChildren();
+            status.appendChild(document.createTextNode(msg));
           }
           const mailSetupBtn = document.getElementById("inviteModalMailSetup");
           if (mailSetupBtn) {
@@ -691,18 +813,27 @@
               const codeLine = document.createElement("p");
               codeLine.className = "status-line";
               codeLine.style.marginTop = "0.5rem";
-              codeLine.innerHTML = `<strong>Einladungscode:</strong> <code>${result.inviteCode}</code>`;
+              codeLine.innerHTML = `<strong>Invite code:</strong> <code>${result.inviteCode}</code>`;
               status.appendChild(codeLine);
             }
           }
           if (emailInput instanceof HTMLInputElement) emailInput.value = "";
         } catch (err) {
+          if (err.code === "request_aborted") return;
           if (status) {
             status.className = "status-line err";
-            status.textContent = err.message || "Invite failed";
+            status.replaceChildren();
+            const map = {
+              timeout: "Sending timed out. Check SMTP settings or try again.",
+              smtp_timeout: "SMTP connection timed out. Check port 465 (SSL) or 587.",
+              smtp_auth_failed: "SMTP login failed — check mailbox password in Email server settings.",
+            };
+            status.appendChild(
+              document.createTextNode(map[err.code] || err.message || "Invite failed")
+            );
           }
         } finally {
-          sendBtn.disabled = false;
+          resetInviteSendUi();
         }
       });
     }

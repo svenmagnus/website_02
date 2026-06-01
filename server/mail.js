@@ -29,7 +29,7 @@ function getGlobalMailConfig() {
   return {
     host: SMTP_HOST,
     port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
+    secure: resolveSmtpSecure(SMTP_PORT, SMTP_PORT === 465),
     user: SMTP_USER,
     pass: SMTP_PASS,
     from: SMTP_FROM,
@@ -50,7 +50,7 @@ export function getUserMailConfig(userRow) {
   return {
     host: String(userRow.smtp_out_host).trim(),
     port,
-    secure: Boolean(userRow.smtp_out_secure) || port === 465,
+    secure: resolveSmtpSecure(port, userRow.smtp_out_secure),
     user: String(userRow.smtp_out_user).trim(),
     pass,
     from: String(userRow.smtp_from || userRow.smtp_out_user).trim(),
@@ -74,13 +74,93 @@ export function isSmtpConfigured() {
   return Boolean(getGlobalMailConfig());
 }
 
+/** Port 465 = implicit TLS; port 587 = STARTTLS (secure must be false). */
+export function resolveSmtpSecure(port, secureFlag) {
+  const p = Number(port) || 587;
+  if (p === 465) return true;
+  if (p === 587) return false;
+  return Boolean(secureFlag);
+}
+
+const SMTP_TIMEOUT_MS = Number(process.env.SMTP_TIMEOUT_MS) || 10000;
+
+/**
+ * @param {unknown} err
+ * @returns {{ status: number, error: string, message: string }}
+ */
+export function mapSmtpError(err) {
+  const code = String(err?.code || "");
+  const msg = String(err?.message || err || "SMTP error");
+
+  if (
+    code === "ETIMEDOUT" ||
+    code === "ESOCKET" ||
+    code === "ETIMEOUT" ||
+    /timeout|timed out/i.test(msg)
+  ) {
+    return {
+      status: 504,
+      error: "smtp_timeout",
+      message:
+        "SMTP connection timed out. Check smtp.strato.de, port 465 (SSL) or 587 (STARTTLS), and firewall/VPN.",
+    };
+  }
+  if (code === "EAUTH" || /invalid login|authentication failed|535|534/i.test(msg)) {
+    return {
+      status: 401,
+      error: "smtp_auth_failed",
+      message: "SMTP authentication failed. Check mailbox email and password.",
+    };
+  }
+  if (code === "ECONNREFUSED" || code === "ENOTFOUND" || code === "EHOSTUNREACH") {
+    return {
+      status: 502,
+      error: "smtp_connection_failed",
+      message: `Cannot reach mail server (${code || "connection error"}). Check hostname and port.`,
+    };
+  }
+  return {
+    status: 500,
+    error: "smtp_error",
+    message: msg,
+  };
+}
+
+/**
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {number} [ms]
+ * @returns {Promise<T>}
+ */
+export function withMailTimeout(promise, ms = SMTP_TIMEOUT_MS + 5000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        const err = new Error("SMTP operation timed out");
+        err.code = "ETIMEDOUT";
+        reject(err);
+      }, ms);
+    }),
+  ]);
+}
+
 function createTransport(config) {
-  return nodemailer.createTransport({
+  const port = Number(config.port) || 587;
+  const secure = resolveSmtpSecure(port, config.secure);
+  const transportOpts = {
     host: config.host,
-    port: config.port,
-    secure: config.secure,
+    port,
+    secure,
     auth: { user: config.user, pass: config.pass },
-  });
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS + 5000,
+  };
+  if (port === 587 && !secure) {
+    transportOpts.requireTLS = true;
+  }
+  return nodemailer.createTransport(transportOpts);
 }
 
 function emailLayout({ title, bodyHtml, footerNote }) {
@@ -106,13 +186,15 @@ function emailLayout({ title, bodyHtml, footerNote }) {
  */
 async function deliverMailWithConfig(config, { to, subject, text, html }) {
   const transport = createTransport(config);
-  await transport.sendMail({
-    from: config.from,
-    to,
-    subject,
-    text,
-    html,
-  });
+  await withMailTimeout(
+    transport.sendMail({
+      from: config.from,
+      to,
+      subject,
+      text,
+      html,
+    })
+  );
   console.log(`[mail] Sent via ${config.source} (${config.host}) to ${to}: ${subject}`);
   return { sent: true, devMode: false, source: config.source };
 }
@@ -229,7 +311,7 @@ export async function sendVerificationEmail({ to, verifyUrl, username, userRow }
  */
 export async function verifySmtpConnection(config) {
   const transport = createTransport(config);
-  await transport.verify();
+  await withMailTimeout(transport.verify(), SMTP_TIMEOUT_MS);
   return true;
 }
 
