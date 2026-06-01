@@ -1,0 +1,16 @@
+[Unit]
+Description=Tangent Club (WHIP + Auth API)
+After=network.target
+
+[Service]
+Type=simple
+User=tangent
+WorkingDirectory=/home/tangent/website_02/server
+Environment=NODE_ENV=production
+EnvironmentFile=-/home/tangent/website_02/server/.env
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,3 +1,4 @@
+import "./load-env.js";
 import { Router } from "express";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";

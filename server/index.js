@@ -9,6 +9,7 @@
  *   POST   /whep/:streamKey            → WHEP playback (SDP offer from browser)
  *   DELETE /whep/:streamKey/:resourceId
  */
+import "./load-env.js";
 import cors from "cors";
 import express from "express";
 import { randomBytes } from "node:crypto";
