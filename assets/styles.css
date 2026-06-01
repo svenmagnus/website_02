@@ -25,6 +25,8 @@ html[data-theme="cb-dark"] {
   --font: "DM Sans", system-ui, sans-serif;
   --cb-chat-width: 340px;
   --cb-stage-height: clamp(360px, 68vh, 85vh);
+  --video-empty-bg: #000000;
+  --logo-violet: #9d8cff;
 }
 
 html[data-theme="cb-light"] {
@@ -48,6 +50,8 @@ html[data-theme="cb-light"] {
   --chat-local-border: rgba(0, 0, 0, 0.1);
   --video-radius: 6px;
   --radius: 6px;
+  --video-empty-bg: #e4e4e4;
+  --logo-violet: #8b7cf7;
 }
 
 *,
@@ -108,11 +112,24 @@ header.main-header {
   line-height: 0;
 }
 
+.logo-link .site-logo,
 #main-logo {
   display: block;
   height: clamp(3.25rem, 5vw + 2rem, 4rem);
   width: auto;
   max-width: min(320px, 70vw);
+}
+
+.logo-link .site-logo--theme-light {
+  display: none;
+}
+
+html[data-theme="cb-light"] .logo-link .site-logo--theme-dark {
+  display: none;
+}
+
+html[data-theme="cb-light"] .logo-link .site-logo--theme-light {
+  display: block;
 }
 
 .header-copy {
@@ -1350,7 +1367,7 @@ html[data-theme="cb-light"] .panel-head .tag.partner {
 .video-wrap {
   position: relative;
   width: 100%;
-  background: #000;
+  background: var(--video-empty-bg);
   border-radius: var(--video-radius);
   overflow: hidden;
 }
@@ -1391,6 +1408,7 @@ video {
   display: none;
   align-items: center;
   justify-content: center;
+  background: var(--video-empty-bg);
   color: var(--muted);
   font-size: 0.9rem;
   text-align: center;

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 88" role="img" aria-label="Tangent-Club">
+  <text
+    x="0"
+    y="46"
+    font-family="'DM Sans', system-ui, -apple-system, sans-serif"
+    font-size="42"
+    font-weight="700"
+    letter-spacing="-0.02em"
+  >
+    <tspan fill="#9d8cff">T</tspan><tspan fill="#222222">angent-Club</tspan>
+  </text>
+  <text
+    x="1"
+    y="72"
+    font-family="'DM Sans', system-ui, -apple-system, sans-serif"
+    font-size="13"
+    font-weight="400"
+    fill="#666666"
+  >
+    A Beetle Media Platform
+  </text>
+</svg>
