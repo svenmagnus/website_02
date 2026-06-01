@@ -138,7 +138,7 @@ export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, use
     `Hallo,\n\n` +
     `${hostName} hat dich zu einer privaten Dual-Peer-Session auf ${SITE_NAME} eingeladen.\n\n` +
     `Registrierung (einmaliger Link, 7 Tage gültig):\n${inviteUrl}\n\n` +
-    `Falls der Link nicht öffnet — Einladungscode: ${inviteCode}\n` +
+    `Falls der Link nicht öffnet — 4-stelliger Einladungscode: ${inviteCode}\n` +
     `(auf der Registrierungsseite eingeben, zusammen mit deiner E-Mail-Adresse)\n\n` +
     `Mit freundlichen Grüßen\n${hostName}`;
 
@@ -150,7 +150,7 @@ export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, use
       `<p style="margin:20px 0;"><a href="${escapeHtml(inviteUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Konto erstellen</a></p>` +
       `<p style="font-size:14px;color:#a0a0b0;line-height:1.5;">Oder Link kopieren:<br><span style="word-break:break-all;color:#e8e8ec;">${escapeHtml(inviteUrl)}</span></p>` +
       `<p style="margin-top:20px;padding:14px;background:#12121a;border-radius:8px;font-size:14px;color:#e8e8ec;">` +
-      `<strong>Einladungscode</strong> (einmalig, 7 Tage): <code style="font-size:18px;letter-spacing:0.15em;color:#f97316;">${escapeHtml(inviteCode)}</code></p>`,
+      `<strong>Einladungscode</strong> (4 Ziffern, 7 Tage): <code style="font-size:18px;letter-spacing:0.15em;color:#f97316;">${escapeHtml(inviteCode)}</code></p>`,
     footerNote: "Dieser Link und Code sind nur für dich bestimmt und verfallen nach 7 Tagen.",
   });
 

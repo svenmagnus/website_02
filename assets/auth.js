@@ -24,6 +24,11 @@
   }
 
   function resolveApiBase() {
+    const params = new URLSearchParams(location.search);
+    const apiOverride = params.get("api");
+    if (apiOverride && /^https?:\/\//i.test(apiOverride)) {
+      return String(apiOverride).replace(/\/$/, "");
+    }
     const fromWindow = global.DUALPEER_WHIP_URL;
     if (fromWindow && String(fromWindow).trim()) {
       return String(fromWindow).replace(/\/$/, "");
@@ -674,9 +679,6 @@
         await login(user?.value, pass?.value);
         if (document.getElementById("premiumLoginModal")) {
           closePremiumLoginModal();
-          if (global.MemberProfile?.setPanelTab) {
-            global.MemberProfile.setPanelTab("profile", { userAction: true });
-          }
         } else {
           window.location.href = "index.html";
         }
@@ -779,13 +781,14 @@
     const apiBanner = document.getElementById("registerApiStatus");
     checkApiHealth().then((health) => {
       if (!apiBanner) return;
+      const base = health.base || resolveApiBase();
       if (health.ok) {
         apiBanner.className = "status-line ok";
-        apiBanner.textContent = "Server verbunden.";
+        apiBanner.textContent = `Server verbunden (${base}).`;
         return;
       }
       apiBanner.className = "status-line err";
-      apiBanner.textContent = apiUnreachableMessage(health.base);
+      apiBanner.textContent = `${apiUnreachableMessage(base)} — Aktuelle API: ${base || "keine"}`;
     });
 
     const params = new URLSearchParams(location.search);
@@ -797,23 +800,6 @@
     const codeRow = document.getElementById("registerInviteCodeRow");
     const successPanel = document.getElementById("registerSuccessPanel");
     if (tokenInput instanceof HTMLInputElement) tokenInput.value = token;
-
-    const list = document.getElementById("registerTechniqueList");
-    if (list) {
-      PRESET_TECHNIQUES.forEach((t) => {
-        const label = document.createElement("label");
-        label.className = "technique-check";
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.name = "registerTechnique";
-        input.value = t.id;
-        const span = document.createElement("span");
-        span.textContent = t.label;
-        label.appendChild(input);
-        label.appendChild(span);
-        list.appendChild(label);
-      });
-    }
 
     if (token) {
       if (codeRow) codeRow.hidden = true;
@@ -839,32 +825,23 @@
         });
     } else if (inviteInfo) {
       inviteInfo.textContent =
-        "Ohne Einladungslink: ersten Host-Account anlegen (nur solange noch keine Mitglieder existieren). Alternativ E-Mail + 6-stelligen Code aus der Einladungs-Mail eingeben.";
+        "Mit Einladungslink in der E-Mail oder mit 4-stelligem Code aus der Einladung registrieren.";
       inviteInfo.className = "status-line";
       if (emailHint) {
-        emailHint.textContent = "Muss mit der E-Mail aus der Einladung übereinstimmen.";
+        emailHint.textContent = "Bei Code-Einladung: dieselbe E-Mail wie in der Einladung.";
       }
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const errEl = document.getElementById("registerError");
-      const techniques = [];
-      document.querySelectorAll('input[name="registerTechnique"]:checked').forEach((el) => {
-        if (el instanceof HTMLInputElement) techniques.push(el.value);
-      });
       try {
         const result = await register({
           inviteToken: tokenInput?.value || token,
-          inviteCode: document.getElementById("registerInviteCode")?.value,
+          inviteCode: document.getElementById("registerInviteCode")?.value?.trim(),
           email: document.getElementById("registerEmail")?.value,
           username: document.getElementById("registerUsername")?.value,
           password: document.getElementById("registerPassword")?.value,
-          displayName: document.getElementById("registerDisplayName")?.value,
-          gender: document.getElementById("registerGender")?.value,
-          bio: document.getElementById("registerBio")?.value,
-          techniques,
-          customTechniques: [],
         });
         form.hidden = true;
         if (successPanel) successPanel.hidden = false;
@@ -891,7 +868,8 @@
             email_taken: "E-Mail bereits registriert.",
             email_mismatch: "E-Mail passt nicht zur Einladung.",
             invalid_invite: "Einladung ungültig oder abgelaufen.",
-            invite_required: "Einladung oder erster Host-Account erforderlich.",
+            invite_required: "Einladung erforderlich: Link aus der E-Mail oder 4-stelliger Code.",
+            invalid_invite_code: "Einladungscode muss 4 Ziffern haben.",
             invalid_username: "Benutzername: 3–24 Zeichen (Buchstaben, Zahlen, _).",
             invalid_password: "Passwort mindestens 8 Zeichen.",
             invalid_email: "Bitte eine gültige E-Mail-Adresse eingeben.",

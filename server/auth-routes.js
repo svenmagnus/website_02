@@ -20,6 +20,8 @@ const BCRYPT_ROUNDS = 12;
 const SESSION_DAYS = 30;
 const INVITE_DAYS = 7;
 const VERIFY_HOURS = 48;
+/** Host/dev bypass when no invite row (4 digits). Override: DEV_INVITE_CODE in .env */
+const DEV_INVITE_CODE = String(process.env.DEV_INVITE_CODE || "1234").trim();
 
 export const authRouter = Router();
 
@@ -46,7 +48,12 @@ function parseBearer(req) {
 }
 
 function generateInviteCode() {
-  return String(randomInt(100000, 1000000));
+  return String(randomInt(1000, 10000));
+}
+
+function isDevInviteCode(code) {
+  const c = String(code || "").trim();
+  return DEV_INVITE_CODE.length === 4 && c === DEV_INVITE_CODE;
 }
 
 function rowToProfile(row) {
@@ -187,7 +194,7 @@ function findActiveInviteByToken(token) {
 function findActiveInviteByEmailAndCode(email, code) {
   const normalizedEmail = validateEmail(email);
   const normalizedCode = String(code || "").trim();
-  if (!normalizedEmail || !/^\d{6}$/.test(normalizedCode)) return null;
+  if (!normalizedEmail || !/^\d{4}$/.test(normalizedCode)) return null;
 
   const db = getDb();
   const rows = db
@@ -321,11 +328,11 @@ authRouter.post("/auth/register", async (req, res) => {
   const email = validateEmail(req.body?.email);
   const username = validateUsername(req.body?.username);
   const password = validatePassword(req.body?.password);
-  const gender = String(req.body?.gender || "").slice(0, 32);
-  const displayName = String(req.body?.displayName || username || "Guest").trim().slice(0, 32) || "Guest";
-  const bio = String(req.body?.bio || "").trim().slice(0, 500);
-  const techniques = Array.isArray(req.body?.techniques) ? req.body.techniques : [];
-  const customTechniques = Array.isArray(req.body?.customTechniques) ? req.body.customTechniques : [];
+  const displayName = String(username || "Guest").trim().slice(0, 32) || "Guest";
+  const gender = "";
+  const bio = "";
+  const techniques = [];
+  const customTechniques = [];
 
   if (!email) {
     return res.status(400).json({ ok: false, error: "invalid_email" });
@@ -339,9 +346,10 @@ authRouter.post("/auth/register", async (req, res) => {
 
   const db = getDb();
   const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;
-  let invite = resolveInvite({ inviteToken, inviteCode, email });
+  const devBypass = isDevInviteCode(inviteCode);
+  let invite = devBypass ? null : resolveInvite({ inviteToken, inviteCode, email });
 
-  if (!invite && userCount > 0) {
+  if (!invite && !devBypass && userCount > 0) {
     return res.status(400).json({ ok: false, error: "invite_required" });
   }
   if (invite && invite.email !== email) {

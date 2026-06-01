@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="cb-dark">
+<html lang="de" data-theme="cb-dark">
   <head>
     <script>
       (function () {
@@ -13,19 +13,19 @@
     </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Register — Dual-Peer</title>
-    <link rel="stylesheet" href="assets/styles.css?v=8404" />
+    <title>Konto erstellen — Tangent Club</title>
+    <link rel="stylesheet" href="assets/styles.css?v=8414" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   </head>
   <body class="auth-page">
-    <main class="auth-page-main auth-page-main-wide">
+    <main class="auth-page-main">
       <a href="index.html" class="logo-link auth-logo">
         <img src="assets/logo.png" alt="Tangent-Club Logo" />
       </a>
       <div class="login-overlay-card auth-card">
-        <h1>Create your account</h1>
+        <h1>Konto erstellen</h1>
         <p class="status-line" id="registerApiStatus">Server wird geprüft …</p>
-        <p class="status-line" id="registerInviteInfo">Checking invitation…</p>
+        <p class="status-line" id="registerInviteInfo"></p>
         <input type="hidden" id="registerInviteToken" value="" />
         <form id="registerForm" class="profile-form">
           <div class="row">
@@ -40,47 +40,42 @@
             <p class="status-line profile-field-hint" id="registerEmailHint"></p>
           </div>
           <div class="row" id="registerInviteCodeRow">
-            <label for="registerInviteCode">Einladungscode (optional)</label>
+            <label for="registerInviteCode">Einladungscode (4 Ziffern)</label>
             <input
               type="text"
               id="registerInviteCode"
               inputmode="numeric"
-              pattern="[0-9]{6}"
-              maxlength="6"
-              placeholder="6-stellig, steht in der Einladungs-E-Mail"
+              pattern="[0-9]{4}"
+              maxlength="4"
+              placeholder="aus der Einladungs-E-Mail"
               autocomplete="one-time-code"
             />
           </div>
           <div class="row">
             <label for="registerUsername">Benutzername</label>
-            <input type="text" id="registerUsername" required autocomplete="username" pattern="[a-zA-Z0-9_]{3,24}" />
+            <input
+              type="text"
+              id="registerUsername"
+              required
+              autocomplete="username"
+              pattern="[a-zA-Z0-9_]{3,24}"
+              placeholder="3–24 Zeichen"
+            />
           </div>
           <div class="row">
-            <label for="registerPassword">Password</label>
-            <input type="password" id="registerPassword" required autocomplete="new-password" minlength="8" />
+            <label for="registerPassword">Passwort</label>
+            <input
+              type="password"
+              id="registerPassword"
+              required
+              autocomplete="new-password"
+              minlength="8"
+              placeholder="mindestens 8 Zeichen"
+            />
           </div>
-          <div class="row">
-            <label for="registerDisplayName">Display name</label>
-            <input type="text" id="registerDisplayName" maxlength="32" placeholder="Shown in chat" />
-          </div>
-          <div class="row">
-            <label for="registerGender">Gender</label>
-            <select id="registerGender">
-              <option value="">Prefer not to say</option>
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-              <option value="nonbinary">Non-binary</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div class="row">
-            <label for="registerBio">About you</label>
-            <textarea id="registerBio" rows="3" maxlength="500"></textarea>
-          </div>
-          <fieldset class="profile-techniques-field">
-            <legend>Techniques you are open to</legend>
-            <div id="registerTechniqueList" class="profile-technique-list"></div>
-          </fieldset>
+          <p class="status-line profile-field-hint">
+            Profildetails legst du nach der Anmeldung unter <strong>Profil</strong> fest.
+          </p>
           <p class="login-overlay-error" id="registerError" hidden></p>
           <button type="submit" class="primary">Konto erstellen</button>
         </form>
@@ -88,17 +83,16 @@
           <p class="status-line ok" id="registerSuccessMessage"></p>
           <p class="status-line" id="registerDevVerify" hidden></p>
           <p class="status-line" style="margin-top: 1rem">
-            <a href="index.html?premium=1">Premium anmelden</a>
+            <a href="index.html">Zur Startseite</a>
           </p>
         </div>
         <p class="status-line" style="margin-top: 1rem">
-          Bereits registriert? <a href="index.html?premium=1">Premium anmelden</a> · Erster Host?
-          <a href="register.html">Register without invite</a> (only if no accounts exist yet).
+          Bereits registriert? <a href="index.html">Anmelden</a>
         </p>
       </div>
     </main>
-    <script src="assets/ui-shell.js?v=8411"></script>
-    <script src="assets/app.js?v=8411"></script>
-    <script src="assets/auth.js?v=8411"></script>
+    <script src="assets/ui-shell.js?v=8414"></script>
+    <script src="assets/app.js?v=8414"></script>
+    <script src="assets/auth.js?v=8414"></script>
   </body>
 </html>

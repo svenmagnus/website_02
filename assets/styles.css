@@ -465,6 +465,12 @@ body.login-locked {
   overflow: hidden;
 }
 
+body.login-locked > header,
+body.login-locked > main,
+body.login-locked > footer {
+  visibility: hidden;
+}
+
 /* Vollbild-Login über die gesamte Seite */
 .login-overlay {
   position: fixed;
