@@ -195,9 +195,33 @@
     return isLoggedIn() && !isSessionGuest();
   }
 
+  function openPremiumLoginModal() {
+    const modal = document.getElementById("premiumLoginModal");
+    if (!modal) {
+      window.location.href = "index.html?premium=1";
+      return;
+    }
+    modal.hidden = false;
+    const params = new URLSearchParams(location.search);
+    const banner = document.getElementById("loginVerifiedBanner");
+    if (banner && params.get("verified") === "1") {
+      banner.hidden = false;
+      banner.textContent = "E-Mail bestätigt — du kannst dich jetzt anmelden.";
+    }
+    if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
+    document.getElementById("loginUsername")?.focus();
+  }
+
+  function closePremiumLoginModal() {
+    const modal = document.getElementById("premiumLoginModal");
+    if (modal) modal.hidden = true;
+    const errEl = document.getElementById("loginError");
+    if (errEl) errEl.hidden = true;
+  }
+
   function openMailSettingsModal() {
     if (!isLoggedIn()) {
-      window.location.href = "login.html";
+      openPremiumLoginModal();
       return;
     }
     const modal = document.getElementById("mailSettingsModal");
@@ -423,28 +447,41 @@
     const session = getSession();
     const inviteBtn = document.getElementById("btnInviteByEmail");
     const mailBtn = document.getElementById("btnMailSettings");
-    const loginLink = document.getElementById("btnMemberLogin");
-    const roleEl = document.querySelector(".account-role");
+    const premiumLogoutBtn = document.getElementById("accountPremiumLogoutBtn");
+    const roleEl = document.getElementById("accountRoleLabel") || document.querySelector(".account-role");
+    const premiumSetupRow = document.getElementById("premiumSetupRow");
+    const premiumSetupHint = document.getElementById("premiumSetupHint");
 
-    if (mailBtn) {
-      mailBtn.hidden = !loggedIn;
-    }
+    document.querySelectorAll(".account-dropdown-premium-only").forEach((el) => {
+      el.hidden = !loggedIn;
+    });
+
+    if (mailBtn) mailBtn.hidden = !loggedIn;
+    if (premiumLogoutBtn) premiumLogoutBtn.hidden = !loggedIn;
+
     if (inviteBtn) {
-      const show = canManageInvites();
+      const show = loggedIn && canManageInvites();
       inviteBtn.hidden = !show;
-      inviteBtn.disabled = !show;
       inviteBtn.title = show
-        ? "Send email invitation"
+        ? "Gast per E-Mail einladen"
         : loggedIn
-          ? "Not available while you are connected as guest"
-          : "Log in to send invitations";
+          ? "Nicht verfügbar, solange du als Session-Gast verbunden bist"
+          : "";
     }
-    if (loginLink) {
-      loginLink.hidden = loggedIn;
-    }
+
     if (roleEl) {
-      roleEl.textContent = loggedIn ? `@${session?.user?.username || "member"}` : "Guest (local)";
+      roleEl.textContent = loggedIn ? "Premium" : "Gast";
+      roleEl.classList.toggle("is-premium", loggedIn);
     }
+    document.body.classList.toggle("has-premium", loggedIn);
+
+    if (premiumSetupRow) premiumSetupRow.hidden = loggedIn;
+    if (premiumSetupHint) {
+      premiumSetupHint.textContent = loggedIn
+        ? ""
+        : "Host-Features: Profil, Gäste einladen, eigener Strato-Versand.";
+    }
+
     if (loggedIn && session?.user && global.dualPeerUi?.setProfileName) {
       global.dualPeerUi.setProfileName(session.user.displayName || session.user.username);
     }
@@ -463,7 +500,7 @@
     };
     const open = () => {
       if (!isLoggedIn()) {
-        window.location.href = "login.html";
+        openPremiumLoginModal();
         return;
       }
       if (!canManageInvites()) {
@@ -534,18 +571,40 @@
     }
   }
 
+  function initPremiumLoginModal() {
+    const modal = document.getElementById("premiumLoginModal");
+    const closeBtn = document.getElementById("premiumLoginModalClose");
+    const setupBtn = document.getElementById("btnPremiumFromSetup");
+    if (closeBtn) closeBtn.addEventListener("click", closePremiumLoginModal);
+    if (setupBtn) setupBtn.addEventListener("click", openPremiumLoginModal);
+    if (modal) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closePremiumLoginModal();
+      });
+    }
+  }
+
   function initLoginPage() {
     const form = document.getElementById("memberLoginForm");
     if (!form) return;
 
     const params = new URLSearchParams(location.search);
-    if (params.get("verified") === "1") {
-      const banner = document.getElementById("loginVerifiedBanner");
-      if (banner) {
-        banner.hidden = false;
-        banner.className = "status-line ok";
-        banner.textContent = "E-Mail bestätigt — du kannst dich jetzt anmelden.";
+    const onIndex = Boolean(document.getElementById("premiumLoginModal"));
+    if (params.get("verified") === "1" || params.get("premium") === "1") {
+      if (onIndex && params.get("premium") === "1") {
+        openPremiumLoginModal();
       }
+      if (params.get("verified") === "1") {
+        const banner = document.getElementById("loginVerifiedBanner");
+        if (banner) {
+          banner.hidden = false;
+          banner.className = "status-line ok";
+          banner.textContent = "E-Mail bestätigt — du kannst dich jetzt anmelden.";
+        }
+      }
+    }
+    if (location.hash === "#premium" && onIndex) {
+      openPremiumLoginModal();
     }
 
     const resendPanel = document.getElementById("loginResendPanel");
@@ -560,7 +619,14 @@
       if (resendPanel) resendPanel.hidden = true;
       try {
         await login(user?.value, pass?.value);
-        window.location.href = "index.html";
+        if (document.getElementById("premiumLoginModal")) {
+          closePremiumLoginModal();
+          if (global.MemberProfile?.setPanelTab) {
+            global.MemberProfile.setPanelTab("profile", { userAction: true });
+          }
+        } else {
+          window.location.href = "index.html";
+        }
       } catch (err) {
         if (errEl) {
           errEl.hidden = false;
@@ -634,19 +700,21 @@
         }
         if (loginLink) {
           loginLink.hidden = false;
-          loginLink.href = "login.html?verified=1";
+          loginLink.href = "index.html?premium=1&verified=1";
+          loginLink.textContent = "Premium anmelden";
         }
       })
       .catch((err) => {
         statusEl.className = "status-line err";
         const map = {
           verify_not_found: "Link ungültig oder bereits verwendet.",
-          verify_expired: "Link abgelaufen — auf der Anmeldeseite „Bestätigung erneut senden“.",
+          verify_expired: "Link abgelaufen — Premium-Anmeldung, dort Bestätigung erneut senden.",
         };
         statusEl.textContent = map[err.code] || err.message || "Bestätigung fehlgeschlagen.";
         if (loginLink) {
           loginLink.hidden = false;
-          loginLink.href = "login.html";
+          loginLink.href = "index.html?premium=1";
+          loginLink.textContent = "Premium anmelden";
         }
       });
   }
@@ -747,7 +815,7 @@
           }
         } else {
           setTimeout(() => {
-            window.location.href = "login.html?verified=1";
+            window.location.href = "index.html?premium=1&verified=1";
           }, 1500);
         }
       } catch (err) {
@@ -789,6 +857,11 @@
     logout();
   });
 
+  document.getElementById("accountPremiumLogoutBtn")?.addEventListener("click", () => {
+    logout();
+    if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
+  });
+
   global.addEventListener("dualpeer-session-role", () => {
     updateAccountMenuAuthState();
     const modal = document.getElementById("inviteModal");
@@ -798,6 +871,7 @@
   });
 
   function init() {
+    initPremiumLoginModal();
     initInviteModal();
     initLoginPage();
     initRegisterPage();
@@ -827,6 +901,8 @@
     loadProfileMailSettings,
     openMailSettingsModal,
     closeMailSettingsModal,
+    openPremiumLoginModal,
+    closePremiumLoginModal,
     onReady,
   };
 

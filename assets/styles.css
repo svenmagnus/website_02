@@ -252,6 +252,35 @@ html[data-theme="cb-light"] .account-name {
   color: #00809a;
 }
 
+.account-role.is-premium {
+  color: #f97316;
+  font-weight: 600;
+}
+
+.premium-setup-row {
+  margin-bottom: 0.75rem;
+}
+
+.premium-setup-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.premium-setup-btn .bi-star-fill {
+  color: #f97316;
+}
+
+button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent, #f97316);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
 .account-role {
   font-size: 0.72rem;
   color: var(--muted);

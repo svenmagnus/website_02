@@ -84,6 +84,47 @@
 
     <div
       class="login-overlay"
+      id="premiumLoginModal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="premiumLoginModalTitle"
+    >
+      <div class="login-overlay-card auth-card">
+        <h2 id="premiumLoginModalTitle">Premium — Host-Konto</h2>
+        <p class="login-overlay-hint">
+          Zugang für Hosts: Profil, Gäste einladen und eigener E-Mail-Versand (z.&nbsp;B. Strato). Nicht das
+          Raum-Passwort der Startseite.
+        </p>
+        <p class="status-line ok" id="loginVerifiedBanner" hidden></p>
+        <form id="memberLoginForm">
+          <div class="login-overlay-row">
+            <label for="loginUsername">Benutzername</label>
+            <input type="text" id="loginUsername" autocomplete="username" required />
+          </div>
+          <div class="login-overlay-row">
+            <label for="loginPassword">Passwort</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" required />
+          </div>
+          <p class="login-overlay-error" id="loginError" hidden></p>
+          <button type="submit" class="primary">Premium anmelden</button>
+        </form>
+        <div id="loginResendPanel" class="auth-resend-panel" hidden>
+          <p class="status-line">E-Mail noch nicht bestätigt?</p>
+          <button type="button" class="secondary" id="loginResendBtn">Bestätigung erneut senden</button>
+          <p class="status-line" id="loginResendStatus" hidden></p>
+        </div>
+        <p class="status-line" style="margin-top: 1rem">
+          Eingeladen? <a href="register.html">Premium registrieren</a>
+        </p>
+        <p class="status-line">
+          <button type="button" class="linkish" id="premiumLoginModalClose">Schließen</button>
+        </p>
+      </div>
+    </div>
+
+    <div
+      class="login-overlay"
       id="mailSettingsModal"
       hidden
       role="dialog"
@@ -91,10 +132,10 @@
       aria-labelledby="mailSettingsModalTitle"
     >
       <div class="login-overlay-card auth-card-wide">
-        <h2 id="mailSettingsModalTitle">E-Mail-Versand (Strato &amp; andere)</h2>
+        <h2 id="mailSettingsModalTitle">E-Mail-Server (Ausgang / SMTP)</h2>
         <p class="login-overlay-hint" id="profileMailHint">
-          Jeder Host nutzt sein eigenes Postfach. Für Einladungen reicht der
-          <strong>Ausgangsserver (SMTP)</strong>. IMAP (Eingang) ist optional.
+          Technische Einstellungen für dein Postfach (z.&nbsp;B. Strato) — kein Login. Nur
+          <strong>Ausgangsserver (SMTP)</strong> wird zum Versenden von Einladungen benötigt.
         </p>
         <p class="status-line" id="profileMailStatus"></p>
         <form id="profileMailForm" class="profile-form">
@@ -186,18 +227,26 @@
               <span class="account-avatar account-avatar-lg" data-profile-initial>G</span>
               <div class="account-dropdown-meta">
                 <span class="account-name" data-profile-name>Guest</span>
-                <span class="account-role">Member</span>
+                <span class="account-role" id="accountRoleLabel">Gast</span>
                 <span class="account-profile-mini" data-profile-gender>—</span>
                 <span class="account-profile-mini" data-profile-technique-summary>No techniques selected</span>
               </div>
             </div>
             <button type="button" class="account-dropdown-item" id="btnOpenProfileTab" role="menuitem">
               <i class="bi bi-person-badge" aria-hidden="true"></i>
-              <span>My profile</span>
+              <span>Mein Profil</span>
+            </button>
+            <button type="button" class="account-dropdown-item account-dropdown-premium-only" id="btnMailSettings" hidden role="menuitem">
+              <i class="bi bi-hdd-network" aria-hidden="true"></i>
+              <span>E-Mail-Server (SMTP)</span>
+            </button>
+            <button type="button" class="account-dropdown-item account-dropdown-premium-only" id="btnInviteByEmail" hidden role="menuitem">
+              <i class="bi bi-envelope" aria-hidden="true"></i>
+              <span>Gast einladen</span>
             </button>
             <a href="settings.html" class="account-dropdown-item" role="menuitem">
               <i class="bi bi-gear" aria-hidden="true"></i>
-              <span>Settings &amp; Privacy</span>
+              <span>Einstellungen</span>
             </a>
             <label class="account-dropdown-item account-toggle-row" role="menuitem">
               <span class="account-toggle-label">
@@ -209,22 +258,14 @@
                 <span class="account-switch-track" aria-hidden="true"></span>
               </span>
             </label>
-            <a href="login.html" class="account-dropdown-item" id="btnMemberLogin" role="menuitem">
-              <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
-              <span>Member login</span>
-            </a>
-            <button type="button" class="account-dropdown-item" id="btnMailSettings" hidden role="menuitem">
-              <i class="bi bi-envelope-at" aria-hidden="true"></i>
-              <span>E-Mail-Versand (SMTP)</span>
-            </button>
-            <button type="button" class="account-dropdown-item" id="btnInviteByEmail" disabled role="menuitem">
-              <i class="bi bi-envelope" aria-hidden="true"></i>
-              <span>Gast per E-Mail einladen</span>
-            </button>
             <div class="account-dropdown-divider" role="separator"></div>
+            <button type="button" class="account-dropdown-item account-dropdown-danger account-dropdown-premium-only" id="accountPremiumLogoutBtn" hidden role="menuitem">
+              <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+              <span>Premium abmelden</span>
+            </button>
             <button type="button" class="account-dropdown-item account-dropdown-danger" id="accountLogoutBtn" role="menuitem">
               <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
-              <span>Log Out</span>
+              <span>Raum verlassen</span>
             </button>
           </div>
         </div>
@@ -379,8 +420,19 @@
             <strong>Als Host starten:</strong> (1) Raum-Passwort eingeben (beim Seitenaufruf) → (2) Broadcast
             <strong>„Webcam &amp; Mikrofon“</strong> wählen für normales Streaming ohne OBS → (3) Kamera/Mikro wählen →
             <strong>Start as Host</strong>. Für OBS-Szenen: Broadcast „OBS (WHIP)“.
-            <span class="setup-flow-hint-member">Mitglieder-Login (Account-Menü) nur für Profil &amp; E-Mail-Einladungen.</span>
+            <span class="setup-flow-hint-member"
+              >Premium (Host-Konto) für Profil, Einladungen und E-Mail-Server — Button unten, nicht im Account-Menü.</span
+            >
           </p>
+          <div class="row premium-setup-row" id="premiumSetupRow">
+            <button type="button" class="secondary premium-setup-btn" id="btnPremiumFromSetup">
+              <i class="bi bi-star-fill" aria-hidden="true"></i>
+              Premium — Host-Konto
+            </button>
+            <p class="status-line profile-field-hint" id="premiumSetupHint">
+              Anmelden oder registrieren (nach E-Mail-Einladung).
+            </p>
+          </div>
           <div class="row">
             <button type="button" class="primary" id="btnStartHost" disabled>
               Start as Host
@@ -613,9 +665,9 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script src="assets/ui-shell.js?v=8408"></script>
-    <script src="assets/app.js?v=8408"></script>
-    <script src="assets/auth.js?v=8408"></script>
-    <script src="assets/member-profile.js?v=8408"></script>
+    <script src="assets/ui-shell.js?v=8409"></script>
+    <script src="assets/app.js?v=8409"></script>
+    <script src="assets/auth.js?v=8409"></script>
+    <script src="assets/member-profile.js?v=8409"></script>
   </body>
 </html>

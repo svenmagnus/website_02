@@ -1,58 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="cb-dark">
+<html lang="de" data-theme="cb-dark">
   <head>
-    <script>
-      (function () {
-        try {
-          var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
-          if (t === "cb-dark" || t === "cb-light" || t === "original") {
-            document.documentElement.setAttribute("data-theme", t === "original" ? "cb-dark" : t);
-          }
-        } catch (_) {}
-      })();
-    </script>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Member login — Dual-Peer</title>
-    <link rel="stylesheet" href="assets/styles.css?v=8404" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <meta http-equiv="refresh" content="0;url=index.html?premium=1" />
+    <title>Premium — Weiterleitung</title>
+    <script>location.replace("index.html?premium=1");</script>
   </head>
-  <body class="auth-page">
-    <main class="auth-page-main">
-      <a href="index.html" class="logo-link auth-logo">
-        <img src="assets/logo.png" alt="Tangent-Club Logo" />
-      </a>
-      <div class="login-overlay-card auth-card">
-        <h1>Anmeldung</h1>
-        <p class="login-overlay-hint">Mitglieder-Konto — getrennt vom Raum-Passwort auf der Hauptseite.</p>
-        <p class="status-line ok" id="loginVerifiedBanner" hidden></p>
-        <form id="memberLoginForm">
-          <div class="login-overlay-row">
-            <label for="loginUsername">Benutzername</label>
-            <input type="text" id="loginUsername" autocomplete="username" required />
-          </div>
-          <div class="login-overlay-row">
-            <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" autocomplete="current-password" required />
-          </div>
-          <p class="login-overlay-error" id="loginError" hidden></p>
-          <button type="submit" class="primary">Anmelden</button>
-        </form>
-        <div id="loginResendPanel" class="auth-resend-panel" hidden>
-          <p class="status-line">E-Mail noch nicht bestätigt?</p>
-          <button type="button" class="primary" id="loginResendBtn">Bestätigung erneut senden</button>
-          <p class="status-line" id="loginResendStatus" hidden></p>
-        </div>
-        <p class="status-line" style="margin-top: 1rem">
-          Eingeladen? <a href="register.html">Registrieren</a> (Link oder Code aus der E-Mail).
-        </p>
-        <p class="status-line">
-          <a href="index.html">← Back to video chat</a>
-        </p>
-      </div>
-    </main>
-    <script src="assets/ui-shell.js?v=8406"></script>
-    <script src="assets/app.js?v=8406"></script>
-    <script src="assets/auth.js?v=8406"></script>
+  <body>
+    <p><a href="index.html?premium=1">Weiter zur Premium-Anmeldung</a></p>
   </body>
 </html>
