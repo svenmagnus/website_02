@@ -57,19 +57,22 @@ Do **not** use `https://tangent-club.com` with a localhost WHIP server — the b
 5. The host panel shows your **live scene** (not the Virtual Camera logo)
 6. Guest connects with Peer ID as usual
 
-## Production
+## Production (Option A — Cloudflare quick tunnel)
 
-1. Deploy this server (Railway, Fly.io, VPS, etc.) with HTTPS
-2. Set in `index.html`:
+See **[docs/CLOUDFLARE-TUNNEL.md](../docs/CLOUDFLARE-TUNNEL.md)** for the full workflow.
 
-```html
-<script>
-  window.DUALPEER_WHIP_URL = "https://whip.tangent-club.com";
-</script>
-```
+1. `cd server && npm run restart` and `npm run tunnel`
+2. Paste the `https://….trycloudflare.com` URL into `assets/app.js` → `WHIP_CLOUDFLARE_TUNNEL_URL`
+3. Push to GitHub; open **https://www.tangent-club.com**
+4. OBS uses the HTTPS tunnel URL + Bearer Token from the host panel
 
-3. Set `PUBLIC_BASE_URL` in server env to the same HTTPS origin
-4. Add TURN credentials for production (same as `assets/app.js`)
+## Production (Option B — fixed subdomain)
+
+1. Deploy this server (VPS, Fly.io, Railway, etc.) with HTTPS
+2. Set `PUBLIC_BASE_URL=https://whip.tangent-club.com` in server `.env`
+3. Point DNS `whip.tangent-club.com` at the server
+4. Set `WHIP_CLOUDFLARE_TUNNEL_URL` to that HTTPS origin (or use a dedicated production constant)
+5. Add TURN credentials for production (same as `assets/app.js`)
 
 ## Architecture
 

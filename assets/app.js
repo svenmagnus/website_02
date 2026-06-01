@@ -38,23 +38,73 @@ const PEER_OPTIONS = {
   config: PEER_CONNECTION_CONFIG,
 };
 
-// Hier wird deine aktuelle Cloudflare-Tunnel-URL fest hinterlegt:
-window.DUALPEER_WHIP_URL = "https://stored-determining-neutral-agreement.trycloudflare.com";
+/**
+ * Option A — Cloudflare quick tunnel → local WHIP server (port 8787).
+ *
+ * After each new tunnel, paste the https URL here (no trailing slash), commit & push
+ * so www.tangent-club.com uses it. Localhost always uses :8787 directly.
+ *
+ * Terminal 1:  cd server && npm run restart
+ * Terminal 2:  cd server && npm run tunnel
+ */
+const WHIP_CLOUDFLARE_TUNNEL_URL = "https://joan-parade-prep-locations.trycloudflare.com";
 
-/** WHIP/WHEP server – set window.DUALPEER_WHIP_URL in index.html for production */
-function resolveWhipApiBase() {
-    if (window.DUALPEER_WHIP_URL) return String(window.DUALPEER_WHIP_URL).replace(/\/$/, "");
-    if (location.port === "8787") return location.origin;
-    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-        return `${location.protocol}//${location.hostname}:8787`;
-    }
-    if ((/(^|\.)tangent-club\.com$/i).test(location.hostname)) {
-        return "https://whip.tangent-club.com";
-    }
-    return "http://127.0.0.1:8787";
+function isTangentClubSite() {
+  return /(^|\.)tangent-club\.com$/i.test(location.hostname);
 }
 
-const WHIP_API_BASE = resolveWhipApiBase();
+function isLocalDevHost() {
+  return (
+    location.hostname === "localhost" ||
+    location.hostname === "127.0.0.1" ||
+    location.hostname === "[::1]"
+  );
+}
+
+/** WHIP/WHEP API origin (browser + OBS ingest base). */
+function resolveWhipApiBase() {
+  if (window.DUALPEER_WHIP_URL) {
+    return String(window.DUALPEER_WHIP_URL).replace(/\/$/, "");
+  }
+  if (location.port === "8787") {
+    return location.origin;
+  }
+  if (isLocalDevHost()) {
+    return `${location.protocol}//${location.hostname}:8787`;
+  }
+  if (isTangentClubSite()) {
+    const tunnel = String(WHIP_CLOUDFLARE_TUNNEL_URL || "").trim().replace(/\/$/, "");
+    if (tunnel && /^https:\/\//i.test(tunnel) && !/REPLACE|YOUR[-_]?SUBDOMAIN/i.test(tunnel)) {
+      return tunnel;
+    }
+    return "";
+  }
+  return "http://127.0.0.1:8787";
+}
+
+function whipUnreachableMessage() {
+  if (isTangentClubSite()) {
+    const tunnel = String(WHIP_CLOUDFLARE_TUNNEL_URL || "").trim();
+    if (!tunnel || /REPLACE|YOUR[-_]?SUBDOMAIN/i.test(tunnel)) {
+      return (
+        "WHIP tunnel URL missing: set WHIP_CLOUDFLARE_TUNNEL_URL in assets/app.js, " +
+        "push to GitHub, then reload www.tangent-club.com."
+      );
+    }
+    return (
+      `WHIP server not reachable at ${tunnel.replace(/\/$/, "")}. ` +
+      "On your Mac: cd server && npm run restart, then npm run tunnel (keep both running)."
+    );
+  }
+  return "WHIP server not reachable. Run: cd server && npm run restart — then open http://127.0.0.1:8787/";
+}
+
+window.DUALPEER_WHIP_URL = resolveWhipApiBase();
+const WHIP_API_BASE = window.DUALPEER_WHIP_URL;
+
+if (isTangentClubSite() && WHIP_API_BASE) {
+  console.info("[WHIP] tangent-club.com → API", WHIP_API_BASE);
+}
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -1181,11 +1231,12 @@ async function checkWhipServerReachable() {
 }
 
 async function registerWhipBroadcast(peerId) {
+  if (!WHIP_API_BASE) {
+    throw new Error(whipUnreachableMessage());
+  }
   const reachable = await checkWhipServerReachable();
   if (!reachable) {
-    throw new Error(
-      "WHIP server not reachable. Run: cd server && npm start — then open http://127.0.0.1:8787/ (not tangent-club.com)."
-    );
+    throw new Error(whipUnreachableMessage());
   }
   const resp = await fetch(`${WHIP_API_BASE}/api/broadcast/register`, {
     method: "POST",
@@ -1193,7 +1244,9 @@ async function registerWhipBroadcast(peerId) {
     body: JSON.stringify({ peerId: peerId || "" }),
   });
   if (!resp.ok) {
-    throw new Error("WHIP register failed — is the server running on port 8787?");
+    throw new Error(
+      `WHIP register failed (${resp.status}). Is the server running and is the Cloudflare tunnel active?`
+    );
   }
   whipBroadcast = await resp.json();
   updateWhipBroadcastUi(

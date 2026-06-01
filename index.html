@@ -294,7 +294,10 @@
                 <span class="whip-copy-feedback" id="whipBearerCopyFeedback" hidden>Kopiert!</span>
               </div>
             </div>
-            <p class="status-line" id="whipBroadcastStatus">Start the WHIP server, then open this page (port 8787 or Live Server :5500).</p>
+            <p class="status-line" id="whipBroadcastStatus">
+              Local: <strong>http://127.0.0.1:8787/</strong> — Production (www.tangent-club.com): Cloudflare tunnel URL in
+              <code>assets/app.js</code> (<code>WHIP_CLOUDFLARE_TUNNEL_URL</code>).
+            </p>
             <p class="status-line media-source-hint" style="margin-top: 0.35rem">
               Local test: <strong>cd server && npm run restart</strong> — then
               <strong>http://127.0.0.1:8787/</strong> or Live Server on <strong>:5500</strong>.
@@ -389,18 +392,7 @@
       configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
     </footer>
 
-    <script>
-      window.DUALPEER_WHIP_URL =
-        window.DUALPEER_WHIP_URL ||
-        (location.port === "8787"
-          ? location.origin
-          : /(^|\.)tangent-club\.com$/i.test(location.hostname)
-            ? "https://whip.tangent-club.com"
-            : location.hostname === "localhost" || location.hostname === "127.0.0.1"
-              ? `${location.protocol}//${location.hostname}:8787`
-              : "http://127.0.0.1:8787");
-    </script>
-    <script src="assets/ui-shell.js?v=8401"></script>
-    <script src="assets/app.js?v=8401"></script>
+    <script src="assets/ui-shell.js?v=8402"></script>
+    <script src="assets/app.js?v=8402"></script>
   </body>
 </html>
