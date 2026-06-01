@@ -152,11 +152,16 @@
     }
 
     if (logoutBtn) {
-      logoutBtn.addEventListener("click", () => {
+      logoutBtn.addEventListener("click", async () => {
         closeAccountMenu();
-        const legacy = document.getElementById("logoutBtn");
-        if (legacy) legacy.click();
-        else global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
+        if (typeof global.dualPeerPerformLogout === "function") {
+          await global.dualPeerPerformLogout();
+        } else {
+          const legacy = document.getElementById("logoutBtn");
+          if (legacy) legacy.click();
+          else global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
+        }
+        location.reload();
       });
     }
   }

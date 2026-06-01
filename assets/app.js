@@ -3365,25 +3365,37 @@ function initAccessGate() {
 }
 
 
+async function performAppLogout() {
+  try {
+    sessionStorage.removeItem(SESSION_VIDEO_UNLOCK_KEY);
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    hangup();
+  } catch (_) {
+    /* ignore */
+  }
+  if (global.DualPeerAuth?.logout) {
+    await global.DualPeerAuth.logout();
+  } else {
+    global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
+  }
+  if (global.dualPeerSiteAccess?.revoke) global.dualPeerSiteAccess.revoke();
+  else global.dispatchEvent(new CustomEvent("dualpeer-site-access-revoked"));
+}
+
 function initLogout() {
   const btn = els.logoutBtn;
   if (!btn) return;
 
-  btn.addEventListener("click", () => {
-    try {
-      sessionStorage.removeItem(SESSION_VIDEO_UNLOCK_KEY);
-    } catch (_) {
-      /* ignore */
-    }
-    global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
-    try {
-      hangup();
-    } catch (_) {
-      /* ignore */
-    }
+  btn.addEventListener("click", async () => {
+    await performAppLogout();
     location.reload();
   });
 }
+
+global.dualPeerPerformLogout = performAppLogout;
 
 function startLovenseConnectionWatch() {
   let ticks = 0;

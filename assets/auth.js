@@ -5,14 +5,7 @@
   const SESSION_KEY = "dualpeer-member-session";
   const PROFILE_CACHE_KEY = "dualpeer-member-profile-cache";
 
-  const PRESET_TECHNIQUES = [
-    { id: "nipple_play", label: "Nipple Play" },
-    { id: "spank_ass", label: "Spank Ass" },
-    { id: "spank_breast", label: "Spank Breast" },
-    { id: "tease_denial", label: "Tease / Denial" },
-    { id: "dirty_talk", label: "Dirty Talk" },
-    { id: "roleplay", label: "Roleplay" },
-  ];
+  const PRESET_TECHNIQUES = global.DualPeerTechniques?.allPresets?.() || [];
 
   let readyResolve;
   const readyPromise = new Promise((r) => {
@@ -551,7 +544,6 @@
     const session = getSession();
     const inviteBtn = document.getElementById("btnInviteByEmail");
     const mailBtn = document.getElementById("btnMailSettings");
-    const premiumLogoutBtn = document.getElementById("accountPremiumLogoutBtn");
     const roleEl = document.getElementById("accountRoleLabel") || document.querySelector(".account-role");
     const premiumSetupRow = document.getElementById("premiumSetupRow");
     const premiumSetupHint = document.getElementById("premiumSetupHint");
@@ -561,20 +553,19 @@
     });
 
     if (mailBtn) mailBtn.hidden = !loggedIn;
-    if (premiumLogoutBtn) premiumLogoutBtn.hidden = !loggedIn;
 
     if (inviteBtn) {
       const show = loggedIn && canManageInvites();
       inviteBtn.hidden = !show;
       inviteBtn.title = show
-        ? "Gast per E-Mail einladen"
+        ? "Invite a guest by email"
         : loggedIn
-          ? "Nicht verfügbar, solange du als Session-Gast verbunden bist"
+          ? "Unavailable while you are connected as a session guest"
           : "";
     }
 
     if (roleEl) {
-      roleEl.textContent = loggedIn ? "Premium" : "Gast";
+      roleEl.textContent = loggedIn ? "Premium" : "Guest";
       roleEl.classList.toggle("is-premium", loggedIn);
     }
     document.body.classList.toggle("has-premium", loggedIn);
@@ -583,7 +574,7 @@
     if (premiumSetupHint) {
       premiumSetupHint.textContent = loggedIn
         ? ""
-        : "Host-Features: Profil, Gäste einladen, eigener Strato-Versand.";
+        : "Host features: profile, guest invites, your own SMTP.";
     }
 
     if (loggedIn && session?.user && global.dualPeerUi?.setProfileName) {
@@ -972,7 +963,7 @@
       const btn = document.getElementById("accessUnlock");
       if (btn instanceof HTMLButtonElement) {
         btn.disabled = true;
-        btn.textContent = "Anmeldung …";
+        btn.textContent = "Signing in …";
       }
       if (errEl) errEl.hidden = true;
 
@@ -984,20 +975,20 @@
         if (errEl) {
           errEl.hidden = false;
           const map = {
-            invalid_credentials: "Benutzername oder Passwort ungültig.",
+            invalid_credentials: "Invalid username or password.",
             email_not_verified:
-              "E-Mail noch nicht bestätigt — Link in der Registrierungs-Mail öffnen.",
+              "Email not verified yet — open the link in your registration email.",
             network_error: apiUnreachableMessage(resolveApiBase()),
             api_not_configured: apiUnreachableMessage(""),
           };
-          errEl.textContent = map[err.code] || err.message || "Anmeldung fehlgeschlagen.";
+          errEl.textContent = map[err.code] || err.message || "Sign-in failed.";
         }
         if (passwordEl instanceof HTMLInputElement) passwordEl.value = "";
         passwordEl?.focus();
       } finally {
         if (btn instanceof HTMLButtonElement) {
           btn.disabled = false;
-          btn.textContent = "Anmelden";
+          btn.textContent = "Sign in";
         }
       }
     });
@@ -1043,11 +1034,6 @@
 
   global.addEventListener("dualpeer-logout-request", () => {
     logout();
-  });
-
-  document.getElementById("accountPremiumLogoutBtn")?.addEventListener("click", () => {
-    logout();
-    if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
   });
 
   global.addEventListener("dualpeer-session-role", () => {

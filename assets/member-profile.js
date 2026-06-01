@@ -6,14 +6,16 @@
   const LEGACY_NAME_KEY = "dualpeer-profile-name";
   const WELCOME_BANNER_KEY = "dualpeer-profile-welcome-dismissed";
 
-  const TECHNIQUES = [
-    { id: "nipple_play", label: "Nipple Play" },
-    { id: "spank_ass", label: "Spank Ass" },
-    { id: "spank_breast", label: "Spank Breast" },
-    { id: "tease_denial", label: "Tease / Denial" },
-    { id: "dirty_talk", label: "Dirty Talk" },
-    { id: "roleplay", label: "Roleplay" },
-  ];
+  function builtInTechniqueIds() {
+    return global.DualPeerTechniques?.allBuiltinIds?.() || new Set();
+  }
+
+  function presetsForCurrentGender(gender) {
+    if (global.DualPeerTechniques?.presetsForGender) {
+      return global.DualPeerTechniques.presetsForGender(gender);
+    }
+    return [];
+  }
 
   const GENDERS = [
     { value: "", label: "Prefer not to say" },
@@ -68,7 +70,7 @@
     if (!raw || typeof raw !== "object") return base;
 
     const customTechniques = normalizeCustomTechniques(raw.customTechniques);
-    const builtInIds = new Set(TECHNIQUES.map((t) => t.id));
+    const builtInIds = builtInTechniqueIds();
     const customIds = new Set(customTechniques.map((c) => c.id));
     const techniques = Array.isArray(raw.techniques)
       ? [...new Set(raw.techniques.filter((id) => builtInIds.has(id) || customIds.has(id)))]
@@ -159,12 +161,12 @@
     }
     hint.hidden = false;
     hint.textContent =
-      "Nur auf diesem Gerät gespeichert. Melde dich im Startfenster an, um das Profil mit deinem Konto zu synchronisieren.";
+      "Stored on this device only. Sign in from the start screen to sync your profile with your account.";
   }
 
   function resolveTechniqueLabel(id, profile) {
     const p = profile || loadProfile();
-    const builtIn = TECHNIQUES.find((t) => t.id === id);
+    const builtIn = (global.DualPeerTechniques?.allPresets?.() || []).find((t) => t.id === id);
     if (builtIn) return builtIn.label;
     const custom = (p.customTechniques || []).find((c) => c.id === id);
     if (custom) return custom.label;
@@ -223,11 +225,6 @@
     const p = loadProfile();
     document.querySelectorAll("[data-profile-gender]").forEach((el) => {
       el.textContent = genderLabel(p.gender);
-    });
-    const count = p.techniques.length;
-    document.querySelectorAll("[data-profile-technique-summary]").forEach((el) => {
-      el.textContent =
-        count === 0 ? "No techniques selected" : `${count} technique${count === 1 ? "" : "s"} on your profile`;
     });
     const partner = getPartnerProfile();
     document.querySelectorAll("[data-partner-technique-summary]").forEach((el) => {
@@ -338,13 +335,24 @@
     const p = loadProfile();
     if (presetRoot) {
       presetRoot.innerHTML = "";
+      const genderEl = document.getElementById("profileGender");
+      const gender =
+        genderEl instanceof HTMLSelectElement ? genderEl.value : p.gender || "";
       const presetTitle = document.createElement("p");
       presetTitle.className = "status-line profile-preset-heading";
-      presetTitle.textContent = "Presets";
+      presetTitle.textContent =
+        gender === "male"
+          ? "Presets (male)"
+          : gender === "female"
+            ? "Presets (female)"
+            : "Presets";
       presetRoot.appendChild(presetTitle);
-      TECHNIQUES.forEach((t) => {
-        presetRoot.appendChild(buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), false));
+      const grid = document.createElement("div");
+      grid.className = "profile-technique-grid";
+      presetsForCurrentGender(gender).forEach((t) => {
+        grid.appendChild(buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), false));
       });
+      presetRoot.appendChild(grid);
     }
     if (customRoot) {
       customRoot.innerHTML = "";
@@ -520,7 +528,7 @@
       return;
     }
     const user = global.DualPeerAuth?.getSession?.()?.user;
-    const name = user?.displayName || user?.username || "Gast";
+    const name = user?.displayName || user?.username || "Guest";
     const nameEl = el.querySelector("[data-welcome-name]");
     if (nameEl) nameEl.textContent = name;
     el.hidden = false;
@@ -622,6 +630,13 @@
       });
     }
 
+    const genderEl = document.getElementById("profileGender");
+    if (genderEl) {
+      genderEl.addEventListener("change", () => {
+        renderTechniqueChecklist();
+      });
+    }
+
     const form = document.getElementById("profileForm");
     if (form) {
       form.addEventListener("submit", async (e) => {
@@ -632,7 +647,7 @@
         if (isAccountMode()) {
           if (msg) {
             msg.hidden = false;
-            msg.textContent = "Speichere …";
+            msg.textContent = "Saving…";
             msg.className = "status-line";
           }
           try {
@@ -649,12 +664,12 @@
             renderTechniqueChecklist();
             refreshWelcomeBanner();
             if (msg) {
-              msg.textContent = "Profil gespeichert.";
+              msg.textContent = "Profile saved.";
               msg.className = "status-line ok";
             }
           } catch (err) {
             if (msg) {
-              msg.textContent = err.message || "Profil konnte nicht gespeichert werden.";
+              msg.textContent = err.message || "Could not save profile.";
               msg.className = "status-line err";
             }
             return;
@@ -665,7 +680,7 @@
           renderTechniqueChecklist();
           if (msg) {
             msg.hidden = false;
-            msg.textContent = "Profil auf diesem Gerät gespeichert.";
+            msg.textContent = "Profile saved on this device.";
             msg.className = "status-line ok";
           }
         }
@@ -728,7 +743,7 @@
   }
 
   global.MemberProfile = {
-    TECHNIQUES,
+    presetsForGender: presetsForCurrentGender,
     loadProfile,
     saveProfile,
     getPublicProfile,
