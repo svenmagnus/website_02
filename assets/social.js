@@ -79,7 +79,7 @@
         const empty = document.createElement("p");
         empty.className = "chat-empty-hint";
         empty.textContent = state.partner
-          ? `Chat with ${state.partner.displayName}. Messages are saved between sessions.`
+          ? `Chat with ${state.partner.displayName}. History clears when the video session ends.`
           : "Sign in and connect with your host to start chatting.";
         pane.appendChild(empty);
         return;
@@ -128,8 +128,49 @@
     }
   }
 
+  function broadcastChatClear() {
+    try {
+      const bc = getChatBroadcastChannel();
+      if (!bc) return;
+      bc.postMessage({
+        type: "clear",
+        threadId: state.threadId,
+        sourceId: global.__dualpeerTabId,
+      });
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function clearLocalChatMessages({ skipBroadcast = false } = {}) {
+    state.messages = [];
+    state.renderFingerprint = messagesFingerprint([]);
+    renderMessages({ skipBroadcast });
+    if (!skipBroadcast) broadcastChatClear();
+  }
+
+  async function clearChatAfterSession() {
+    const threadId = state.threadId;
+    if (threadId && isLoggedIn()) {
+      try {
+        await api(`/api/social/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+          method: "DELETE",
+        });
+      } catch (err) {
+        console.warn("[social] clear chat failed:", err);
+      }
+    }
+    clearLocalChatMessages();
+  }
+
   function onChatBroadcastMessage(ev) {
     const data = ev.data;
+    if (data?.type === "clear") {
+      if (data.sourceId && data.sourceId === global.__dualpeerTabId) return;
+      if (data.threadId && state.threadId && data.threadId !== state.threadId) return;
+      clearLocalChatMessages({ skipBroadcast: true });
+      return;
+    }
     if (data?.type !== "sync" || !Array.isArray(data.messages)) return;
     if (data.sourceId && data.sourceId === global.__dualpeerTabId) return;
     if (data.threadId && state.threadId && data.threadId !== state.threadId) return;
@@ -600,6 +641,7 @@
     init,
     bootstrap,
     sendPersistentMessage,
+    clearChatAfterSession,
     publishHostPeerId,
     getActiveLiveMeetingId,
     getThreadId: () => state.threadId,

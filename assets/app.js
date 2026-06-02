@@ -1592,7 +1592,24 @@ function stopMedia() {
   refreshVideoOverlays();
 }
 
+function clearLiveChatDom() {
+  if (els.chatMessages) els.chatMessages.replaceChildren();
+}
+
+function endSessionChat() {
+  clearLiveChatDom();
+  global.DualPeerSocial?.clearChatAfterSession?.().catch(() => {});
+}
+
 function hangup() {
+  const hadSession = sessionRole != null;
+  if (dataConn?.open) {
+    try {
+      sendDataChannelMessage({ type: "session_end" });
+    } catch (_) {
+      /* ignore */
+    }
+  }
   if (mediaConn) {
     mediaConn.close();
     mediaConn = null;
@@ -1623,6 +1640,7 @@ function hangup() {
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
+  if (hadSession) endSessionChat();
   if (videoAccessUnlocked) applyAccountStreamingUi();
   else {
     if (els.btnStartHost) els.btnStartHost.disabled = true;
@@ -2725,6 +2743,10 @@ function handleIncomingDataMessage(raw) {
   }
   if (data.type === "chat") {
     handleIncomingChatPayload(data);
+    return;
+  }
+  if (data.type === "session_end") {
+    endSessionChat();
     return;
   }
   if (data.type === "profile" || data.type === "profile_request") {
