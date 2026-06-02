@@ -1602,7 +1602,7 @@ function endSessionChat() {
 }
 
 function hangup() {
-  const hadSession = sessionRole != null;
+  const hadLiveCall = !!(dataConn?.open || mediaConn?.open);
   if (dataConn?.open) {
     try {
       sendDataChannelMessage({ type: "session_end" });
@@ -1640,7 +1640,7 @@ function hangup() {
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
-  if (hadSession) endSessionChat();
+  if (hadLiveCall) endSessionChat();
   if (videoAccessUnlocked) applyAccountStreamingUi();
   else {
     if (els.btnStartHost) els.btnStartHost.disabled = true;
@@ -2749,6 +2749,11 @@ function handleIncomingDataMessage(raw) {
     endSessionChat();
     return;
   }
+  if (data.type === "host_peer_id") {
+    const peerId = String(data.peerId || "").trim();
+    if (peerId) global.DualPeerSocial?.applyHostPeerIdFromMeetings?.(peerId);
+    return;
+  }
   if (data.type === "profile" || data.type === "profile_request") {
     if (data.type === "profile_request") {
       shareMemberProfileOverDataChannel();
@@ -2766,16 +2771,27 @@ function handleIncomingDataMessage(raw) {
   setDataActivityStatus("Unknown data message received.", "err");
 }
 
-function publishHostPeerIdToGuest(peerId) {
+async function publishHostPeerIdToGuest(peerId) {
   if (!peerId || !global.DualPeerSocial?.publishHostPeerId) return;
-  const meetingId = global.DualPeerSocial.getActiveLiveMeetingId?.();
-  if (!meetingId) {
-    console.warn("[social] no active meeting — create an instant session in Setup first.");
-    return;
-  }
-  global.DualPeerSocial.publishHostPeerId(meetingId, peerId).catch((err) => {
+  try {
+    const meetingId = await global.DualPeerSocial.resolveLiveMeetingId?.();
+    if (!meetingId) {
+      setStatus(
+        els.statusHost,
+        "First create an instant session (Setup → New session), then Start as Host.",
+        "err"
+      );
+      return;
+    }
+    await global.DualPeerSocial.publishHostPeerId(meetingId, peerId);
+    setStatus(els.statusHost, `Peer ID shared with guest: ${peerId}`, "ok");
+    if (dataConn?.open) {
+      sendDataChannelMessage({ type: "host_peer_id", peerId });
+    }
+  } catch (err) {
+    setStatus(els.statusHost, err.message || "Could not share Peer ID.", "err");
     console.warn("[social] publish peer id failed:", err);
-  });
+  }
 }
 
 global.appSessionRole = () => sessionRole;
@@ -2811,7 +2827,8 @@ function sendChatMessage() {
   const ts = Date.now();
 
   if (global.DualPeerSocial?.sendPersistentMessage) {
-    global.DualPeerSocial.sendPersistentMessage(text).catch(() => {
+    global.DualPeerSocial.sendPersistentMessage(text).catch((err) => {
+      setDataActivityStatus(err?.message || "Chat could not be saved.", "err");
       global.DualPeerSocial?.appendLocalEcho?.(text, sender);
     });
   } else {

@@ -9,6 +9,7 @@
   let meetingsBroadcastChannel = null;
   const state = {
     threadId: null,
+    threads: [],
     partner: null,
     inviteHost: null,
     meetings: [],
@@ -219,11 +220,18 @@
       state.meetings = data.meetings || [];
       state.calendar = data.calendar || state.calendar;
       const threads = data.threads || [];
-      if (threads[0]) {
-        state.partner = threads[0].partner;
-        await loadThreadMessages(threads[0].id);
+      state.threads = threads;
+      const activeThread = pickActiveThread(threads);
+      if (activeThread) {
+        state.partner = activeThread.partner;
+        await loadThreadMessages(activeThread.id);
       } else if (state.inviteHost) {
         state.partner = state.inviteHost;
+      } else {
+        const fromMeeting = state.meetings.find((m) => m.threadId);
+        if (fromMeeting?.threadId) {
+          await loadThreadMessages(fromMeeting.threadId);
+        }
       }
       fillPartnerSelects(threads);
       updateSetupHints();
@@ -244,19 +252,61 @@
     applyHostPeerIdFromMeetings();
   }
 
-  function applyHostPeerIdFromMeetings() {
-    if (global.DualPeerAuth?.isAccountHost?.()) return;
+  function getSelectedPartnerUserId() {
+    const sel = document.querySelector(".js-meeting-partner-select");
+    return sel?.value?.trim() || "";
+  }
+
+  function pickActiveThread(threads) {
+    if (!threads?.length) return null;
+    const partnerId = getSelectedPartnerUserId();
+    if (partnerId) {
+      const match = threads.find((t) => t.partner?.id === partnerId);
+      if (match) return match;
+    }
+    return threads[0];
+  }
+
+  async function ensureChatThread() {
+    if (state.threadId) return state.threadId;
+    await bootstrap();
+    if (state.threadId) return state.threadId;
+    const partnerId = getSelectedPartnerUserId();
+    if (partnerId) {
+      const t = state.threads.find((x) => x.partner?.id === partnerId);
+      if (t?.id) {
+        await loadThreadMessages(t.id);
+        return state.threadId;
+      }
+    }
+    const meeting = state.meetings.find((m) => m.threadId);
+    if (meeting?.threadId) {
+      await loadThreadMessages(meeting.threadId);
+      return state.threadId;
+    }
+    return null;
+  }
+
+  function applyHostPeerIdFromMeetings(peerIdOverride) {
     const peerIn = document.getElementById("peerIdIn");
     if (!(peerIn instanceof HTMLInputElement)) return;
-    const waiting = state.meetings.find(
-      (m) =>
-        !m.isHost &&
-        m.hostPeerId &&
-        (m.status === "live" || (m.mode === "instant" && m.status !== "ended"))
-    );
-    if (!waiting?.hostPeerId) return;
-    if (peerIn.value.trim() !== waiting.hostPeerId) {
-      peerIn.value = waiting.hostPeerId;
+    const partnerId = getSelectedPartnerUserId();
+    const waiting =
+      state.meetings.find((m) => {
+        if (m.isHost || (!m.hostPeerId && !peerIdOverride)) return false;
+        if (partnerId) {
+          const otherId = m.isHost ? m.guest?.id : m.host?.id;
+          if (otherId && otherId !== partnerId) return false;
+        }
+        return (
+          m.status === "live" || (m.mode === "instant" && m.status !== "ended")
+        );
+      }) ||
+      state.meetings.find((m) => !m.isHost && m.hostPeerId);
+    const peerId = peerIdOverride || waiting?.hostPeerId;
+    if (!peerId) return;
+    if (peerIn.value.trim() !== peerId) {
+      peerIn.value = peerId;
       peerIn.placeholder = "Host Peer ID (auto-filled) …";
       peerIn.dispatchEvent(new Event("input", { bubbles: true }));
       const guestStatus = document.getElementById("statusGuest");
@@ -310,16 +360,30 @@
   }
 
   async function sendPersistentMessage(text, { kind } = {}) {
-    if (!state.threadId || !text.trim()) return null;
-    const data = await api(`/api/social/chat/threads/${encodeURIComponent(state.threadId)}/messages`, {
+    const body = String(text || "").trim();
+    if (!body) return null;
+    const threadId = await ensureChatThread();
+    if (!threadId) {
+      throw new Error("No chat thread yet — choose your partner under Setup → Sessions.");
+    }
+    const data = await api(`/api/social/chat/threads/${encodeURIComponent(threadId)}/messages`, {
       method: "POST",
-      body: JSON.stringify({ body: text, kind: kind || "text" }),
+      body: JSON.stringify({ body, kind: kind || "text" }),
     });
     const msg = data.message;
     if (msg) {
       setMessages(mergeMessages(state.messages, [msg]));
     }
     return msg;
+  }
+
+  function showChatError(msg) {
+    const hint = document.querySelector(".header-chat-hint");
+    if (hint) {
+      hint.textContent = msg;
+      hint.className = "status-line header-chat-hint err";
+    }
+    console.warn("[social]", msg);
   }
 
   function updateSetupHints() {
@@ -489,14 +553,25 @@
   }
 
   async function publishHostPeerId(meetingId, hostPeerId) {
-    if (!meetingId || !hostPeerId) return;
-    await api(`/api/social/meetings/${encodeURIComponent(meetingId)}`, {
+    if (!meetingId || !hostPeerId) {
+      throw new Error("Missing meeting or Peer ID.");
+    }
+    const data = await api(`/api/social/meetings/${encodeURIComponent(meetingId)}`, {
       method: "PATCH",
       body: JSON.stringify({ hostPeerId }),
     });
     state._pendingMeetingId = null;
     await bootstrap();
     broadcastMeetingsChanged();
+    return data.meeting;
+  }
+
+  async function resolveLiveMeetingId() {
+    if (state._pendingMeetingId) return state._pendingMeetingId;
+    let id = getActiveLiveMeetingId();
+    if (id) return id;
+    await bootstrap();
+    return getActiveLiveMeetingId();
   }
 
   function getActiveLiveMeetingId() {
@@ -513,8 +588,19 @@
       const text = input?.value?.trim();
       if (!text) return;
       input.value = "";
-      await sendPersistentMessage(text);
-      if (global.DualPeerChat?.relayToPeer) global.DualPeerChat.relayToPeer(text);
+      try {
+        await sendPersistentMessage(text);
+        const hint = document.querySelector(".header-chat-hint");
+        if (hint) {
+          hint.textContent =
+            "Drag the title bar to move. Resize from the corner. Chat syncs with Live Chat.";
+          hint.className = "status-line header-chat-hint";
+        }
+        if (global.DualPeerChat?.relayToPeer) global.DualPeerChat.relayToPeer(text);
+      } catch (err) {
+        showChatError(err.message || "Could not send message.");
+        if (input) input.value = text;
+      }
     };
     document.getElementById("headerChatSend")?.addEventListener("click", sendHeader);
     document.getElementById("headerChatInput")?.addEventListener("keydown", (e) => {
@@ -721,7 +807,9 @@
     clearChatAfterSession,
     publishHostPeerId,
     getActiveLiveMeetingId,
+    resolveLiveMeetingId,
     applyHostPeerIdFromMeetings,
+    ensureChatThread,
     getThreadId: () => state.threadId,
     getMessages: () => state.messages,
     appendLocalEcho(text, senderName, { messageId } = {}) {

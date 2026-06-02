@@ -213,6 +213,7 @@ socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
     .all(uid, uid)
     .map((m) => ({
       id: m.id,
+      threadId: m.thread_id || "",
       mode: m.mode,
       status: m.status,
       hostPeerId: m.host_peer_id || "",
@@ -433,7 +434,10 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
   const status = req.body?.status != null ? String(req.body.status).trim() : null;
   const at = nowMs();
 
-  if (hostPeerId && meeting.host_user_id === uid) {
+  if (hostPeerId) {
+    if (meeting.host_user_id !== uid) {
+      return res.status(403).json({ ok: false, error: "only_host_can_publish_peer_id" });
+    }
     db.prepare("UPDATE meetings SET host_peer_id = ?, status = 'live', updated_at = ? WHERE id = ?").run(
       hostPeerId,
       at,
@@ -446,7 +450,7 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
         meeting.thread_id,
         uid,
         `${hostName}'s Host Peer ID for your session: ${hostPeerId}\n\n` +
-          `Guest: open Setup → paste this ID under "Host Peer ID" → Connect to Host.`,
+          `Guest: open Setup → Host Peer ID is filled automatically → Connect to Host.`,
         { kind: "system" }
       );
     }
