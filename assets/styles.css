@@ -279,6 +279,11 @@ html[data-theme="cb-light"] .account-name {
   font-weight: 600;
 }
 
+.account-role.is-admin {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .premium-setup-row {
   margin-bottom: 0.75rem;
 }
@@ -441,6 +446,12 @@ button.linkish {
   background: var(--secondary-bg);
 }
 
+.header-role-badge.is-admin {
+  color: #fff;
+  border-color: rgba(244, 115, 33, 0.55);
+  background: linear-gradient(135deg, #f47321 0%, #c85a12 100%);
+}
+
 .header-role-badge.is-guest {
   color: #9d8cff;
   border-color: rgba(157, 140, 255, 0.4);
@@ -563,6 +574,33 @@ body.has-auth-modal-open {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+.auth-models {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.auth-model-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.5rem;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.auth-model-card strong {
+  font-size: 0.72rem;
+}
+
+.auth-model-card span {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.3;
 }
 
 .login-overlay-row label {
@@ -2226,6 +2264,97 @@ footer {
   font-size: 0.75rem;
   color: var(--muted);
   text-align: center;
+}
+
+.site-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.site-footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.site-footer-links a[aria-disabled="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+  text-decoration: none;
+}
+
+.site-footer-note {
+  margin: 0;
+}
+
+.footer-admin-link {
+  font-size: 0.75rem;
+}
+
+.admin-users-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 50vh;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.admin-users-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0.45rem;
+  text-align: left;
+  font-size: 0.78rem;
+  vertical-align: middle;
+}
+
+.admin-actions-cell {
+  white-space: nowrap;
+}
+
+.admin-delete-btn {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  padding: 0.35rem 0.55rem;
+}
+
+.admin-create-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr auto auto;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+
+.admin-create-admin-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: auto;
+  font-size: 0.76rem;
+}
+
+.admin-users-table th {
+  background: var(--bg);
+  color: var(--muted);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.admin-input {
+  width: 100%;
+  min-width: 130px;
 }
 
 .lovense-hint {

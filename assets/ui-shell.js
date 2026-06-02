@@ -92,7 +92,7 @@
     }
   }
 
-  const AUTH_MODAL_IDS = ["mailSettingsModal", "inviteModal", "premiumLoginModal"];
+  const AUTH_MODAL_IDS = ["mailSettingsModal", "inviteModal", "premiumLoginModal", "adminUsersModal"];
 
   function setModalVisible(el, visible) {
     if (!el) return;

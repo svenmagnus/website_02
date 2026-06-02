@@ -522,6 +522,28 @@
     });
   }
 
+  async function fetchAdminUsers() {
+    return api("/api/admin/users");
+  }
+
+  async function updateAdminUser(userId, patch) {
+    return api(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch || {}),
+    });
+  }
+
+  async function createAdminUser(payload) {
+    return api("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async function deleteAdminUser(userId) {
+    return api(`/api/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+  }
+
   function readMailFormPayload() {
     const port = Number(document.getElementById("mailOutPort")?.value) || 587;
     let secure = false;
@@ -711,6 +733,7 @@
 
   function getHeaderRoleLabel() {
     if (!isLoggedIn()) return "Visitor";
+    if (isAdmin()) return "Administrator";
     return isAccountHost() ? "Host" : "Guest";
   }
 
@@ -719,9 +742,10 @@
     if (!badge) return;
     const label = getHeaderRoleLabel();
     badge.textContent = label;
-    badge.classList.remove("is-host", "is-guest", "is-visitor");
+    badge.classList.remove("is-host", "is-guest", "is-admin", "is-visitor");
     if (label === "Host") badge.classList.add("is-host");
     else if (label === "Guest") badge.classList.add("is-guest");
+    else if (label === "Administrator") badge.classList.add("is-admin");
     else badge.classList.add("is-visitor");
   }
 
@@ -730,12 +754,16 @@
     const session = getSession();
     const inviteBtn = document.getElementById("btnInviteByEmail");
     const mailBtn = document.getElementById("btnMailSettings");
+    const adminUsersBtn = document.getElementById("btnAdminUsers");
+    const adminUsersFooterLink = document.getElementById("footerAdminUsersLink");
     const roleEl = document.getElementById("accountRoleLabel") || document.querySelector(".account-role");
     const premiumSetupRow = document.getElementById("premiumSetupRow");
     const premiumSetupHint = document.getElementById("premiumSetupHint");
     const premiumSetupBtn = document.getElementById("btnPremiumFromSetup");
 
     if (mailBtn) mailBtn.hidden = !canAccessMailSettings();
+    if (adminUsersBtn) adminUsersBtn.hidden = !canAccessMailSettings();
+    if (adminUsersFooterLink) adminUsersFooterLink.hidden = !canAccessMailSettings();
 
     if (inviteBtn) {
       const show = canManageInvites();
@@ -746,11 +774,16 @@
     if (roleEl) {
       if (!loggedIn) {
         roleEl.textContent = "Not signed in";
-        roleEl.classList.remove("is-host", "is-guest");
+        roleEl.classList.remove("is-host", "is-guest", "is-admin");
       } else {
-        roleEl.textContent = isAccountHost() ? "Host account" : "Guest account";
+        roleEl.textContent = isAdmin()
+          ? "Administrator"
+          : isAccountHost()
+            ? "Host account"
+            : "Guest account";
         roleEl.classList.toggle("is-host", isAccountHost());
         roleEl.classList.toggle("is-guest", isAccountGuest());
+        roleEl.classList.toggle("is-admin", isAdmin());
       }
     }
 
@@ -940,6 +973,175 @@
         if (e.target === modal) closePremiumLoginModal();
       });
     }
+  }
+
+  function buildAdminUserRow(user) {
+    const tr = document.createElement("tr");
+    tr.dataset.userId = user.id;
+    tr.innerHTML = `
+      <td><strong>${user.username}</strong></td>
+      <td>${user.accountType === "host" ? "Host" : "Guest"}${user.isAdmin ? " / Admin" : ""}</td>
+      <td><input type="email" class="admin-input" data-field="email" value="${String(user.email || "").replace(/"/g, "&quot;")}" /></td>
+      <td><input type="text" class="admin-input" data-field="displayName" maxlength="32" value="${String(user.displayName || "").replace(/"/g, "&quot;")}" /></td>
+      <td>
+        <select class="admin-input" data-field="accountType">
+          <option value="guest"${user.accountType === "guest" ? " selected" : ""}>Guest</option>
+          <option value="host"${user.accountType === "host" ? " selected" : ""}>Host</option>
+        </select>
+      </td>
+      <td><input type="checkbox" data-field="isAdmin"${user.isAdmin ? " checked" : ""} /></td>
+      <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" /></td>
+      <td class="admin-actions-cell"><button type="button" class="secondary admin-save-btn">Save</button> <button type="button" class="admin-delete-btn">Delete</button></td>
+    `;
+    return tr;
+  }
+
+  function initAdminUsersModal() {
+    const modal = document.getElementById("adminUsersModal");
+    const openBtn = document.getElementById("btnAdminUsers");
+    const closeBtn = document.getElementById("adminUsersModalClose");
+    const refreshBtn = document.getElementById("adminUsersRefreshBtn");
+    const createBtn = document.getElementById("adminUsersCreateBtn");
+    const status = document.getElementById("adminUsersStatus");
+    const tbody = document.getElementById("adminUsersTbody");
+    const footerAdminLink = document.getElementById("footerAdminUsersLink");
+    if (!modal || !tbody) return;
+
+    const setStatus = (msg, cls = "") => {
+      if (!status) return;
+      status.className = cls ? `status-line ${cls}` : "status-line";
+      status.textContent = msg || "";
+    };
+
+    const load = async () => {
+      if (!canAccessMailSettings()) return;
+      setStatus("Loading profiles…");
+      try {
+        const data = await fetchAdminUsers();
+        tbody.innerHTML = "";
+        (data.users || []).forEach((u) => {
+          tbody.appendChild(buildAdminUserRow(u));
+        });
+        setStatus(`${(data.users || []).length} profiles loaded.`, "ok");
+      } catch (err) {
+        setStatus(err.message || "Failed to load profiles.", "err");
+      }
+    };
+
+    const open = async () => {
+      if (!canAccessMailSettings()) return;
+      if (global.dualPeerUi?.openAuthModal) global.dualPeerUi.openAuthModal("adminUsersModal");
+      else modal.hidden = false;
+      await load();
+    };
+
+    if (openBtn) {
+      openBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
+        await open();
+      });
+    }
+    if (footerAdminLink) {
+      footerAdminLink.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await open();
+      });
+    }
+    if (closeBtn) closeBtn.addEventListener("click", () => {
+      if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
+      else modal.hidden = true;
+    });
+    if (refreshBtn) refreshBtn.addEventListener("click", () => load());
+    if (createBtn) {
+      createBtn.addEventListener("click", async () => {
+        const username = document.getElementById("adminCreateUsername")?.value?.trim();
+        const email = document.getElementById("adminCreateEmail")?.value?.trim();
+        const password = document.getElementById("adminCreatePassword")?.value || "";
+        const accountType = document.getElementById("adminCreateRole")?.value || "guest";
+        const isAdminChecked = Boolean(document.getElementById("adminCreateIsAdmin")?.checked);
+        setStatus("Creating user…");
+        try {
+          await createAdminUser({
+            username,
+            email,
+            password,
+            accountType,
+            isAdmin: isAdminChecked,
+          });
+          setStatus(`Created ${username}.`, "ok");
+          document.getElementById("adminCreateUsername").value = "";
+          document.getElementById("adminCreateEmail").value = "";
+          document.getElementById("adminCreatePassword").value = "";
+          await load();
+        } catch (err) {
+          setStatus(err.message || "Create failed.", "err");
+        }
+      });
+    }
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
+        else modal.hidden = true;
+      }
+    });
+
+    tbody.addEventListener("click", async (e) => {
+      const btn = e.target?.closest?.(".admin-save-btn");
+      if (!btn) return;
+      const tr = btn.closest("tr");
+      if (!tr) return;
+      const userId = tr.dataset.userId;
+      const emailEl = tr.querySelector('[data-field="email"]');
+      const displayNameEl = tr.querySelector('[data-field="displayName"]');
+      const accountTypeEl = tr.querySelector('[data-field="accountType"]');
+      const isAdminEl = tr.querySelector('[data-field="isAdmin"]');
+      const patch = {
+        email: emailEl?.value,
+        displayName: displayNameEl?.value,
+        accountType: accountTypeEl?.value,
+        isAdmin: Boolean(isAdminEl?.checked),
+        password: tr.querySelector('[data-field="password"]')?.value || "",
+      };
+      btn.disabled = true;
+      setStatus("Saving profile…");
+      try {
+        const res = await updateAdminUser(userId, patch);
+        setStatus(`Saved ${res.user?.username || "profile"}.`, "ok");
+        const pwd = tr.querySelector('[data-field="password"]');
+        if (pwd) pwd.value = "";
+        if (res.user?.username === getSession()?.user?.username) {
+          setSession(getSession().token, { ...getSession().user, ...userToProfile(res.user) });
+        }
+      } catch (err) {
+        setStatus(err.message || "Save failed.", "err");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    tbody.addEventListener("click", async (e) => {
+      const btn = e.target?.closest?.(".admin-delete-btn");
+      if (!btn) return;
+      const tr = btn.closest("tr");
+      if (!tr) return;
+      const userId = tr.dataset.userId;
+      const username = tr.querySelector("td strong")?.textContent || "user";
+      if (!confirm(`Delete user ${username}? This cannot be undone.`)) return;
+      btn.disabled = true;
+      setStatus(`Deleting ${username}…`);
+      try {
+        await deleteAdminUser(userId);
+        tr.remove();
+        setStatus(`Deleted ${username}.`, "ok");
+      } catch (err) {
+        setStatus(err.message || "Delete failed.", "err");
+      } finally {
+        btn.disabled = false;
+      }
+    });
   }
 
   function initLoginPage() {
@@ -1318,6 +1520,7 @@
     initRegisterPage();
     initVerifyEmailPage();
     initProfileMailForm();
+    initAdminUsersModal();
     bootstrap();
   }
 

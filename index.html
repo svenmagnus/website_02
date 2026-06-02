@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8433" />
+    <link rel="stylesheet" href="assets/styles.css?v=8434" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -51,6 +51,20 @@
           Use your <strong>account username</strong> and password (not your profile display name).
         </p>
         <form id="siteAccessForm">
+          <div class="auth-models">
+            <div class="auth-model-card">
+              <strong>Free Host</strong>
+              <span>Sign in or register. Invite your own guests by email.</span>
+            </div>
+            <div class="auth-model-card">
+              <strong>Guest by Invitation</strong>
+              <span>Register via invite link/code and join as guest.</span>
+            </div>
+            <div class="auth-model-card">
+              <strong>Premium Guests</strong>
+              <span>Model pool access (coming soon).</span>
+            </div>
+          </div>
           <div class="login-overlay-row">
             <label for="accessUsername">Username</label>
             <input
@@ -212,6 +226,55 @@
       </div>
     </div>
 
+    <div
+      class="login-overlay"
+      id="adminUsersModal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="adminUsersModalTitle"
+    >
+      <div class="login-overlay-card auth-card-wide">
+        <h2 id="adminUsersModalTitle">Administrator: User Profiles</h2>
+        <p class="login-overlay-hint">
+          Review all registered accounts. You can edit display name, email, role, and admin rights.
+        </p>
+        <p class="status-line" id="adminUsersStatus"></p>
+        <div class="admin-users-table-wrap">
+          <table class="admin-users-table" id="adminUsersTable">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Status</th>
+                <th>Email</th>
+                <th>Display name</th>
+                <th>Role</th>
+                <th>Admin</th>
+                <th>Password</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="adminUsersTbody"></tbody>
+          </table>
+        </div>
+        <div class="admin-create-row">
+          <input type="text" id="adminCreateUsername" class="admin-input" placeholder="new username" />
+          <input type="email" id="adminCreateEmail" class="admin-input" placeholder="new email" />
+          <input type="password" id="adminCreatePassword" class="admin-input" placeholder="password (min 8)" />
+          <select id="adminCreateRole" class="admin-input">
+            <option value="guest">Guest</option>
+            <option value="host">Host</option>
+          </select>
+          <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsAdmin" /> Admin</label>
+          <button type="button" class="primary" id="adminUsersCreateBtn">Create</button>
+        </div>
+        <div class="row profile-mail-actions">
+          <button type="button" class="secondary" id="adminUsersRefreshBtn">Refresh</button>
+          <button type="button" id="adminUsersModalClose">Close</button>
+        </div>
+      </div>
+    </div>
+
      <header class="main-header">
       <div class="header-left">
           <a href="index.html" class="logo-link">
@@ -259,6 +322,10 @@
             <button type="button" class="account-dropdown-item" id="btnInviteByEmail" hidden role="menuitem">
               <i class="bi bi-envelope" aria-hidden="true"></i>
               <span>Invite guest</span>
+            </button>
+            <button type="button" class="account-dropdown-item" id="btnAdminUsers" hidden role="menuitem">
+              <i class="bi bi-people" aria-hidden="true"></i>
+              <span>All profiles (admin)</span>
             </button>
             <a href="settings.html" class="account-dropdown-item" role="menuitem">
               <i class="bi bi-gear" aria-hidden="true"></i>
@@ -700,18 +767,27 @@
       </section>
     </main>
 
-    <footer>
-      Technical demo — use only with consent of all participants. PeerJS uses public
-      signaling servers; use your own PeerServer in production. TURN ICE servers are
-      configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
+    <footer class="site-footer">
+      <div class="site-footer-links">
+        <a href="#" aria-disabled="true">DSGVO (coming soon)</a>
+        <a href="#" aria-disabled="true">Impressum (coming soon)</a>
+        <button type="button" class="linkish footer-admin-link" id="footerAdminUsersLink" hidden>
+          Administrator: All profiles
+        </button>
+      </div>
+      <p class="site-footer-note">
+        Technical demo — use only with consent of all participants. PeerJS uses public
+        signaling servers; use your own PeerServer in production. TURN ICE servers are
+        configurable in <code>assets/app.js</code> (replace placeholders with real credentials).
+      </p>
     </footer>
 
     <script src="assets/api-config.js?v=8425"></script>
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
-    <script src="assets/ui-shell.js?v=8425"></script>
+    <script src="assets/ui-shell.js?v=8434"></script>
     <script src="assets/app.js?v=8433"></script>
-    <script src="assets/auth.js?v=8433"></script>
+    <script src="assets/auth.js?v=8434"></script>
     <script src="assets/member-profile.js?v=8425"></script>
   </body>
 </html>

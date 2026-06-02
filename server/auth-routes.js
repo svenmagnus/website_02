@@ -305,6 +305,11 @@ function requireAdminAccount(req, res, next) {
   next();
 }
 
+function normalizeAccountType(value) {
+  const t = String(value || "").trim().toLowerCase();
+  return t === "host" ? "host" : "guest";
+}
+
 function validateUsername(username) {
   const u = String(username || "").trim();
   if (u.length < 3 || u.length > 24) return null;
@@ -791,7 +796,7 @@ authRouter.post("/profile/mail/test", requireAuth, requireAdminAccount, async (r
   }
 });
 
-authRouter.post("/invites", requireAuth, requireHostAccount, async (req, res) => {
+authRouter.post("/invites", requireAuth, async (req, res) => {
   const email = validateEmail(req.body?.email);
   if (!email) {
     return res.status(400).json({ ok: false, error: "invalid_email" });
@@ -803,6 +808,9 @@ authRouter.post("/invites", requireAuth, requireHostAccount, async (req, res) =>
   const createdAt = nowMs();
   const expiresAt = inviteExpiry();
   const db = getDb();
+
+  // Any logged-in user can invite; inviting makes/keeps the account a host.
+  db.prepare("UPDATE users SET account_type = 'host' WHERE id = ?").run(req.authUser.id);
 
   db.prepare(
     `INSERT INTO invites (token, email, host_user_id, invite_code_hash, created_at, expires_at)
@@ -845,6 +853,175 @@ authRouter.post("/invites", requireAuth, requireHostAccount, async (req, res) =>
     mailSource: mailResult.source || null,
     expiresAt,
   });
+});
+
+authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT id, username, email, display_name, account_type, is_admin, email_verified_at, created_at
+       FROM users
+       ORDER BY created_at ASC`
+    )
+    .all();
+  const users = rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    email: row.email || "",
+    displayName: row.display_name || row.username,
+    accountType: normalizeAccountType(row.account_type),
+    isAdmin: Boolean(row.is_admin),
+    emailVerified: Boolean(row.email_verified_at),
+    createdAt: row.created_at,
+  }));
+  res.json({ ok: true, users });
+});
+
+authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res) => {
+  const userId = String(req.params.id || "").trim();
+  if (!userId) {
+    return res.status(400).json({ ok: false, error: "invalid_user" });
+  }
+  const db = getDb();
+  const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  if (!existing) {
+    return res.status(404).json({ ok: false, error: "user_not_found" });
+  }
+
+  const displayName =
+    req.body?.displayName != null
+      ? String(req.body.displayName).trim().slice(0, 32) || existing.username
+      : existing.display_name;
+  const email =
+    req.body?.email != null ? validateEmail(req.body.email) : validateEmail(existing.email);
+  if (!email) {
+    return res.status(400).json({ ok: false, error: "invalid_email" });
+  }
+  const accountType =
+    req.body?.accountType != null
+      ? normalizeAccountType(req.body.accountType)
+      : normalizeAccountType(existing.account_type);
+  const isAdmin = req.body?.isAdmin != null ? (req.body.isAdmin ? 1 : 0) : Number(existing.is_admin || 0);
+  const password = req.body?.password != null ? String(req.body.password || "") : "";
+
+  if (existing.id === req.authUser.id && !isAdmin) {
+    return res.status(400).json({
+      ok: false,
+      error: "self_admin_required",
+      message: "You cannot remove your own admin role.",
+    });
+  }
+
+  const emailOwner = db
+    .prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE AND id != ?")
+    .get(email, existing.id);
+  if (emailOwner) {
+    return res.status(409).json({ ok: false, error: "email_taken" });
+  }
+
+  db.prepare(
+    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ? WHERE id = ?`
+  ).run(email, displayName, accountType, isAdmin, existing.id);
+
+  if (password) {
+    if (password.length < 8 || password.length > 128) {
+      return res.status(400).json({ ok: false, error: "invalid_password" });
+    }
+    const hash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
+    db.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`).run(hash, existing.id);
+  }
+
+  const updated = db
+    .prepare(
+      `SELECT id, username, email, display_name, account_type, is_admin, email_verified_at, created_at
+       FROM users WHERE id = ?`
+    )
+    .get(existing.id);
+  res.json({
+    ok: true,
+    user: {
+      id: updated.id,
+      username: updated.username,
+      email: updated.email || "",
+      displayName: updated.display_name || updated.username,
+      accountType: normalizeAccountType(updated.account_type),
+      isAdmin: Boolean(updated.is_admin),
+      emailVerified: Boolean(updated.email_verified_at),
+      createdAt: updated.created_at,
+    },
+  });
+});
+
+authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, res) => {
+  const username = validateUsername(req.body?.username);
+  const password = validatePassword(req.body?.password);
+  const email = validateEmail(req.body?.email);
+  const displayName = String(req.body?.displayName || username || "").trim().slice(0, 32) || username;
+  const accountType = normalizeAccountType(req.body?.accountType);
+  const isAdmin = req.body?.isAdmin ? 1 : 0;
+
+  if (!username || !password || !email) {
+    return res.status(400).json({ ok: false, error: "invalid_user_payload" });
+  }
+  const db = getDb();
+  const takenUser = db.prepare("SELECT id FROM users WHERE username = ? COLLATE NOCASE").get(username);
+  if (takenUser) return res.status(409).json({ ok: false, error: "username_taken" });
+  const takenEmail = db.prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE").get(email);
+  if (takenEmail) return res.status(409).json({ ok: false, error: "email_taken" });
+
+  const userId = randomUUID();
+  const createdAt = nowMs();
+  const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  db.prepare(
+    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at, account_type, is_admin)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    userId,
+    username,
+    hash,
+    email,
+    createdAt,
+    displayName,
+    "",
+    "",
+    "[]",
+    "[]",
+    "",
+    createdAt,
+    accountType,
+    isAdmin
+  );
+
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  res.status(201).json({
+    ok: true,
+    user: {
+      id: row.id,
+      username: row.username,
+      email: row.email || "",
+      displayName: row.display_name || row.username,
+      accountType: normalizeAccountType(row.account_type),
+      isAdmin: Boolean(row.is_admin),
+      emailVerified: Boolean(row.email_verified_at),
+      createdAt: row.created_at,
+    },
+  });
+});
+
+authRouter.delete("/admin/users/:id", requireAuth, requireAdminAccount, (req, res) => {
+  const userId = String(req.params.id || "").trim();
+  if (!userId) return res.status(400).json({ ok: false, error: "invalid_user" });
+  if (userId === req.authUser.id) {
+    return res.status(400).json({ ok: false, error: "cannot_delete_self" });
+  }
+  const db = getDb();
+  const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!existing) return res.status(404).json({ ok: false, error: "user_not_found" });
+  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+  db.prepare("DELETE FROM email_verifications WHERE user_id = ?").run(userId);
+  db.prepare("DELETE FROM invites WHERE used_by_user_id = ? OR host_user_id = ?").run(userId, userId);
+  db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  res.json({ ok: true });
 });
 
 authRouter.get("/auth/status", (_req, res) => {
