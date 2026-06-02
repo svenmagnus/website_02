@@ -823,7 +823,7 @@
     document.body.classList.toggle("account-guest", loggedIn && isAccountGuest());
 
     if (premiumSetupRow) {
-      premiumSetupRow.hidden = loggedIn && isAccountHost();
+      premiumSetupRow.hidden = !(loggedIn && isAccountHost() && !isPremium());
     }
     if (premiumSetupBtn instanceof HTMLButtonElement) {
       if (loggedIn && isAccountGuest()) {
@@ -835,11 +835,11 @@
       }
     }
     if (premiumSetupHint) {
-      if (!loggedIn) {
-        premiumSetupHint.textContent = "Sign in to join a session. Invited? Use the account from your email.";
-      } else if (isAccountGuest()) {
+      if (loggedIn && isAccountGuest()) {
         premiumSetupHint.textContent =
           "You have a guest account — use Connect to Host. Premium (coming soon) will unlock hosting and invites.";
+      } else if (loggedIn && isAccountHost() && !isPremium()) {
+        premiumSetupHint.textContent = "Upgrade to Premium to unlock future host premium tools.";
       } else {
         premiumSetupHint.textContent = "";
       }
@@ -1030,7 +1030,7 @@
           <option value="host"${user.accountType === "host" ? " selected" : ""}>Host</option>
         </select>
       </td>
-      <td><input type="checkbox" data-field="isPremium"${user.isPremium ? " checked" : ""} /></td>
+      <td><input type="checkbox" data-field="isPremium" disabled${user.isPremium ? " checked" : ""} /></td>
       <td><input type="checkbox" data-field="isModel"${user.isModel ? " checked" : ""} /></td>
       <td><input type="checkbox" data-field="isAdmin"${user.isAdmin ? " checked" : ""} /></td>
       <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" /></td>
@@ -1104,7 +1104,6 @@
         const password = document.getElementById("adminCreatePassword")?.value || "";
         const accountType = document.getElementById("adminCreateRole")?.value || "guest";
         const isAdminChecked = Boolean(document.getElementById("adminCreateIsAdmin")?.checked);
-        const isPremiumChecked = Boolean(document.getElementById("adminCreateIsPremium")?.checked);
         const isModelChecked = Boolean(document.getElementById("adminCreateIsModel")?.checked);
         setStatus("Creating user…");
         try {
@@ -1113,7 +1112,6 @@
             email,
             password,
             accountType,
-            isPremium: isPremiumChecked,
             isModel: isModelChecked,
             isAdmin: isAdminChecked,
           });
@@ -1121,7 +1119,6 @@
           document.getElementById("adminCreateUsername").value = "";
           document.getElementById("adminCreateEmail").value = "";
           document.getElementById("adminCreatePassword").value = "";
-          document.getElementById("adminCreateIsPremium").checked = false;
           document.getElementById("adminCreateIsModel").checked = false;
           await load();
         } catch (err) {
@@ -1146,14 +1143,12 @@
       const emailEl = tr.querySelector('[data-field="email"]');
       const displayNameEl = tr.querySelector('[data-field="displayName"]');
       const accountTypeEl = tr.querySelector('[data-field="accountType"]');
-      const isPremiumEl = tr.querySelector('[data-field="isPremium"]');
       const isModelEl = tr.querySelector('[data-field="isModel"]');
       const isAdminEl = tr.querySelector('[data-field="isAdmin"]');
       const patch = {
         email: emailEl?.value,
         displayName: displayNameEl?.value,
         accountType: accountTypeEl?.value,
-        isPremium: Boolean(isPremiumEl?.checked),
         isModel: Boolean(isModelEl?.checked),
         isAdmin: Boolean(isAdminEl?.checked),
         password: tr.querySelector('[data-field="password"]')?.value || "",

@@ -2580,6 +2580,32 @@ function appendChatTechniqueMessage(sender, label, isLocal, ts) {
   appendChatMessage(isLocal ? "You" : sender, text, isLocal, ts, { variant: "technique" });
 }
 
+let techniqueBellCtx = null;
+function playTechniqueBell() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!techniqueBellCtx) techniqueBellCtx = new Ctx();
+    const ctx = techniqueBellCtx;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(840, now);
+    osc.frequency.exponentialRampToValueAtTime(660, now + 0.2);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.028, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.24);
+  } catch (_) {
+    /* ignore audio errors */
+  }
+}
+
 function getChatDisplayName() {
   if (global.MemberProfile?.getChatSenderName) return MemberProfile.getChatSenderName();
   return sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You";
@@ -3360,6 +3386,7 @@ function initMemberProfileBridge() {
   window.addEventListener("dualpeer-technique-request-incoming", (e) => {
     const { label, fromName, ts } = e.detail || {};
     appendChatTechniqueMessage(fromName, label, false, ts);
+    playTechniqueBell();
   });
   window.addEventListener("dualpeer-profile-share-request", () => {
     shareMemberProfileOverDataChannel();

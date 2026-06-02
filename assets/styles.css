@@ -2384,7 +2384,7 @@ footer {
 
 .admin-create-row {
   display: grid;
-  grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr auto auto auto auto;
+  grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr auto auto auto;
   gap: 0.45rem;
   align-items: center;
   margin-bottom: 0.7rem;

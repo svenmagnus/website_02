@@ -1057,8 +1057,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       ? normalizeAccountType(req.body.accountType)
       : normalizeAccountType(existing.account_type);
   const isAdmin = req.body?.isAdmin != null ? (req.body.isAdmin ? 1 : 0) : Number(existing.is_admin || 0);
-  const isPremium =
-    req.body?.isPremium != null ? (req.body.isPremium ? 1 : 0) : Number(existing.is_premium || 0);
+  const isPremium = isAdmin ? 1 : Number(existing.is_premium || 0);
   const isModel = req.body?.isModel != null ? (req.body.isModel ? 1 : 0) : Number(existing.is_model || 0);
   const password = req.body?.password != null ? String(req.body.password || "") : "";
 
@@ -1119,7 +1118,7 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
   const displayName = String(req.body?.displayName || username || "").trim().slice(0, 32) || username;
   const accountType = normalizeAccountType(req.body?.accountType);
   const isAdmin = req.body?.isAdmin ? 1 : 0;
-  const isPremium = req.body?.isPremium ? 1 : 0;
+  const isPremium = isAdmin ? 1 : 0;
   const isModel = req.body?.isModel ? 1 : 0;
 
   if (!username || !password || !email) {
