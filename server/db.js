@@ -128,6 +128,54 @@ function runMigrations(database) {
   if (!userColsAfter.includes("is_model")) {
     database.exec(`ALTER TABLE users ADD COLUMN is_model INTEGER NOT NULL DEFAULT 0`);
   }
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS chat_threads (
+      id TEXT PRIMARY KEY,
+      user_low_id TEXT NOT NULL,
+      user_high_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_low_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_high_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE (user_low_id, user_high_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      sender_user_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'text',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (thread_id) REFERENCES chat_threads(id) ON DELETE CASCADE,
+      FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS meetings (
+      id TEXT PRIMARY KEY,
+      host_user_id TEXT NOT NULL,
+      guest_user_id TEXT,
+      thread_id TEXT,
+      mode TEXT NOT NULL DEFAULT 'instant'
+        CHECK (mode IN ('instant', 'scheduled')),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'scheduled', 'live', 'completed', 'cancelled')),
+      host_peer_id TEXT NOT NULL DEFAULT '',
+      scheduled_start_at INTEGER,
+      scheduled_end_at INTEGER,
+      calendar_url TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (guest_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (thread_id) REFERENCES chat_threads(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_meetings_host ON meetings(host_user_id);
+    CREATE INDEX IF NOT EXISTS idx_meetings_guest ON meetings(guest_user_id);
+  `);
+
   backfillAccountRoles(database);
 }
 

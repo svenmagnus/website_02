@@ -4,6 +4,7 @@ import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { getDb } from "./db.js";
 import { encryptSecret } from "./smtp-crypto.js";
+import { linkInviteHostToGuest } from "./social-routes.js";
 import {
   getAppPublicUrl,
   hashInviteCode,
@@ -576,6 +577,13 @@ authRouter.post("/auth/register", async (req, res) => {
       userId,
       invite.token
     );
+    const guestName =
+      String(invite.guest_name || "").trim() || displayName || username;
+    try {
+      linkInviteHostToGuest(db, invite.host_user_id, userId, guestName);
+    } catch (err) {
+      console.error("[social] link invite host/guest failed:", err);
+    }
   }
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
@@ -1266,6 +1274,11 @@ authRouter.delete("/admin/users/:id", requireAuth, requireAdminAccount, (req, re
   db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
   db.prepare("DELETE FROM email_verifications WHERE user_id = ?").run(userId);
   db.prepare("DELETE FROM invites WHERE used_by_user_id = ? OR host_user_id = ?").run(userId, userId);
+  db.prepare(
+    "DELETE FROM chat_messages WHERE thread_id IN (SELECT id FROM chat_threads WHERE user_low_id = ? OR user_high_id = ?)"
+  ).run(userId, userId);
+  db.prepare("DELETE FROM chat_threads WHERE user_low_id = ? OR user_high_id = ?").run(userId, userId);
+  db.prepare("DELETE FROM meetings WHERE host_user_id = ? OR guest_user_id = ?").run(userId, userId);
   const hasBookings = db
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'bookings'")
     .get();

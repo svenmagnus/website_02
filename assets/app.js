@@ -2638,7 +2638,11 @@ function handleIncomingChatPayload(data) {
   const text = String(data.text || "").trim();
   if (!text) return;
   const sender = String(data.sender || "Partner");
-  appendChatMessage(sender, text, false, data.ts);
+  if (global.DualPeerSocial?.appendLocalEcho) {
+    global.DualPeerSocial.appendLocalEcho(text, sender);
+  } else {
+    appendChatMessage(sender, text, false, data.ts);
+  }
 }
 
 function normalizeDataPayload(raw) {
@@ -2740,6 +2744,35 @@ function handleIncomingDataMessage(raw) {
   setDataActivityStatus("Unknown data message received.", "err");
 }
 
+function publishHostPeerIdToGuest(peerId) {
+  if (!peerId || !global.DualPeerSocial?.publishHostPeerId) return;
+  const meetingId = global.DualPeerSocial.getActiveLiveMeetingId?.();
+  if (meetingId) {
+    global.DualPeerSocial.publishHostPeerId(meetingId, peerId).catch((err) => {
+      console.warn("[social] publish peer id failed:", err);
+    });
+  }
+}
+
+function relayChatToPeer(text, sender) {
+  const payload = {
+    type: "chat",
+    text,
+    sender: sender || getChatDisplayName(),
+    ts: Date.now(),
+  };
+  try {
+    sendDataChannelMessage(payload);
+    setDataActivityStatus("Chat message sent.", "ok");
+  } catch (e) {
+    setDataActivityStatus("Chat send failed: " + (e && e.message ? e.message : String(e)), "err");
+  }
+}
+
+global.DualPeerChat = {
+  relayToPeer: (text) => relayChatToPeer(text, getChatDisplayName()),
+};
+
 function sendChatMessage() {
   if (!els.chatInput || !els.chatMessages) {
     setDataActivityStatus("Chat UI not ready (#chat-input / #chat-messages).", "err");
@@ -2749,27 +2782,23 @@ function sendChatMessage() {
   if (!text) return;
 
   const sender = getChatDisplayName();
-  const payload = {
-    type: "chat",
-    text,
-    sender,
-    ts: Date.now(),
-  };
+  const ts = Date.now();
 
-  appendChatMessage("You", text, true, payload.ts);
+  if (global.DualPeerSocial?.sendPersistentMessage) {
+    global.DualPeerSocial.sendPersistentMessage(text).catch(() => {
+      global.DualPeerSocial?.appendLocalEcho?.(text, sender);
+    });
+  } else {
+    appendChatMessage("You", text, true, ts);
+  }
+
   els.chatInput.value = "";
   els.chatInput.focus();
 
-  if (!dataConn || !dataConn.open) {
-    setDataActivityStatus("Message shown locally — connect to send to partner.", "err");
-    return;
-  }
-
-  try {
-    sendDataChannelMessage(payload);
-    setDataActivityStatus("Chat message sent.", "ok");
-  } catch (e) {
-    setDataActivityStatus("Chat send failed: " + (e && e.message ? e.message : String(e)), "err");
+  if (dataConn?.open) {
+    relayChatToPeer(text, sender);
+  } else {
+    setDataActivityStatus("Saved to your contact chat — connect live to reach partner instantly.", "ok");
   }
 }
 
@@ -3282,6 +3311,7 @@ els.btnStartHost.addEventListener("click", async () => {
       els.peerIdOut.textContent = id;
       setupPeerHandlers();
       els.btnStartHost.disabled = true;
+      publishHostPeerIdToGuest(id);
 
       try {
         if (whipMode) {

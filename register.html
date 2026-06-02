@@ -14,7 +14,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Create Account — Tangent Club</title>
-    <link rel="stylesheet" href="assets/styles.css?v=8430" />
+    <link rel="stylesheet" href="assets/styles.css?v=8445" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   </head>
   <body class="auth-page">
@@ -23,8 +23,21 @@
         <img src="assets/logo.png" alt="Tangent-Club Logo" class="site-logo site-logo--theme-dark" />
         <img src="assets/logo-light.svg" alt="Tangent-Club Logo" class="site-logo site-logo--theme-light" />
       </a>
-      <div class="login-overlay-card auth-card">
+      <div class="login-overlay-card auth-card auth-card-wide">
         <h1>Create Account</h1>
+        <div class="tangent-about-box tangent-about-box--register">
+          <h2 class="tangent-about-title">Welcome to Tangent Club</h2>
+          <p class="status-line tangent-about-text">
+            Tangent Club is a <strong>private video lounge</strong> for invited guests and hosts — not an open erotic
+            portal. You were invited to a <strong>1:1 session</strong> with someone you know. After registration you can
+            <strong>chat with your host</strong> (messages stay saved) and join the stream when they share a
+            <strong>Host Peer ID</strong> with you.
+          </p>
+          <p class="status-line tangent-about-text">
+            Unlike typical adult sites there is no public model list, no anonymous browsing, and no open chat rooms —
+            only your connection, optional Lovense toy control, and technique requests during a private stream.
+          </p>
+        </div>
         <p class="status-line" id="registerApiStatus" hidden></p>
         <p class="status-line" id="registerInviteInfo"></p>
         <input type="hidden" id="registerInviteToken" value="" />
@@ -99,6 +112,6 @@
     <script src="assets/api-config.js?v=8428"></script>
     <script src="assets/ui-shell.js?v=8428"></script>
     <script src="assets/app.js?v=8428"></script>
-    <script src="assets/auth.js?v=8443"></script>
+    <script src="assets/auth.js?v=8445"></script>
   </body>
 </html>

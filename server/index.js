@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { initDb } from "./db.js";
 import { authRouter } from "./auth-routes.js";
+import { socialRouter } from "./social-routes.js";
 import { WhipReceiver } from "@werift/whip-server";
 import {
   RTCPeerConnection,
@@ -673,6 +674,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api", authRouter);
+app.use("/api", socialRouter);
 
 app.post("/api/broadcast/register", (req, res) => {
   const peerId = typeof req.body?.peerId === "string" ? req.body.peerId.trim() : "";

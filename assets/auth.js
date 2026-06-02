@@ -88,6 +88,7 @@
   function userToProfile(user) {
     if (!user) return null;
     return {
+      id: user.id,
       displayName: user.displayName || user.username || "Guest",
       gender: user.gender || "",
       bio: user.bio || "",
@@ -1705,6 +1706,7 @@
 
   global.DualPeerAuth = {
     PRESET_TECHNIQUES,
+    api,
     resolveApiBase,
     isLoggedIn,
     isAccountHost,

@@ -2499,6 +2499,212 @@ footer {
   flex: 1 1 12rem;
 }
 
+.tangent-about-box {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+}
+
+.tangent-about-box--register {
+  margin-bottom: 1rem;
+}
+
+.tangent-about-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tangent-about-text {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.peer-id-help-box {
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.9rem;
+  border-left: 3px solid var(--accent);
+  background: var(--bg);
+  border-radius: 0 8px 8px 0;
+}
+
+.peer-id-help-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.88rem;
+}
+
+.peer-id-help-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.header-chat-wrap {
+  position: relative;
+}
+
+.header-chat-popover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 120;
+  width: min(92vw, 360px);
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.header-chat-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.header-chat-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.header-chat-hint {
+  font-size: 0.72rem;
+  margin: 0 0 0.45rem;
+}
+
+.chat-messages--compact {
+  max-height: 220px;
+  min-height: 120px;
+}
+
+.chat-message--system {
+  opacity: 0.92;
+  border-left: 2px solid var(--accent);
+  padding-left: 0.45rem;
+}
+
+.chat-message--system .chat-text {
+  white-space: pre-wrap;
+}
+
+.chat-card-sub {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.chat-card-head {
+  cursor: pointer;
+}
+
+.meeting-menu-wrap {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.meeting-guest-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.meeting-menu-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.meeting-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 50;
+  min-width: 260px;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.meeting-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.meeting-menu button:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.meeting-schedule-input {
+  max-width: 16rem;
+}
+
+.meeting-list-item {
+  font-size: 0.78rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.meeting-peer-id {
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+.meeting-cal-link {
+  font-size: 0.75rem;
+}
+
+.chat-empty-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 0.5rem;
+}
+
+body.chat-popup-view .main-header,
+body.chat-popup-view .stage-shell > *:not(.layout-cb),
+body.chat-popup-view .layout-cb > *:not(#chatCard),
+body.chat-popup-view .controls-span-all,
+body.chat-popup-view .login-overlay {
+  display: none !important;
+}
+
+body.chat-popup-view #chatCard {
+  margin: 0.5rem;
+  max-width: none;
+}
+
+body.chat-popup-view .layout-cb {
+  display: block;
+  min-height: 100vh;
+}
+
 .admin-create-row {
   display: grid;
   grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr auto auto auto;
