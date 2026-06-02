@@ -110,6 +110,9 @@ function runMigrations(database) {
   if (!userColsAfter.includes("is_premium")) {
     database.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER NOT NULL DEFAULT 0`);
   }
+  if (!userColsAfter.includes("is_model")) {
+    database.exec(`ALTER TABLE users ADD COLUMN is_model INTEGER NOT NULL DEFAULT 0`);
+  }
   backfillAccountRoles(database);
 }
 

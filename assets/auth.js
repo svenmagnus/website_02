@@ -98,6 +98,7 @@
       accountType: user.accountType === "host" ? "host" : "guest",
       isAdmin: Boolean(user.isAdmin),
       isPremium: Boolean(user.isPremium),
+      isModel: Boolean(user.isModel),
     };
   }
 
@@ -132,6 +133,8 @@
       displayName: profile.displayName,
       accountType: profile.accountType,
       isAdmin: profile.isAdmin,
+      isPremium: profile.isPremium,
+      isModel: profile.isModel,
     });
   }
 
@@ -547,6 +550,19 @@
 
   async function deleteAdminUser(userId) {
     return api(`/api/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+  }
+
+  async function fetchPremiumModels() {
+    return api("/api/models/premium");
+  }
+
+  async function bookModel(payload, options = {}) {
+    return api("/api/book-model", {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+      timeoutMs: 15000,
+      ...options,
+    });
   }
 
   function readMailFormPayload() {
@@ -1008,6 +1024,7 @@
         </select>
       </td>
       <td><input type="checkbox" data-field="isPremium"${user.isPremium ? " checked" : ""} /></td>
+      <td><input type="checkbox" data-field="isModel"${user.isModel ? " checked" : ""} /></td>
       <td><input type="checkbox" data-field="isAdmin"${user.isAdmin ? " checked" : ""} /></td>
       <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" /></td>
       <td class="admin-actions-cell"><button type="button" class="secondary admin-save-btn">Save</button> <button type="button" class="admin-delete-btn">Delete</button></td>
@@ -1081,6 +1098,7 @@
         const accountType = document.getElementById("adminCreateRole")?.value || "guest";
         const isAdminChecked = Boolean(document.getElementById("adminCreateIsAdmin")?.checked);
         const isPremiumChecked = Boolean(document.getElementById("adminCreateIsPremium")?.checked);
+        const isModelChecked = Boolean(document.getElementById("adminCreateIsModel")?.checked);
         setStatus("Creating user…");
         try {
           await createAdminUser({
@@ -1089,6 +1107,7 @@
             password,
             accountType,
             isPremium: isPremiumChecked,
+            isModel: isModelChecked,
             isAdmin: isAdminChecked,
           });
           setStatus(`Created ${username}.`, "ok");
@@ -1096,6 +1115,7 @@
           document.getElementById("adminCreateEmail").value = "";
           document.getElementById("adminCreatePassword").value = "";
           document.getElementById("adminCreateIsPremium").checked = false;
+          document.getElementById("adminCreateIsModel").checked = false;
           await load();
         } catch (err) {
           setStatus(err.message || "Create failed.", "err");
@@ -1120,12 +1140,14 @@
       const displayNameEl = tr.querySelector('[data-field="displayName"]');
       const accountTypeEl = tr.querySelector('[data-field="accountType"]');
       const isPremiumEl = tr.querySelector('[data-field="isPremium"]');
+      const isModelEl = tr.querySelector('[data-field="isModel"]');
       const isAdminEl = tr.querySelector('[data-field="isAdmin"]');
       const patch = {
         email: emailEl?.value,
         displayName: displayNameEl?.value,
         accountType: accountTypeEl?.value,
         isPremium: Boolean(isPremiumEl?.checked),
+        isModel: Boolean(isModelEl?.checked),
         isAdmin: Boolean(isAdminEl?.checked),
         password: tr.querySelector('[data-field="password"]')?.value || "",
       };
@@ -1624,6 +1646,8 @@
     fetchProfile,
     updateProfile,
     sendInvite,
+    fetchPremiumModels,
+    bookModel,
     validateInviteToken,
     fetchMailSettings,
     saveMailSettings,

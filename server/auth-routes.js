@@ -61,6 +61,10 @@ function isPremiumAccount(row) {
   return Boolean(row?.is_premium);
 }
 
+function isModelAccount(row) {
+  return Boolean(row?.is_model);
+}
+
 function isDevLoginFallback(username, password) {
   if (!DEV_LOGIN_FALLBACK_ENABLED) return false;
   return (
@@ -191,6 +195,7 @@ function rowToProfile(row) {
     accountType: isHostAccount(row) ? "host" : "guest",
     isAdmin: isAdminAccount(row),
     isPremium: isPremiumAccount(row),
+    isModel: isModelAccount(row),
   };
 }
 
@@ -314,6 +319,19 @@ function requireAdminAccount(req, res, next) {
 function normalizeAccountType(value) {
   const t = String(value || "").trim().toLowerCase();
   return t === "host" ? "host" : "guest";
+}
+
+function normalizeCurrency(value) {
+  const c = String(value || "EUR").trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(c)) return null;
+  return c;
+}
+
+function normalizeAmountMinor(value, fallback = 0) {
+  if (value == null || value === "") return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) return null;
+  return n;
 }
 
 function validateUsername(username) {
@@ -863,11 +881,138 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
   });
 });
 
+authRouter.get("/models/premium", requireAuth, (req, res) => {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT id, username, display_name, account_type, is_premium, is_admin, is_model
+       FROM users
+       WHERE is_premium = 1 AND is_model = 1 AND id != ?
+       ORDER BY created_at ASC`
+    )
+    .all(req.authUser.id);
+
+  const models = rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name || row.username,
+    accountType: normalizeAccountType(row.account_type),
+    isPremium: Boolean(row.is_premium),
+    isAdmin: Boolean(row.is_admin),
+    isModel: Boolean(row.is_model),
+    online: false,
+    availabilityText: "Availability calendar coming soon",
+  }));
+
+  return res.json({ ok: true, models });
+});
+
+authRouter.post("/book-model", requireAuth, (req, res) => {
+  const db = getDb();
+  const guestUserId = req.authUser.id;
+  const modelUserId = String(req.body?.modelUserId || "").trim();
+  const scheduledStartAt = Number(req.body?.scheduledStartAt);
+  const scheduledEndAt = Number(req.body?.scheduledEndAt);
+  const currency = normalizeCurrency(req.body?.currency || "EUR");
+  const totalAmountMinor = normalizeAmountMinor(req.body?.totalAmountMinor, 0);
+  const platformFeeMinor = normalizeAmountMinor(req.body?.platformFeeMinor, 0);
+  const modelPayoutMinor = normalizeAmountMinor(req.body?.modelPayoutMinor, 0);
+  const guestNote = String(req.body?.guestNote || "").trim().slice(0, 1000);
+
+  if (!modelUserId) {
+    return res.status(400).json({ ok: false, error: "invalid_model_user" });
+  }
+  if (modelUserId === guestUserId) {
+    return res.status(400).json({ ok: false, error: "invalid_booking_self" });
+  }
+  if (!Number.isFinite(scheduledStartAt) || !Number.isFinite(scheduledEndAt)) {
+    return res.status(400).json({ ok: false, error: "invalid_schedule" });
+  }
+  if (scheduledEndAt <= scheduledStartAt) {
+    return res.status(400).json({ ok: false, error: "invalid_schedule_range" });
+  }
+  if (!currency) {
+    return res.status(400).json({ ok: false, error: "invalid_currency" });
+  }
+  if (totalAmountMinor == null || platformFeeMinor == null || modelPayoutMinor == null) {
+    return res.status(400).json({ ok: false, error: "invalid_amount" });
+  }
+
+  const model = db
+    .prepare("SELECT id, username, display_name, is_premium FROM users WHERE id = ?")
+    .get(modelUserId);
+  if (!model) {
+    return res.status(404).json({ ok: false, error: "model_not_found" });
+  }
+
+  const bookingId = randomUUID();
+  const now = nowMs();
+  db.prepare(
+    `INSERT INTO bookings (
+      id, guest_user_id, model_user_id, status, currency,
+      total_amount_minor, platform_fee_minor, model_payout_minor,
+      escrow_status, escrow_reference,
+      scheduled_start_at, scheduled_end_at, started_at, ended_at,
+      guest_note, model_note, cancel_reason, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    bookingId,
+    guestUserId,
+    modelUserId,
+    "pending",
+    currency,
+    totalAmountMinor,
+    platformFeeMinor,
+    modelPayoutMinor,
+    "not_funded",
+    null,
+    Math.trunc(scheduledStartAt),
+    Math.trunc(scheduledEndAt),
+    null,
+    null,
+    guestNote,
+    "",
+    "",
+    now,
+    now
+  );
+
+  const created = db
+    .prepare(
+      `SELECT id, guest_user_id, model_user_id, status, currency,
+              total_amount_minor, platform_fee_minor, model_payout_minor,
+              escrow_status, scheduled_start_at, scheduled_end_at, created_at
+       FROM bookings WHERE id = ?`
+    )
+    .get(bookingId);
+
+  return res.status(201).json({
+    ok: true,
+    message: "Booking request sent successfully.",
+    booking: {
+      id: created.id,
+      guestUserId: created.guest_user_id,
+      modelUserId: created.model_user_id,
+      modelName: model.display_name || model.username || "Model",
+      modelIsPremium: Boolean(model.is_premium),
+      status: created.status,
+      currency: created.currency,
+      totalAmountMinor: created.total_amount_minor,
+      platformFeeMinor: created.platform_fee_minor,
+      modelPayoutMinor: created.model_payout_minor,
+      escrowStatus: created.escrow_status,
+      scheduledStartAt: created.scheduled_start_at,
+      scheduledEndAt: created.scheduled_end_at,
+      createdAt: created.created_at,
+    },
+  });
+});
+
 authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, email_verified_at, created_at
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, email_verified_at, created_at
        FROM users
        ORDER BY created_at ASC`
     )
@@ -880,6 +1025,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
     accountType: normalizeAccountType(row.account_type),
     isAdmin: Boolean(row.is_admin),
     isPremium: Boolean(row.is_premium),
+    isModel: Boolean(row.is_model),
     emailVerified: Boolean(row.email_verified_at),
     createdAt: row.created_at,
   }));
@@ -913,6 +1059,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   const isAdmin = req.body?.isAdmin != null ? (req.body.isAdmin ? 1 : 0) : Number(existing.is_admin || 0);
   const isPremium =
     req.body?.isPremium != null ? (req.body.isPremium ? 1 : 0) : Number(existing.is_premium || 0);
+  const isModel = req.body?.isModel != null ? (req.body.isModel ? 1 : 0) : Number(existing.is_model || 0);
   const password = req.body?.password != null ? String(req.body.password || "") : "";
 
   if (existing.id === req.authUser.id && !isAdmin) {
@@ -931,8 +1078,8 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   }
 
   db.prepare(
-    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ? WHERE id = ?`
-  ).run(email, displayName, accountType, isAdmin, isPremium, existing.id);
+    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ? WHERE id = ?`
+  ).run(email, displayName, accountType, isAdmin, isPremium, isModel, existing.id);
 
   if (password) {
     if (password.length < 8 || password.length > 128) {
@@ -944,7 +1091,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
 
   const updated = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, email_verified_at, created_at
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, email_verified_at, created_at
        FROM users WHERE id = ?`
     )
     .get(existing.id);
@@ -958,6 +1105,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       accountType: normalizeAccountType(updated.account_type),
       isAdmin: Boolean(updated.is_admin),
       isPremium: Boolean(updated.is_premium),
+      isModel: Boolean(updated.is_model),
       emailVerified: Boolean(updated.email_verified_at),
       createdAt: updated.created_at,
     },
@@ -972,6 +1120,7 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
   const accountType = normalizeAccountType(req.body?.accountType);
   const isAdmin = req.body?.isAdmin ? 1 : 0;
   const isPremium = req.body?.isPremium ? 1 : 0;
+  const isModel = req.body?.isModel ? 1 : 0;
 
   if (!username || !password || !email) {
     return res.status(400).json({ ok: false, error: "invalid_user_payload" });
@@ -986,8 +1135,8 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
   const createdAt = nowMs();
   const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   db.prepare(
-    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at, account_type, is_admin, is_premium)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at, account_type, is_admin, is_premium, is_model)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     userId,
     username,
@@ -1003,7 +1152,8 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
     createdAt,
     accountType,
     isAdmin,
-    isPremium
+    isPremium,
+    isModel
   );
 
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
@@ -1017,6 +1167,7 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
       accountType: normalizeAccountType(row.account_type),
       isAdmin: Boolean(row.is_admin),
       isPremium: Boolean(row.is_premium),
+      isModel: Boolean(row.is_model),
       emailVerified: Boolean(row.email_verified_at),
       createdAt: row.created_at,
     },

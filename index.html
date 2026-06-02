@@ -262,6 +262,7 @@
                 <th>Display name</th>
                 <th>Role</th>
                 <th>Premium</th>
+                <th>Model</th>
                 <th>Admin</th>
                 <th>Password</th>
                 <th></th>
@@ -279,6 +280,7 @@
             <option value="host">Host</option>
           </select>
           <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsPremium" /> Premium</label>
+          <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsModel" /> Model</label>
           <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsAdmin" /> Admin</label>
           <button type="button" class="primary" id="adminUsersCreateBtn">Create</button>
         </div>
@@ -762,24 +764,8 @@
             <p class="status-line" style="margin: 0 0 0.5rem">
               Browse premium models and send a session request. Models can define future availability windows.
             </p>
-            <div id="modelPoolList" class="model-pool-grid">
-              <div class="model-card">
-                <strong>Anna Blaze</strong>
-                <span>Online now · Couples sessions</span>
-                <button type="button" class="secondary model-request-btn" data-model-name="Anna Blaze">Request session</button>
-              </div>
-              <div class="model-card">
-                <strong>Sophia V</strong>
-                <span>Available today 18:00-23:00</span>
-                <button type="button" class="secondary model-request-btn" data-model-name="Sophia V">Request session</button>
-              </div>
-              <div class="model-card">
-                <strong>Jade River</strong>
-                <span>Online now · Roleplay focus</span>
-                <button type="button" class="secondary model-request-btn" data-model-name="Jade River">Request session</button>
-              </div>
-            </div>
-            <p class="status-line" id="modelPoolStatus">No request sent yet.</p>
+            <div id="modelPoolList" class="model-pool-grid"></div>
+            <p class="status-line" id="modelPoolStatus">Sign in to load premium models.</p>
           </div>
         </div>
         </div>

@@ -2336,7 +2336,7 @@ footer {
 .admin-users-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1120px;
+  min-width: 1200px;
 }
 
 .admin-users-table th,
@@ -2361,7 +2361,7 @@ footer {
 
 .admin-create-row {
   display: grid;
-  grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr auto auto auto;
+  grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr auto auto auto auto;
   gap: 0.45rem;
   align-items: center;
   margin-bottom: 0.7rem;
