@@ -1489,11 +1489,15 @@
     const freeHostBtn = document.getElementById("authModelFreeHost");
     const guestInviteBtn = document.getElementById("authModelGuestInvite");
     const premiumGuestBtn = document.getElementById("authModelPremiumGuest");
-    const inviteCodeRow = inviteCodeEl?.closest?.(".login-overlay-row");
+    const inviteCodeRow = document.getElementById("accessInviteCodeRow");
 
     const setAccessModelUi = (mode) => {
       if (!inviteCodeRow) return;
-      inviteCodeRow.hidden = mode !== "guestInvite";
+      const showInviteCode = mode === "guestInvite";
+      inviteCodeRow.hidden = !showInviteCode;
+      if (!showInviteCode && inviteCodeEl instanceof HTMLInputElement) {
+        inviteCodeEl.value = "";
+      }
     };
 
     setAccessModelUi("freeHost");
