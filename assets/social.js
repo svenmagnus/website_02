@@ -11,7 +11,10 @@
     messages: [],
     loaded: false,
     calendar: { configured: false, connected: false, email: "" },
+    renderFingerprint: null,
   };
+
+  let chatBroadcastChannel = null;
 
   function api(path, options = {}) {
     if (!global.DualPeerAuth?.api) {
@@ -37,7 +40,38 @@
     return document.querySelectorAll("[data-chat-pane]");
   }
 
-  function renderMessages() {
+  function messagesFingerprint(messages) {
+    return (messages || [])
+      .map((m) => `${m.id}:${m.createdAt}:${m.body}`)
+      .join("\n");
+  }
+
+  function sortMessages(messages) {
+    return [...messages].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+
+  function mergeMessages(existing, incoming) {
+    const byId = new Map();
+    for (const m of existing || []) {
+      if (m?.id) byId.set(m.id, m);
+    }
+    for (const m of incoming || []) {
+      if (m?.id) byId.set(m.id, m);
+    }
+    return sortMessages([...byId.values()]);
+  }
+
+  function setMessages(next, { skipBroadcast = false } = {}) {
+    const merged = sortMessages(next || []);
+    const fp = messagesFingerprint(merged);
+    if (fp === state.renderFingerprint) return false;
+    state.messages = merged;
+    state.renderFingerprint = fp;
+    renderMessages({ skipBroadcast });
+    return true;
+  }
+
+  function renderMessages({ skipBroadcast = false } = {}) {
     const uid = getSessionUserId();
     getPanes().forEach((pane) => {
       pane.replaceChildren();
@@ -55,7 +89,7 @@
       }
       pane.scrollTop = pane.scrollHeight;
     });
-    broadcastSync();
+    if (!skipBroadcast) broadcastSync();
   }
 
   function buildMessageEl(m, uid) {
@@ -80,35 +114,56 @@
 
   function broadcastSync() {
     try {
-      const bc = new BroadcastChannel(CHAT_CHANNEL);
-      bc.postMessage({ type: "sync", messages: state.messages, threadId: state.threadId });
-      bc.close();
-    } catch (_) {
-      /* ignore */
-    }
-  }
-
-  function listenBroadcast() {
-    try {
-      const bc = new BroadcastChannel(CHAT_CHANNEL);
-      bc.addEventListener("message", (ev) => {
-        if (ev.data?.type !== "sync" || !Array.isArray(ev.data.messages)) return;
-        if (ev.data.threadId !== state.threadId) return;
-        state.messages = ev.data.messages;
-        renderMessages();
+      const bc = getChatBroadcastChannel();
+      if (!bc) return;
+      bc.postMessage({
+        type: "sync",
+        messages: state.messages,
+        threadId: state.threadId,
+        fingerprint: state.renderFingerprint,
+        sourceId: global.__dualpeerTabId,
       });
     } catch (_) {
       /* ignore */
     }
   }
 
+  function onChatBroadcastMessage(ev) {
+    const data = ev.data;
+    if (data?.type !== "sync" || !Array.isArray(data.messages)) return;
+    if (data.sourceId && data.sourceId === global.__dualpeerTabId) return;
+    if (data.threadId && state.threadId && data.threadId !== state.threadId) return;
+    if (data.fingerprint && data.fingerprint === state.renderFingerprint) return;
+    state.threadId = data.threadId || state.threadId;
+    state.renderFingerprint = data.fingerprint || messagesFingerprint(data.messages);
+    state.messages = sortMessages(data.messages);
+    renderMessages({ skipBroadcast: true });
+  }
+
+  function getChatBroadcastChannel() {
+    if (chatBroadcastChannel) return chatBroadcastChannel;
+    try {
+      chatBroadcastChannel = new BroadcastChannel(CHAT_CHANNEL);
+      chatBroadcastChannel.addEventListener("message", onChatBroadcastMessage);
+      return chatBroadcastChannel;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function listenBroadcast() {
+    if (!global.__dualpeerTabId) {
+      global.__dualpeerTabId = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    }
+    getChatBroadcastChannel();
+  }
+
   async function loadThreadMessages(threadId) {
     if (!threadId) return;
     const data = await api(`/api/social/chat/threads/${encodeURIComponent(threadId)}/messages`);
     state.threadId = threadId;
-    state.messages = data.messages || [];
     state.loaded = true;
-    renderMessages();
+    setMessages(data.messages || [], { skipBroadcast: false });
   }
 
   async function bootstrap() {
@@ -143,8 +198,7 @@
     });
     const msg = data.message;
     if (msg) {
-      state.messages.push(msg);
-      renderMessages();
+      setMessages(mergeMessages(state.messages, [msg]));
     }
     return msg;
   }
@@ -533,17 +587,31 @@
     getActiveLiveMeetingId,
     getThreadId: () => state.threadId,
     getMessages: () => state.messages,
-    appendLocalEcho(text, senderName) {
+    appendLocalEcho(text, senderName, { messageId } = {}) {
       const uid = getSessionUserId();
-      state.messages.push({
-        id: `local-${Date.now()}`,
-        senderUserId: uid,
-        senderName: senderName || "You",
-        body: text,
-        kind: "text",
-        createdAt: Date.now(),
-      });
-      renderMessages();
+      const id = messageId || `local-${Date.now()}`;
+      if (state.messages.some((m) => m.id === id)) return;
+      const body = String(text || "").trim();
+      if (!body) return;
+      if (
+        state.messages.some(
+          (m) => m.body === body && Math.abs((m.createdAt || 0) - Date.now()) < 3000
+        )
+      ) {
+        return;
+      }
+      setMessages(
+        mergeMessages(state.messages, [
+          {
+            id,
+            senderUserId: uid,
+            senderName: senderName || "You",
+            body,
+            kind: "text",
+            createdAt: Date.now(),
+          },
+        ])
+      );
     },
   };
 

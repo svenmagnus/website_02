@@ -1727,6 +1727,7 @@ video {
   padding-top: 0.15rem;
   border-top: 2px solid var(--accent);
   margin-top: -0.1rem;
+  overflow: visible;
 }
 
 .panel-tab-title {
@@ -2697,13 +2698,22 @@ footer {
   cursor: pointer;
 }
 
-.meeting-menu-wrap {
+.meeting-menu-wrap,
+.meeting-menu-block {
   margin: 0.75rem 0 1rem;
   padding: 0.75rem;
   border: 1px dashed var(--border);
   border-radius: 10px;
-  display: grid;
-  gap: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  overflow: visible;
+  position: relative;
+}
+
+.profile-sessions-field,
+.setup-sessions-field {
+  overflow: visible;
 }
 
 .meeting-guest-label {
@@ -2711,25 +2721,42 @@ footer {
   color: var(--muted);
 }
 
+.meeting-schedule-label {
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin: 0;
+}
+
 .meeting-menu-dropdown {
   position: relative;
-  display: inline-block;
+  display: block;
+  width: fit-content;
+  z-index: 2;
 }
 
 .meeting-menu {
   position: absolute;
-  top: calc(100% + 0.25rem);
+  top: calc(100% + 0.35rem);
   left: 0;
-  z-index: 50;
-  min-width: 260px;
-  padding: 0.35rem;
+  z-index: 600;
+  min-width: 300px;
+  width: max-content;
+  max-width: min(100%, 360px);
+  height: auto;
+  max-height: none;
+  padding: 0.4rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
+  overflow: visible;
+}
+
+.meeting-menu[hidden] {
+  display: none !important;
 }
 
 .meeting-menu button {
@@ -2751,7 +2778,21 @@ footer {
 }
 
 .meeting-schedule-input {
-  max-width: 16rem;
+  max-width: 20rem;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.js-meeting-status {
+  position: relative;
+  z-index: 0;
+  min-height: 0;
+}
+
+.meeting-list {
+  position: relative;
+  z-index: 0;
 }
 
 .meeting-list-item {

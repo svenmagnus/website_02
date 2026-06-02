@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8446" />
+    <link rel="stylesheet" href="assets/styles.css?v=8447" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -940,6 +940,12 @@
         </div>
         <label class="meeting-guest-label">Session with</label>
         <select class="admin-input meeting-guest-select js-meeting-partner-select" aria-label="Session partner"></select>
+        <label class="meeting-schedule-label" for="meetingScheduleStart">Scheduled start (for later / calendar)</label>
+        <input
+          type="datetime-local"
+          class="meeting-schedule-input js-meeting-schedule-start"
+          title="For scheduled sessions"
+        />
         <div class="meeting-menu-dropdown">
           <button
             type="button"
@@ -964,11 +970,6 @@
             </button>
           </div>
         </div>
-        <input
-          type="datetime-local"
-          class="meeting-schedule-input js-meeting-schedule-start"
-          title="For scheduled sessions"
-        />
         <p class="status-line js-meeting-status"></p>
         <div class="meeting-list js-meeting-list"></div>
       </div>
@@ -981,7 +982,7 @@
     <script src="assets/app.js?v=8446"></script>
     <script src="assets/auth.js?v=8446"></script>
     <script src="assets/messages-panel.js?v=8446"></script>
-    <script src="assets/social.js?v=8446"></script>
+    <script src="assets/social.js?v=8447"></script>
     <script src="assets/member-profile.js?v=8446"></script>
   </body>
 </html>
