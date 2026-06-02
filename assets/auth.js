@@ -1489,22 +1489,33 @@
     const freeHostBtn = document.getElementById("authModelFreeHost");
     const guestInviteBtn = document.getElementById("authModelGuestInvite");
     const premiumGuestBtn = document.getElementById("authModelPremiumGuest");
+    const inviteCodeRow = inviteCodeEl?.closest?.(".login-overlay-row");
+
+    const setAccessModelUi = (mode) => {
+      if (!inviteCodeRow) return;
+      inviteCodeRow.hidden = mode !== "guestInvite";
+    };
+
+    setAccessModelUi("freeHost");
 
     if (freeHostBtn) {
       freeHostBtn.addEventListener("click", () => {
+        setAccessModelUi("freeHost");
         setModelHint("Free Host selected: sign in with your host account, or register a new host account.");
         usernameEl?.focus();
       });
     }
     if (guestInviteBtn) {
       guestInviteBtn.addEventListener("click", () => {
+        setAccessModelUi("guestInvite");
         setModelHint("Guest by Invitation selected: enter your 4-digit invite code, then continue to register.");
         inviteCodeEl?.focus();
       });
     }
     if (premiumGuestBtn) {
       premiumGuestBtn.addEventListener("click", () => {
-        setModelHint("Premium Guests selected: open Model Pool to request available premium models.", "ok");
+        setAccessModelUi("premiumUser");
+        setModelHint("Premium User selected: open Model Pool to request available premium models.", "ok");
         window.location.hash = "premium-modelpool";
       });
     }

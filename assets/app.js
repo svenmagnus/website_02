@@ -3414,8 +3414,8 @@ function applyAccountStreamingUi() {
       els.btnStartHost.title = "";
     }
     if (els.btnConnect) {
-      els.btnConnect.disabled = false;
-      els.btnConnect.title = "";
+      els.btnConnect.disabled = true;
+      els.btnConnect.title = "Connect to Host is only available for guest accounts.";
     }
   }
 }

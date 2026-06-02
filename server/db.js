@@ -133,9 +133,19 @@ function backfillAccountRoles(database) {
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
+  const forcedHostNames = String(process.env.HOST_USERNAMES || "limagno")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
   for (const name of adminNames) {
     database
       .prepare(`UPDATE users SET is_admin = 1 WHERE lower(username) = ?`)
+      .run(name);
+  }
+  // Ensure configured host accounts remain host (e.g. Limagno).
+  for (const name of forcedHostNames) {
+    database
+      .prepare(`UPDATE users SET account_type = 'host' WHERE lower(username) = ?`)
       .run(name);
   }
   // Bootstrap: admins are premium by default.
