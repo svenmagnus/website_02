@@ -2747,7 +2747,65 @@ function sendChatMessage() {
   }
 }
 
+const CHAT_EMOJIS = [
+  "😉",
+  "😘",
+  "😍",
+  "🥵",
+  "💋",
+  "🔥",
+  "🍑",
+  "🍆",
+  "👅",
+  "💦",
+  "🖤",
+  "❤️",
+  "⛓️",
+  "😈",
+];
+
+function insertEmojiIntoChatInput(emoji) {
+  if (!els.chatInput) return;
+  const input = els.chatInput;
+  const value = input.value || "";
+  const start = Number.isInteger(input.selectionStart) ? input.selectionStart : value.length;
+  const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : value.length;
+  const prefix = value.slice(0, start);
+  const suffix = value.slice(end);
+  input.value = `${prefix}${emoji}${suffix}`;
+  const cursor = prefix.length + emoji.length;
+  input.setSelectionRange(cursor, cursor);
+  input.focus();
+}
+
+function ensureChatEmojiBar() {
+  const chatRow = document.getElementById("chat-input-row");
+  if (!chatRow) return;
+  let bar = document.getElementById("chatEmojiBar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "chatEmojiBar";
+    bar.className = "chat-emoji-bar";
+    CHAT_EMOJIS.forEach((emoji) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chat-emoji-btn";
+      btn.textContent = emoji;
+      btn.dataset.emoji = emoji;
+      btn.title = `Insert ${emoji}`;
+      bar.appendChild(btn);
+    });
+    chatRow.insertAdjacentElement("beforebegin", bar);
+  }
+  bar.addEventListener("click", (e) => {
+    const btn = e.target?.closest?.(".chat-emoji-btn");
+    if (!btn) return;
+    insertEmojiIntoChatInput(btn.dataset.emoji || btn.textContent || "");
+  });
+}
+
 function initChatControls() {
+  ensureChatEmojiBar();
   if (els.chatSend) {
     els.chatSend.type = "button";
     els.chatSend.addEventListener("click", sendChatMessage);

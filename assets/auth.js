@@ -131,6 +131,13 @@
       ...session.user,
       username: profile.username ?? session.user?.username,
       displayName: profile.displayName,
+      gender: profile.gender ?? session.user?.gender ?? "",
+      bio: profile.bio ?? session.user?.bio ?? "",
+      lovenseToys: profile.lovenseToys ?? session.user?.lovenseToys ?? "",
+      techniques: Array.isArray(profile.techniques) ? profile.techniques : session.user?.techniques || [],
+      customTechniques: Array.isArray(profile.customTechniques)
+        ? profile.customTechniques
+        : session.user?.customTechniques || [],
       accountType: profile.accountType,
       isAdmin: profile.isAdmin,
       isPremium: profile.isPremium,
