@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8445" />
+    <link rel="stylesheet" href="assets/styles.css?v=8446" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -316,31 +316,17 @@
         <button type="button" class="premium-glow-btn" id="headerPremiumBtn" hidden>
           PREMIUM
         </button>
-        <div class="header-chat-wrap">
-          <button
-            type="button"
-            class="header-icon-btn"
-            id="btnHeaderChat"
-            hidden
-            title="Messages"
-            aria-expanded="false"
-            aria-controls="headerChatPopover"
-          >
-            <i class="bi bi-chat-dots" aria-hidden="true"></i>
-          </button>
-          <div class="header-chat-popover" id="headerChatPopover" hidden>
-            <div class="header-chat-popover-head">
-              <strong>Messages</strong>
-              <button type="button" class="header-chat-close" id="headerChatClose" aria-label="Close">×</button>
-            </div>
-            <p class="status-line header-chat-hint">Saved chat with your host or guest. Double-click Live Chat to open in a new window.</p>
-            <div id="header-chat-messages" class="chat-messages chat-messages--compact" data-chat-pane aria-live="polite"></div>
-            <div class="row chat-input-row">
-              <input type="text" id="headerChatInput" placeholder="Type a message…" maxlength="500" autocomplete="off" />
-              <button type="button" class="primary" id="headerChatSend">Send</button>
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          class="header-icon-btn"
+          id="btnHeaderChat"
+          hidden
+          title="Messages (drag, resize, move to second screen)"
+          aria-expanded="false"
+          aria-controls="floatingMessagesPanel"
+        >
+          <i class="bi bi-chat-dots" aria-hidden="true"></i>
+        </button>
         <button type="button" class="header-icon-btn" disabled title="Notifications (coming soon)">
           <i class="bi bi-bell" aria-hidden="true"></i>
         </button>
@@ -556,6 +542,13 @@
             <p class="status-line profile-tab-hint" id="profileTabHint" hidden>
               Profile syncs with your account.
             </p>
+            <fieldset class="profile-sessions-field" id="profileSessionsField" hidden>
+              <legend>Sessions &amp; calendar</legend>
+              <p class="status-line profile-field-hint">
+                Schedule or start a private session with your host or guest — same options as in Setup.
+              </p>
+              <div id="profileMeetingMount"></div>
+            </fieldset>
             <form id="profileForm" class="profile-form">
               <div class="row">
                 <label for="profileDisplayName">Display name</label>
@@ -686,43 +679,10 @@
               Sign in to join a session. Invited? Use the account from your email.
             </p>
           </div>
-          <div class="meeting-menu-wrap" id="meetingMenuWrap" hidden>
-            <label for="meetingGuestSelect" class="meeting-guest-label">Session with</label>
-            <select id="meetingGuestSelect" class="admin-input meeting-guest-select"></select>
-            <div class="meeting-menu-dropdown">
-              <button
-                type="button"
-                class="primary meeting-menu-btn"
-                id="btnMeetingMenu"
-                aria-haspopup="true"
-                aria-expanded="false"
-              >
-                New session ▾
-              </button>
-              <div class="meeting-menu" id="meetingMenu" hidden role="menu">
-                <button type="button" role="menuitem" data-meeting-action="instant">
-                  <i class="bi bi-lightning-charge" aria-hidden="true"></i>
-                  Start instant session
-                </button>
-                <button type="button" role="menuitem" data-meeting-action="later">
-                  <i class="bi bi-clock" aria-hidden="true"></i>
-                  Schedule session for later
-                </button>
-                <button type="button" role="menuitem" data-meeting-action="calendar">
-                  <i class="bi bi-calendar-event" aria-hidden="true"></i>
-                  Plan in Google Calendar
-                </button>
-              </div>
-            </div>
-            <input
-              type="datetime-local"
-              id="meetingScheduleStart"
-              class="meeting-schedule-input"
-              title="For scheduled sessions"
-            />
-            <p class="status-line" id="meetingMenuStatus"></p>
-            <div id="meetingList" class="meeting-list"></div>
-          </div>
+          <fieldset class="setup-sessions-field" id="setupSessionsField" hidden>
+            <legend>Sessions &amp; calendar</legend>
+            <div id="setupMeetingMount"></div>
+          </fieldset>
           <div class="row">
             <button type="button" class="primary" id="btnStartHost" disabled>
               Start as Host
@@ -941,13 +901,87 @@
       </p>
     </footer>
 
+    <div
+      id="floatingMessagesPanel"
+      class="floating-messages-panel"
+      hidden
+      role="dialog"
+      aria-label="Messages"
+    >
+      <div class="floating-messages-toolbar" data-messages-drag>
+        <strong>Messages</strong>
+        <span class="floating-messages-toolbar-actions">
+          <button type="button" class="secondary floating-messages-popout" id="btnMessagesPopout" title="Open on second monitor">
+            Pop out
+          </button>
+          <button type="button" class="header-chat-close" id="headerChatClose" aria-label="Close">×</button>
+        </span>
+      </div>
+      <p class="status-line header-chat-hint">
+        Drag the title bar to move. Resize from the corner. Chat syncs with Live Chat.
+      </p>
+      <div id="header-chat-messages" class="chat-messages floating-messages-body" data-chat-pane aria-live="polite"></div>
+      <div class="row chat-input-row floating-messages-input-row">
+        <input type="text" id="headerChatInput" placeholder="Type a message…" maxlength="500" autocomplete="off" />
+        <button type="button" class="primary" id="headerChatSend">Send</button>
+      </div>
+      <div class="floating-messages-resize" data-messages-resize aria-label="Resize"></div>
+    </div>
+
+    <template id="meetingBlockTemplate">
+      <div class="meeting-menu-block meeting-menu-wrap">
+        <div class="meeting-calendar-row">
+          <p class="status-line js-calendar-status">Google Calendar: checking…</p>
+          <div class="row meeting-calendar-actions">
+            <button type="button" class="secondary js-calendar-connect">Connect Google Calendar</button>
+            <button type="button" class="secondary js-calendar-disconnect" hidden>Disconnect</button>
+            <button type="button" class="secondary js-calendar-sync" hidden>Sync calendar</button>
+          </div>
+        </div>
+        <label class="meeting-guest-label">Session with</label>
+        <select class="admin-input meeting-guest-select js-meeting-partner-select" aria-label="Session partner"></select>
+        <div class="meeting-menu-dropdown">
+          <button
+            type="button"
+            class="primary meeting-menu-btn js-meeting-menu-btn"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            New session ▾
+          </button>
+          <div class="meeting-menu js-meeting-menu" hidden role="menu">
+            <button type="button" role="menuitem" data-meeting-action="instant">
+              <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+              Start instant session
+            </button>
+            <button type="button" role="menuitem" data-meeting-action="later">
+              <i class="bi bi-clock" aria-hidden="true"></i>
+              Schedule session for later
+            </button>
+            <button type="button" role="menuitem" data-meeting-action="calendar">
+              <i class="bi bi-calendar-event" aria-hidden="true"></i>
+              Plan in Google Calendar
+            </button>
+          </div>
+        </div>
+        <input
+          type="datetime-local"
+          class="meeting-schedule-input js-meeting-schedule-start"
+          title="For scheduled sessions"
+        />
+        <p class="status-line js-meeting-status"></p>
+        <div class="meeting-list js-meeting-list"></div>
+      </div>
+    </template>
+
     <script src="assets/api-config.js?v=8425"></script>
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
     <script src="assets/ui-shell.js?v=8434"></script>
-    <script src="assets/app.js?v=8445"></script>
-    <script src="assets/auth.js?v=8445"></script>
-    <script src="assets/social.js?v=8445"></script>
-    <script src="assets/member-profile.js?v=8444"></script>
+    <script src="assets/app.js?v=8446"></script>
+    <script src="assets/auth.js?v=8446"></script>
+    <script src="assets/messages-panel.js?v=8446"></script>
+    <script src="assets/social.js?v=8446"></script>
+    <script src="assets/member-profile.js?v=8446"></script>
   </body>
 </html>

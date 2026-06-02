@@ -2,6 +2,20 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db.js";
 import { getAppPublicUrl } from "./mail.js";
+import {
+  buildGoogleCalendarUrl,
+  isGoogleCalendarConfigured,
+  createOAuthState,
+  consumeOAuthState,
+  getGoogleAuthUrl,
+  exchangeCodeForTokens,
+  storeGoogleTokens,
+  fetchGoogleEmail,
+  disconnectGoogleCalendar,
+  getAccessTokenForUser,
+  syncMeetingToGoogle,
+  listCalendarEvents,
+} from "./google-calendar.js";
 
 export const socialRouter = Router();
 
@@ -46,6 +60,19 @@ function userPublicRow(row) {
     username: row.username,
     displayName: row.display_name || row.username,
     accountType: row.account_type === "host" ? "host" : "guest",
+  };
+}
+
+function isHostAccount(user) {
+  return user?.account_type === "host";
+}
+
+function calendarStatusForUser(user) {
+  return {
+    configured: isGoogleCalendarConfigured(),
+    connected: Boolean(user.google_refresh_token_enc),
+    email: user.google_calendar_email || "",
+    connectedAt: user.google_calendar_connected_at || null,
   };
 }
 
@@ -191,6 +218,7 @@ socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
       scheduledStartAt: m.scheduled_start_at,
       scheduledEndAt: m.scheduled_end_at,
       calendarUrl: m.calendar_url || "",
+      googleEventId: m.google_event_id || "",
       host: {
         id: m.host_user_id,
         username: m.host_username,
@@ -214,6 +242,7 @@ socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
       : null,
     meetings,
     primaryThreadId: threadList[0]?.id || null,
+    calendar: calendarStatusForUser(req.authUser),
   });
 });
 
@@ -252,18 +281,37 @@ socialRouter.post("/social/chat/threads/:threadId/messages", requireAuth, (req, 
   res.status(201).json({ ok: true, message: mapMessageRow(row, db) });
 });
 
-socialRouter.post("/social/meetings", requireAuth, (req, res) => {
+socialRouter.post("/social/meetings", requireAuth, async (req, res) => {
   const db = getDb();
   const mode = req.body?.mode === "scheduled" ? "scheduled" : "instant";
-  const guestUserId = String(req.body?.guestUserId || "").trim();
-  const hostUserId = req.authUser.id;
+  const partnerUserId = String(req.body?.partnerUserId || req.body?.guestUserId || "").trim();
+  const syncGoogle = Boolean(req.body?.syncGoogle);
 
-  if (!guestUserId) {
-    return res.status(400).json({ ok: false, error: "guest_required" });
+  if (!partnerUserId) {
+    return res.status(400).json({ ok: false, error: "partner_required" });
   }
-  const guest = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
-  if (!guest) return res.status(404).json({ ok: false, error: "guest_not_found" });
+  if (partnerUserId === req.authUser.id) {
+    return res.status(400).json({ ok: false, error: "invalid_partner" });
+  }
 
+  const partner = db.prepare("SELECT * FROM users WHERE id = ?").get(partnerUserId);
+  if (!partner) return res.status(404).json({ ok: false, error: "partner_not_found" });
+
+  let hostUserId;
+  let guestUserId;
+  if (isHostAccount(req.authUser)) {
+    hostUserId = req.authUser.id;
+    guestUserId = partnerUserId;
+  } else if (isHostAccount(partner)) {
+    hostUserId = partnerUserId;
+    guestUserId = req.authUser.id;
+  } else {
+    hostUserId = partnerUserId;
+    guestUserId = req.authUser.id;
+  }
+
+  const host = db.prepare("SELECT * FROM users WHERE id = ?").get(hostUserId);
+  const guest = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
   const thread = ensureChatThread(db, hostUserId, guestUserId);
   const at = nowMs();
   const durationMin = Math.min(240, Math.max(15, Number(req.body?.durationMinutes) || 60));
@@ -275,20 +323,38 @@ socialRouter.post("/social/meetings", requireAuth, (req, res) => {
   const status = mode === "instant" ? "live" : "scheduled";
 
   const meetingId = randomUUID();
-  const title = `Tangent Club session — ${req.authUser.display_name || req.authUser.username}`;
+  const title = `Tangent Club session — ${host.display_name || host.username} & ${guest.display_name || guest.username}`;
   const details =
     `${getAppPublicUrl()}/index.html\n\n` +
     `Host starts the stream and shares a Peer ID in chat. Guest: paste the Host Peer ID under Setup → Connect to Host.`;
-  const calendarUrl = buildGoogleCalendarUrl({
+  let calendarUrl = buildGoogleCalendarUrl({
     title,
     startMs: scheduledStart,
     endMs: scheduledEnd,
     details,
   });
+  let googleEventId = "";
+
+  if (syncGoogle && req.authUser.google_refresh_token_enc) {
+    try {
+      const event = await syncMeetingToGoogle(
+        db,
+        req.authUser.id,
+        { scheduled_start_at: scheduledStart, scheduled_end_at: scheduledEnd },
+        { hostUser: host, guestUser: guest }
+      );
+      if (event?.id) {
+        googleEventId = event.id;
+        if (event.htmlLink) calendarUrl = event.htmlLink;
+      }
+    } catch (err) {
+      console.error("[calendar] sync meeting failed:", err);
+    }
+  }
 
   db.prepare(
-    `INSERT INTO meetings (id, host_user_id, guest_user_id, thread_id, mode, status, scheduled_start_at, scheduled_end_at, calendar_url, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO meetings (id, host_user_id, guest_user_id, thread_id, mode, status, scheduled_start_at, scheduled_end_at, calendar_url, google_event_id, created_by_user_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     meetingId,
     hostUserId,
@@ -299,11 +365,13 @@ socialRouter.post("/social/meetings", requireAuth, (req, res) => {
     scheduledStart,
     scheduledEnd,
     calendarUrl,
+    googleEventId,
+    req.authUser.id,
     at,
     at
   );
 
-  const hostName = req.authUser.display_name || req.authUser.username;
+  const creatorName = req.authUser.display_name || req.authUser.username;
   const when =
     mode === "instant"
       ? "now"
@@ -312,13 +380,14 @@ socialRouter.post("/social/meetings", requireAuth, (req, res) => {
           timeStyle: "short",
         });
 
+  const hostName = host.display_name || host.username;
   insertChatMessage(
     db,
     thread.id,
-    hostUserId,
+    req.authUser.id,
     mode === "instant"
-      ? `${hostName} started an instant session. Waiting for Host Peer ID — connect under Setup when it appears here.`
-      : `${hostName} scheduled a session for ${when}. Open the calendar link in your meeting list or wait for the Host Peer ID in this chat.`,
+      ? `${creatorName} started an instant session. ${isHostAccount(host) ? `${hostName} (host) will share the Peer ID here.` : `Waiting for host ${hostName} to share the Peer ID.`}`
+      : `${creatorName} scheduled a session for ${when}.${googleEventId ? " Synced to Google Calendar." : " See meeting list or calendar link."}`,
     { kind: "system" }
   );
 
@@ -331,6 +400,7 @@ socialRouter.post("/social/meetings", requireAuth, (req, res) => {
       scheduledStartAt: scheduledStart,
       scheduledEndAt: scheduledEnd,
       calendarUrl,
+      googleEventId,
       threadId: thread.id,
     },
   });
@@ -381,18 +451,83 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
   });
 });
 
-export function buildGoogleCalendarUrl({ title, startMs, endMs, details }) {
-  const fmt = (ms) =>
-    new Date(ms)
-      .toISOString()
-      .replace(/[-]/g, "")
-      .replace(/[:]/g, "")
-      .replace(/\.\d{3}Z$/, "Z");
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: title,
-    dates: `${fmt(startMs)}/${fmt(endMs)}`,
-    details: details || "",
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
+socialRouter.get("/social/calendar/status", requireAuth, (req, res) => {
+  res.json({ ok: true, calendar: calendarStatusForUser(req.authUser) });
+});
+
+socialRouter.get("/social/calendar/auth-url", requireAuth, (req, res) => {
+  if (!isGoogleCalendarConfigured()) {
+    return res.status(503).json({ ok: false, error: "google_calendar_not_configured" });
+  }
+  const state = createOAuthState(req.authUser.id);
+  const url = getGoogleAuthUrl(state);
+  res.json({ ok: true, url });
+});
+
+socialRouter.get("/social/calendar/callback", async (req, res) => {
+  const db = getDb();
+  const code = String(req.query.code || "");
+  const state = String(req.query.state || "");
+  const userId = consumeOAuthState(state);
+  const appUrl = getAppPublicUrl();
+
+  if (!code || !userId) {
+    return res.redirect(`${appUrl}/index.html?calendar=error`);
+  }
+
+  try {
+    const tokens = await exchangeCodeForTokens(code);
+    storeGoogleTokens(db, userId, tokens);
+    const email = await fetchGoogleEmail(tokens.access_token);
+    if (email) {
+      db.prepare("UPDATE users SET google_calendar_email = ? WHERE id = ?").run(email, userId);
+    }
+    return res.redirect(`${appUrl}/index.html?calendar=connected`);
+  } catch (err) {
+    console.error("[calendar] oauth callback failed:", err);
+    return res.redirect(`${appUrl}/index.html?calendar=error`);
+  }
+});
+
+socialRouter.post("/social/calendar/disconnect", requireAuth, (req, res) => {
+  disconnectGoogleCalendar(getDb(), req.authUser.id);
+  res.json({ ok: true });
+});
+
+socialRouter.get("/social/calendar/events", requireAuth, async (req, res) => {
+  const db = getDb();
+  try {
+    const accessToken = await getAccessTokenForUser(db, req.authUser.id);
+    if (!accessToken) {
+      return res.status(400).json({ ok: false, error: "google_not_connected" });
+    }
+    const now = nowMs();
+    const events = await listCalendarEvents(accessToken, {
+      timeMin: now - 86400000,
+      timeMax: now + 30 * 86400000,
+    });
+    res.json({ ok: true, events });
+  } catch (err) {
+    console.error("[calendar] list events failed:", err);
+    res.status(500).json({ ok: false, error: "calendar_sync_failed", message: err.message });
+  }
+});
+
+socialRouter.post("/social/calendar/sync", requireAuth, async (req, res) => {
+  const db = getDb();
+  try {
+    const accessToken = await getAccessTokenForUser(db, req.authUser.id);
+    if (!accessToken) {
+      return res.status(400).json({ ok: false, error: "google_not_connected" });
+    }
+    const now = nowMs();
+    const events = await listCalendarEvents(accessToken, {
+      timeMin: now - 3600000,
+      timeMax: now + 60 * 86400000,
+    });
+    res.json({ ok: true, events, syncedAt: now });
+  } catch (err) {
+    console.error("[calendar] sync failed:", err);
+    res.status(500).json({ ok: false, error: "calendar_sync_failed", message: err.message });
+  }
+});

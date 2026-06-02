@@ -176,6 +176,27 @@ function runMigrations(database) {
     CREATE INDEX IF NOT EXISTS idx_meetings_guest ON meetings(guest_user_id);
   `);
 
+  const oauthCols = [
+    ["google_refresh_token_enc", "TEXT NOT NULL DEFAULT ''"],
+    ["google_calendar_email", "TEXT NOT NULL DEFAULT ''"],
+    ["google_calendar_connected_at", "INTEGER"],
+  ];
+  let userColsOAuth = tableColumns(database, "users");
+  for (const [name, type] of oauthCols) {
+    if (!userColsOAuth.includes(name)) {
+      database.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+      userColsOAuth = tableColumns(database, "users");
+    }
+  }
+
+  const meetingCols = tableColumns(database, "meetings");
+  if (meetingCols.length && !meetingCols.includes("google_event_id")) {
+    database.exec(`ALTER TABLE meetings ADD COLUMN google_event_id TEXT NOT NULL DEFAULT ''`);
+  }
+  if (meetingCols.length && !meetingCols.includes("created_by_user_id")) {
+    database.exec(`ALTER TABLE meetings ADD COLUMN created_by_user_id TEXT`);
+  }
+
   backfillAccountRoles(database);
 }
 
