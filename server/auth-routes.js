@@ -191,6 +191,9 @@ function rowToProfile(row) {
     techniques: Array.isArray(techniques) ? techniques : [],
     customTechniques: Array.isArray(customTechniques) ? customTechniques : [],
     lovenseToys: String(row.lovense_toys || "").slice(0, 500),
+    nationality: String(row.nationality || "").slice(0, 64),
+    languages: String(row.languages || "").slice(0, 120),
+    location: String(row.location || "").slice(0, 120),
     createdAt: row.created_at,
     mailConfigured: isSmtpConfiguredForUser(row),
     accountType: isHostAccount(row) ? "host" : "guest",
@@ -748,9 +751,19 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     req.body?.lovenseToys != null
       ? String(req.body.lovenseToys).trim().slice(0, 500)
       : current.lovenseToys;
+  const nationality =
+    req.body?.nationality != null
+      ? String(req.body.nationality).trim().slice(0, 64)
+      : current.nationality;
+  const languages =
+    req.body?.languages != null
+      ? String(req.body.languages).trim().slice(0, 120)
+      : current.languages;
+  const location =
+    req.body?.location != null ? String(req.body.location).trim().slice(0, 120) : current.location;
 
   db.prepare(
-    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, lovense_toys = ?
+    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?
      WHERE id = ?`
   ).run(
     displayName,
@@ -759,6 +772,9 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     JSON.stringify(Array.isArray(techniques) ? techniques : []),
     JSON.stringify(Array.isArray(customTechniques) ? customTechniques : []),
     lovenseToys,
+    nationality,
+    languages,
+    location,
     req.authUser.id
   );
 
@@ -1048,7 +1064,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, email_verified_at, created_at
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at
        FROM users
        ORDER BY created_at ASC`
     )
@@ -1062,6 +1078,9 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
     isAdmin: Boolean(row.is_admin),
     isPremium: Boolean(row.is_premium),
     isModel: Boolean(row.is_model),
+    nationality: row.nationality || "",
+    languages: row.languages || "",
+    location: row.location || "",
     emailVerified: Boolean(row.email_verified_at),
     createdAt: row.created_at,
   }));
@@ -1083,6 +1102,18 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
     req.body?.displayName != null
       ? String(req.body.displayName).trim().slice(0, 32) || existing.username
       : existing.display_name;
+  const nationality =
+    req.body?.nationality != null
+      ? String(req.body.nationality).trim().slice(0, 64)
+      : String(existing.nationality || "");
+  const languages =
+    req.body?.languages != null
+      ? String(req.body.languages).trim().slice(0, 120)
+      : String(existing.languages || "");
+  const location =
+    req.body?.location != null
+      ? String(req.body.location).trim().slice(0, 120)
+      : String(existing.location || "");
   const email =
     req.body?.email != null ? validateEmail(req.body.email) : validateEmail(existing.email);
   if (!email) {
@@ -1113,8 +1144,19 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   }
 
   db.prepare(
-    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ? WHERE id = ?`
-  ).run(email, displayName, accountType, isAdmin, isPremium, isModel, existing.id);
+    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ?, nationality = ?, languages = ?, location = ? WHERE id = ?`
+  ).run(
+    email,
+    displayName,
+    accountType,
+    isAdmin,
+    isPremium,
+    isModel,
+    nationality,
+    languages,
+    location,
+    existing.id
+  );
 
   if (password) {
     if (password.length < 8 || password.length > 128) {
@@ -1126,7 +1168,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
 
   const updated = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, email_verified_at, created_at
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at
        FROM users WHERE id = ?`
     )
     .get(existing.id);
@@ -1141,6 +1183,9 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       isAdmin: Boolean(updated.is_admin),
       isPremium: Boolean(updated.is_premium),
       isModel: Boolean(updated.is_model),
+      nationality: updated.nationality || "",
+      languages: updated.languages || "",
+      location: updated.location || "",
       emailVerified: Boolean(updated.email_verified_at),
       createdAt: updated.created_at,
     },
@@ -1221,6 +1266,12 @@ authRouter.delete("/admin/users/:id", requireAuth, requireAdminAccount, (req, re
   db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
   db.prepare("DELETE FROM email_verifications WHERE user_id = ?").run(userId);
   db.prepare("DELETE FROM invites WHERE used_by_user_id = ? OR host_user_id = ?").run(userId, userId);
+  const hasBookings = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'bookings'")
+    .get();
+  if (hasBookings) {
+    db.prepare("DELETE FROM bookings WHERE guest_user_id = ? OR model_user_id = ?").run(userId, userId);
+  }
   db.prepare("DELETE FROM users WHERE id = ?").run(userId);
   res.json({ ok: true });
 });

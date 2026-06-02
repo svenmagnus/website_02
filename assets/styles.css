@@ -2359,7 +2359,7 @@ footer {
 .admin-users-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1200px;
+  min-width: 1420px;
 }
 
 .admin-users-table th,
@@ -2376,10 +2376,127 @@ footer {
 }
 
 .admin-delete-btn {
-  background: transparent;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
   border: 1px solid var(--danger);
   color: var(--danger);
-  padding: 0.35rem 0.55rem;
+  font-weight: 600;
+  padding: 0.4rem 0.65rem;
+  margin-left: 0.35rem;
+}
+
+.admin-delete-btn:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.admin-save-btn {
+  font-weight: 600;
+}
+
+.admin-status-cell {
+  min-width: 7.5rem;
+}
+
+.admin-status-badge {
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.admin-status-badge--host {
+  background: color-mix(in srgb, #f97316 22%, transparent);
+  color: #fdba74;
+}
+
+.admin-status-badge--guest {
+  background: color-mix(in srgb, #60a5fa 20%, transparent);
+  color: #93c5fd;
+}
+
+.admin-status-select {
+  min-width: 5.5rem;
+  margin-top: 0.2rem;
+  display: block;
+}
+
+.admin-flag-cell {
+  text-align: center;
+  width: 3.2rem;
+}
+
+.admin-flag-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  cursor: pointer;
+}
+
+.admin-flag-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.admin-flag-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.admin-flag-mark::before {
+  content: "–";
+}
+
+.admin-flag-input:checked + .admin-flag-mark {
+  color: #f97316;
+  font-weight: 900;
+}
+
+.admin-flag-input:checked + .admin-flag-mark::before {
+  content: "✕";
+}
+
+.admin-flag-input:disabled + .admin-flag-mark {
+  opacity: 1;
+}
+
+.profile-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.85rem 0 0.25rem;
+  border-top: 1px solid var(--border);
+  background: linear-gradient(to top, var(--panel) 78%, transparent);
+}
+
+.profile-save-bar .primary {
+  min-width: 10rem;
+  font-weight: 600;
+}
+
+.profile-save-status {
+  margin: 0;
+  flex: 1 1 12rem;
 }
 
 .admin-create-row {

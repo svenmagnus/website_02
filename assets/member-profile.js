@@ -32,6 +32,9 @@
     return {
       displayName: "Guest",
       gender: "",
+      nationality: "",
+      languages: "",
+      location: "",
       bio: "",
       lovenseToys: "",
       techniques: [],
@@ -80,6 +83,9 @@
     return {
       displayName,
       gender: GENDERS.some((g) => g.value === raw.gender) ? raw.gender : "",
+      nationality: String(raw.nationality || "").trim().slice(0, 64),
+      languages: String(raw.languages || "").trim().slice(0, 120),
+      location: String(raw.location || "").trim().slice(0, 120),
       bio: String(raw.bio || "").trim().slice(0, 500),
       lovenseToys: String(raw.lovenseToys || "").trim().slice(0, 500),
       techniques,
@@ -97,6 +103,9 @@
     return normalizeProfile({
       displayName: raw.displayName,
       gender: raw.gender,
+      nationality: raw.nationality,
+      languages: raw.languages,
+      location: raw.location,
       bio: raw.bio,
       lovenseToys: raw.lovenseToys,
       techniques: raw.techniques,
@@ -141,7 +150,11 @@
       global.DualPeerAuth.updateProfile({
         displayName: next.displayName,
         gender: next.gender,
+        nationality: next.nationality,
+        languages: next.languages,
+        location: next.location,
         bio: next.bio,
+        lovenseToys: next.lovenseToys,
         techniques: next.techniques,
         customTechniques: next.customTechniques,
       }).catch(() => {
@@ -294,6 +307,9 @@
   function readProfileForm() {
     const nameEl = document.getElementById("profileDisplayName");
     const genderEl = document.getElementById("profileGender");
+    const nationalityEl = document.getElementById("profileNationality");
+    const languagesEl = document.getElementById("profileLanguages");
+    const locationEl = document.getElementById("profileLocation");
     const bioEl = document.getElementById("profileBio");
     const toysEl = document.getElementById("profileLovenseToys");
     const current = loadProfile();
@@ -304,6 +320,9 @@
     return normalizeProfile({
       displayName: nameEl instanceof HTMLInputElement ? nameEl.value : "Guest",
       gender: genderEl instanceof HTMLSelectElement ? genderEl.value : "",
+      nationality: nationalityEl instanceof HTMLInputElement ? nationalityEl.value : "",
+      languages: languagesEl instanceof HTMLInputElement ? languagesEl.value : "",
+      location: locationEl instanceof HTMLInputElement ? locationEl.value : "",
       bio: bioEl instanceof HTMLTextAreaElement ? bioEl.value : "",
       lovenseToys: toysEl instanceof HTMLTextAreaElement ? toysEl.value : "",
       techniques,
@@ -315,12 +334,18 @@
     const p = normalizeProfile(profile);
     const nameEl = document.getElementById("profileDisplayName");
     const genderEl = document.getElementById("profileGender");
+    const nationalityEl = document.getElementById("profileNationality");
+    const languagesEl = document.getElementById("profileLanguages");
+    const locationEl = document.getElementById("profileLocation");
     const bioEl = document.getElementById("profileBio");
     const toysEl = document.getElementById("profileLovenseToys");
     if (nameEl instanceof HTMLInputElement) {
       nameEl.value = p.displayName === "Guest" ? "" : p.displayName;
     }
     if (genderEl instanceof HTMLSelectElement) genderEl.value = p.gender;
+    if (nationalityEl instanceof HTMLInputElement) nationalityEl.value = p.nationality || "";
+    if (languagesEl instanceof HTMLInputElement) languagesEl.value = p.languages || "";
+    if (locationEl instanceof HTMLInputElement) locationEl.value = p.location || "";
     if (bioEl instanceof HTMLTextAreaElement) bioEl.value = p.bio;
     if (toysEl instanceof HTMLTextAreaElement) toysEl.value = p.lovenseToys || "";
     document.querySelectorAll('input[name="profileTechnique"]').forEach((el) => {
@@ -657,6 +682,9 @@
             const updated = await global.DualPeerAuth.updateProfile({
               displayName: draft.displayName,
               gender: draft.gender,
+              nationality: draft.nationality,
+              languages: draft.languages,
+              location: draft.location,
               bio: draft.bio,
               lovenseToys: draft.lovenseToys,
               techniques: draft.techniques,

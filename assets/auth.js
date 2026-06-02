@@ -92,6 +92,9 @@
       gender: user.gender || "",
       bio: user.bio || "",
       lovenseToys: user.lovenseToys || "",
+      nationality: user.nationality || "",
+      languages: user.languages || "",
+      location: user.location || "",
       techniques: user.techniques || [],
       customTechniques: user.customTechniques || [],
       username: user.username,
@@ -134,6 +137,9 @@
       gender: profile.gender ?? session.user?.gender ?? "",
       bio: profile.bio ?? session.user?.bio ?? "",
       lovenseToys: profile.lovenseToys ?? session.user?.lovenseToys ?? "",
+      nationality: profile.nationality ?? session.user?.nationality ?? "",
+      languages: profile.languages ?? session.user?.languages ?? "",
+      location: profile.location ?? session.user?.location ?? "",
       techniques: Array.isArray(profile.techniques) ? profile.techniques : session.user?.techniques || [],
       customTechniques: Array.isArray(profile.customTechniques)
         ? profile.customTechniques
@@ -1037,26 +1043,55 @@
     }
   }
 
+  function escAdminAttr(value) {
+    return String(value || "").replace(/"/g, "&quot;");
+  }
+
+  function adminFlagCell(field, checked, { disabled = false } = {}) {
+    const labels = { isPremium: "Premium", isModel: "Model", isAdmin: "Admin" };
+    const dis = disabled ? " disabled" : "";
+    const chk = checked ? " checked" : "";
+    const label = labels[field] || field;
+    return `<td class="admin-flag-cell"><label class="admin-flag-toggle" title="${label}"><input type="checkbox" class="admin-flag-input" data-field="${field}"${chk}${dis} aria-label="${label}" /><span class="admin-flag-mark" aria-hidden="true"></span></label></td>`;
+  }
+
   function buildAdminUserRow(user) {
     const tr = document.createElement("tr");
     tr.dataset.userId = user.id;
+    const status = user.accountType === "host" ? "host" : "guest";
+    const statusLabel = status === "host" ? "Host" : "Guest";
     tr.innerHTML = `
-      <td><strong>${user.username}</strong></td>
-      <td>${user.accountType === "host" ? "Host" : "Guest"}${user.isAdmin ? " / Admin" : ""}</td>
-      <td><input type="email" class="admin-input" data-field="email" value="${String(user.email || "").replace(/"/g, "&quot;")}" /></td>
-      <td><input type="text" class="admin-input" data-field="displayName" maxlength="32" value="${String(user.displayName || "").replace(/"/g, "&quot;")}" /></td>
-      <td>
-        <select class="admin-input" data-field="accountType">
+      <td><strong>${escAdminAttr(user.username)}</strong></td>
+      <td class="admin-status-cell">
+        <span class="admin-status-badge admin-status-badge--${status}">${statusLabel}</span>
+        <select class="admin-input admin-status-select" data-field="accountType" aria-label="Status">
           <option value="guest"${user.accountType === "guest" ? " selected" : ""}>Guest</option>
           <option value="host"${user.accountType === "host" ? " selected" : ""}>Host</option>
         </select>
       </td>
-      <td><input type="checkbox" data-field="isPremium" disabled${user.isPremium ? " checked" : ""} /></td>
-      <td><input type="checkbox" data-field="isModel"${user.isModel ? " checked" : ""} /></td>
-      <td><input type="checkbox" data-field="isAdmin"${user.isAdmin ? " checked" : ""} /></td>
-      <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" /></td>
-      <td class="admin-actions-cell"><button type="button" class="secondary admin-save-btn">Save</button> <button type="button" class="admin-delete-btn">Delete</button></td>
+      <td><input type="email" class="admin-input" data-field="email" value="${escAdminAttr(user.email)}" /></td>
+      <td><input type="text" class="admin-input" data-field="displayName" maxlength="32" value="${escAdminAttr(user.displayName)}" /></td>
+      <td><input type="text" class="admin-input" data-field="nationality" maxlength="64" value="${escAdminAttr(user.nationality)}" /></td>
+      <td><input type="text" class="admin-input" data-field="languages" maxlength="120" value="${escAdminAttr(user.languages)}" /></td>
+      <td><input type="text" class="admin-input" data-field="location" maxlength="120" value="${escAdminAttr(user.location)}" /></td>
+      ${adminFlagCell("isPremium", user.isPremium, { disabled: true })}
+      ${adminFlagCell("isModel", user.isModel)}
+      ${adminFlagCell("isAdmin", user.isAdmin)}
+      <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" autocomplete="new-password" /></td>
+      <td class="admin-actions-cell">
+        <button type="button" class="primary admin-save-btn">Save</button>
+        <button type="button" class="admin-delete-btn">Delete</button>
+      </td>
     `;
+    const statusSelect = tr.querySelector(".admin-status-select");
+    const statusBadge = tr.querySelector(".admin-status-badge");
+    if (statusSelect && statusBadge) {
+      statusSelect.addEventListener("change", () => {
+        const isHost = statusSelect.value === "host";
+        statusBadge.textContent = isHost ? "Host" : "Guest";
+        statusBadge.className = `admin-status-badge admin-status-badge--${isHost ? "host" : "guest"}`;
+      });
+    }
     return tr;
   }
 
@@ -1170,6 +1205,9 @@
         email: emailEl?.value,
         displayName: displayNameEl?.value,
         accountType: accountTypeEl?.value,
+        nationality: tr.querySelector('[data-field="nationality"]')?.value,
+        languages: tr.querySelector('[data-field="languages"]')?.value,
+        location: tr.querySelector('[data-field="location"]')?.value,
         isModel: Boolean(isModelEl?.checked),
         isAdmin: Boolean(isAdminEl?.checked),
         password: tr.querySelector('[data-field="password"]')?.value || "",

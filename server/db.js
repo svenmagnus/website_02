@@ -74,6 +74,18 @@ function runMigrations(database) {
   if (!userCols.includes("lovense_toys")) {
     database.exec(`ALTER TABLE users ADD COLUMN lovense_toys TEXT NOT NULL DEFAULT ''`);
   }
+  const profileCols = [
+    ["nationality", "TEXT NOT NULL DEFAULT ''"],
+    ["languages", "TEXT NOT NULL DEFAULT ''"],
+    ["location", "TEXT NOT NULL DEFAULT ''"],
+  ];
+  let userColsProfile = tableColumns(database, "users");
+  for (const [name, type] of profileCols) {
+    if (!userColsProfile.includes(name)) {
+      database.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+      userColsProfile = tableColumns(database, "users");
+    }
+  }
 
   const inviteCols = tableColumns(database, "invites");
   if (!inviteCols.includes("invite_code_hash")) {
