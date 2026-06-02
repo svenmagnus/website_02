@@ -1495,6 +1495,7 @@
       if (!inviteCodeRow) return;
       const showInviteCode = mode === "guestInvite";
       inviteCodeRow.hidden = !showInviteCode;
+      inviteCodeRow.style.display = showInviteCode ? "flex" : "none";
       if (!showInviteCode && inviteCodeEl instanceof HTMLInputElement) {
         inviteCodeEl.value = "";
       }
