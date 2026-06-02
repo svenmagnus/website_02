@@ -588,6 +588,9 @@
       panelAttr: "data-remote-tab-panel",
       defaultTab: "techniques",
     });
+    if (location.hash === "#premium-modelpool") {
+      setRemoteTab("modelpool");
+    }
   }
 
   function initProfileForm() {

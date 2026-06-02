@@ -3793,6 +3793,19 @@ function initVideoOverlayControls() {
   resetRemoteMediaUi();
 }
 
+function initModelPoolActions() {
+  const root = document.getElementById("modelPoolList");
+  const status = document.getElementById("modelPoolStatus");
+  if (!root || !status) return;
+  root.addEventListener("click", (e) => {
+    const btn = e.target?.closest?.(".model-request-btn");
+    if (!btn) return;
+    const modelName = btn.getAttribute("data-model-name") || "Model";
+    status.className = "status-line ok";
+    status.textContent = `${modelName} received your request (prototype). When accepted, you'll get a notification here.`;
+  });
+}
+
 
 document.addEventListener("DOMContentLoaded", () => {
   if (window.dualPeerUi) {
@@ -3809,6 +3822,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLayoutControls();
   initChatControls();
   initDynamicToyControls();
+  initModelPoolActions();
   initLocalToyTestPanel();
   initMemberProfileBridge();
 });

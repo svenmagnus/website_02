@@ -107,6 +107,9 @@ function runMigrations(database) {
   if (!userColsAfter.includes("is_admin")) {
     database.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`);
   }
+  if (!userColsAfter.includes("is_premium")) {
+    database.exec(`ALTER TABLE users ADD COLUMN is_premium INTEGER NOT NULL DEFAULT 0`);
+  }
   backfillAccountRoles(database);
 }
 
@@ -130,6 +133,12 @@ function backfillAccountRoles(database) {
   for (const name of adminNames) {
     database
       .prepare(`UPDATE users SET is_admin = 1 WHERE lower(username) = ?`)
+      .run(name);
+  }
+  // Bootstrap: admins are premium by default.
+  for (const name of adminNames) {
+    database
+      .prepare(`UPDATE users SET is_premium = 1 WHERE lower(username) = ?`)
       .run(name);
   }
 }

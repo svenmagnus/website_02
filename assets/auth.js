@@ -97,6 +97,7 @@
       username: user.username,
       accountType: user.accountType === "host" ? "host" : "guest",
       isAdmin: Boolean(user.isAdmin),
+      isPremium: Boolean(user.isPremium),
     };
   }
 
@@ -116,6 +117,10 @@
 
   function isAdmin() {
     return Boolean(getAccountUser()?.isAdmin);
+  }
+
+  function isPremium() {
+    return Boolean(getAccountUser()?.isPremium);
   }
 
   function syncSessionUserFromProfile(profile) {
@@ -778,9 +783,13 @@
       } else {
         roleEl.textContent = isAdmin()
           ? "Administrator"
-          : isAccountHost()
-            ? "Host account"
-            : "Guest account";
+          : isPremium()
+            ? isAccountHost()
+              ? "Premium Host"
+              : "Premium Guest"
+            : isAccountHost()
+              ? "Host account"
+              : "Guest account";
         roleEl.classList.toggle("is-host", isAccountHost());
         roleEl.classList.toggle("is-guest", isAccountGuest());
         roleEl.classList.toggle("is-admin", isAdmin());
@@ -815,6 +824,8 @@
 
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
     if (inviteMailSetup) inviteMailSetup.hidden = !canAccessMailSettings();
+    const premiumBtn = document.getElementById("headerPremiumBtn");
+    if (premiumBtn) premiumBtn.hidden = !isPremium();
 
     updateHeaderRoleBadge();
     global.dispatchEvent(new CustomEvent("dualpeer-account-role-change"));
@@ -958,6 +969,7 @@
     const modal = document.getElementById("premiumLoginModal");
     const closeBtn = document.getElementById("premiumLoginModalClose");
     const setupBtn = document.getElementById("btnPremiumFromSetup");
+    const headerPremiumBtn = document.getElementById("headerPremiumBtn");
     if (closeBtn) closeBtn.addEventListener("click", closePremiumLoginModal);
     if (setupBtn) {
       setupBtn.addEventListener("click", () => {
@@ -971,6 +983,12 @@
     if (modal) {
       modal.addEventListener("click", (e) => {
         if (e.target === modal) closePremiumLoginModal();
+      });
+    }
+    if (headerPremiumBtn) {
+      headerPremiumBtn.addEventListener("click", () => {
+        location.hash = "premium-modelpool";
+        global.MemberProfile?.setRemoteTab?.("modelpool");
       });
     }
   }
@@ -989,6 +1007,7 @@
           <option value="host"${user.accountType === "host" ? " selected" : ""}>Host</option>
         </select>
       </td>
+      <td><input type="checkbox" data-field="isPremium"${user.isPremium ? " checked" : ""} /></td>
       <td><input type="checkbox" data-field="isAdmin"${user.isAdmin ? " checked" : ""} /></td>
       <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" /></td>
       <td class="admin-actions-cell"><button type="button" class="secondary admin-save-btn">Save</button> <button type="button" class="admin-delete-btn">Delete</button></td>
@@ -1061,6 +1080,7 @@
         const password = document.getElementById("adminCreatePassword")?.value || "";
         const accountType = document.getElementById("adminCreateRole")?.value || "guest";
         const isAdminChecked = Boolean(document.getElementById("adminCreateIsAdmin")?.checked);
+        const isPremiumChecked = Boolean(document.getElementById("adminCreateIsPremium")?.checked);
         setStatus("Creating user…");
         try {
           await createAdminUser({
@@ -1068,12 +1088,14 @@
             email,
             password,
             accountType,
+            isPremium: isPremiumChecked,
             isAdmin: isAdminChecked,
           });
           setStatus(`Created ${username}.`, "ok");
           document.getElementById("adminCreateUsername").value = "";
           document.getElementById("adminCreateEmail").value = "";
           document.getElementById("adminCreatePassword").value = "";
+          document.getElementById("adminCreateIsPremium").checked = false;
           await load();
         } catch (err) {
           setStatus(err.message || "Create failed.", "err");
@@ -1097,11 +1119,13 @@
       const emailEl = tr.querySelector('[data-field="email"]');
       const displayNameEl = tr.querySelector('[data-field="displayName"]');
       const accountTypeEl = tr.querySelector('[data-field="accountType"]');
+      const isPremiumEl = tr.querySelector('[data-field="isPremium"]');
       const isAdminEl = tr.querySelector('[data-field="isAdmin"]');
       const patch = {
         email: emailEl?.value,
         displayName: displayNameEl?.value,
         accountType: accountTypeEl?.value,
+        isPremium: Boolean(isPremiumEl?.checked),
         isAdmin: Boolean(isAdminEl?.checked),
         password: tr.querySelector('[data-field="password"]')?.value || "",
       };
@@ -1295,6 +1319,7 @@
 
     const params = new URLSearchParams(location.search);
     const token = params.get("token") || "";
+    const prefillInviteCode = String(params.get("inviteCode") || "").trim();
     const tokenInput = document.getElementById("registerInviteToken");
     const inviteInfo = document.getElementById("registerInviteInfo");
     const emailEl = document.getElementById("registerEmail");
@@ -1332,6 +1357,10 @@
       inviteInfo.className = "status-line";
       if (emailHint) {
         emailHint.textContent = "For code invites: use the same email as on the invitation.";
+      }
+      if (/^\d{4}$/.test(prefillInviteCode)) {
+        const codeInput = document.getElementById("registerInviteCode");
+        if (codeInput instanceof HTMLInputElement) codeInput.value = prefillInviteCode;
       }
     }
 
@@ -1423,7 +1452,54 @@
 
     const usernameEl = document.getElementById("accessUsername");
     const passwordEl = document.getElementById("accessPassword");
+    const inviteCodeEl = document.getElementById("accessInviteCode");
     const errEl = document.getElementById("accessError");
+    const modelHintEl = document.getElementById("accessModelHint");
+
+    const setModelHint = (text, cls = "") => {
+      if (!modelHintEl) return;
+      modelHintEl.className = cls ? `status-line ${cls}` : "status-line";
+      modelHintEl.textContent = text;
+    };
+
+    const freeHostBtn = document.getElementById("authModelFreeHost");
+    const guestInviteBtn = document.getElementById("authModelGuestInvite");
+    const premiumGuestBtn = document.getElementById("authModelPremiumGuest");
+
+    if (freeHostBtn) {
+      freeHostBtn.addEventListener("click", () => {
+        setModelHint("Free Host selected: sign in with your host account, or register a new host account.");
+        usernameEl?.focus();
+      });
+    }
+    if (guestInviteBtn) {
+      guestInviteBtn.addEventListener("click", () => {
+        setModelHint("Guest by Invitation selected: enter your 4-digit invite code, then continue to register.");
+        inviteCodeEl?.focus();
+      });
+    }
+    if (premiumGuestBtn) {
+      premiumGuestBtn.addEventListener("click", () => {
+        setModelHint("Premium Guests selected: open Model Pool to request available premium models.", "ok");
+        window.location.hash = "premium-modelpool";
+      });
+    }
+
+    if (inviteCodeEl instanceof HTMLInputElement) {
+      inviteCodeEl.addEventListener("input", () => {
+        inviteCodeEl.value = inviteCodeEl.value.replace(/\D+/g, "").slice(0, 4);
+      });
+      inviteCodeEl.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const code = inviteCodeEl.value.trim();
+        if (!/^\d{4}$/.test(code)) {
+          setModelHint("Invite code must be 4 digits.", "err");
+          return;
+        }
+        window.location.href = `register.html?inviteCode=${encodeURIComponent(code)}`;
+      });
+    }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1435,6 +1511,10 @@
       if (errEl) errEl.hidden = true;
 
       try {
+        if (inviteCodeEl instanceof HTMLInputElement && /^\d{4}$/.test(inviteCodeEl.value.trim())) {
+          window.location.href = `register.html?inviteCode=${encodeURIComponent(inviteCodeEl.value.trim())}`;
+          return;
+        }
         await login(usernameEl?.value, passwordEl?.value);
         enterAppAfterAuth({ showProfile: true });
       } catch (err) {
@@ -1531,6 +1611,7 @@
     isAccountHost,
     isAccountGuest,
     isAdmin,
+    isPremium,
     canManageInvites,
     canAccessMailSettings,
     getSession,

@@ -467,6 +467,18 @@ html[data-theme="cb-light"] .header-role-badge.is-guest {
   color: var(--muted);
 }
 
+.premium-glow-btn {
+  border: 1px solid rgba(255, 186, 58, 0.75);
+  border-radius: 999px;
+  padding: 0.32rem 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fff6d5;
+  background: radial-gradient(circle at 20% 20%, #ffd36a 0%, #f08f1a 55%, #b95506 100%);
+  animation: privat-glow 2.4s ease-in-out infinite;
+}
+
 @keyframes privat-glow {
   0%,
   100% {
@@ -591,6 +603,21 @@ body.has-auth-modal-open {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.auth-model-card {
+  appearance: none;
+}
+
+.auth-model-card:hover,
+.auth-model-card:focus-visible {
+  border-color: rgba(244, 115, 33, 0.55);
+  box-shadow: 0 0 0 2px rgba(244, 115, 33, 0.16);
+  outline: none;
 }
 
 .auth-model-card strong {
@@ -2302,10 +2329,14 @@ footer {
   margin: 0.5rem 0 0.75rem;
 }
 
+#adminUsersModal .auth-card-wide {
+  max-width: min(96vw, 1100px);
+}
+
 .admin-users-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 1120px;
 }
 
 .admin-users-table th,
@@ -2330,7 +2361,7 @@ footer {
 
 .admin-create-row {
   display: grid;
-  grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr auto auto;
+  grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr auto auto auto;
   gap: 0.45rem;
   align-items: center;
   margin-bottom: 0.7rem;
@@ -2355,6 +2386,32 @@ footer {
 .admin-input {
   width: 100%;
   min-width: 130px;
+}
+
+.model-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.model-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  padding: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.model-card strong {
+  font-size: 0.82rem;
+}
+
+.model-card span {
+  color: var(--muted);
+  font-size: 0.74rem;
 }
 
 .lovense-hint {

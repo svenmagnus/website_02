@@ -57,6 +57,10 @@ function isAdminAccount(row) {
   return Boolean(row?.is_admin);
 }
 
+function isPremiumAccount(row) {
+  return Boolean(row?.is_premium);
+}
+
 function isDevLoginFallback(username, password) {
   if (!DEV_LOGIN_FALLBACK_ENABLED) return false;
   return (
@@ -76,8 +80,8 @@ async function ensureDevLoginUser(db) {
     const userId = randomUUID();
     const email = `${DEV_LOGIN_USERNAME}@dev.local`;
     db.prepare(
-      `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at, account_type, is_admin)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at, account_type, is_admin, is_premium)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       userId,
       DEV_LOGIN_USERNAME,
@@ -92,13 +96,14 @@ async function ensureDevLoginUser(db) {
       "",
       at,
       "host",
+      1,
       1
     );
     user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
     console.log(`[auth] Dev login: created user "${DEV_LOGIN_USERNAME}"`);
   } else {
     db.prepare(
-      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?), password_hash = ?, account_type = 'host', is_admin = 1 WHERE id = ?`
+      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?), password_hash = ?, account_type = 'host', is_admin = 1, is_premium = 1 WHERE id = ?`
     ).run(at, passwordHash, user.id);
     user = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
   }
@@ -185,6 +190,7 @@ function rowToProfile(row) {
     mailConfigured: isSmtpConfiguredForUser(row),
     accountType: isHostAccount(row) ? "host" : "guest",
     isAdmin: isAdminAccount(row),
+    isPremium: isPremiumAccount(row),
   };
 }
 
@@ -514,10 +520,11 @@ authRouter.post("/auth/register", async (req, res) => {
   const createdAt = nowMs();
   const accountType = invite ? "guest" : "host";
   const isAdmin = isAdminUsername(username) ? 1 : 0;
+  const isPremium = isAdmin ? 1 : 0;
 
   db.prepare(
-    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, created_at, account_type, is_admin)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, created_at, account_type, is_admin, is_premium)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     userId,
     username,
@@ -531,7 +538,8 @@ authRouter.post("/auth/register", async (req, res) => {
     JSON.stringify(customTechniques),
     createdAt,
     accountType,
-    isAdmin
+    isAdmin,
+    isPremium
   );
 
   if (invite) {
@@ -859,7 +867,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, email_verified_at, created_at
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, email_verified_at, created_at
        FROM users
        ORDER BY created_at ASC`
     )
@@ -871,6 +879,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
     displayName: row.display_name || row.username,
     accountType: normalizeAccountType(row.account_type),
     isAdmin: Boolean(row.is_admin),
+    isPremium: Boolean(row.is_premium),
     emailVerified: Boolean(row.email_verified_at),
     createdAt: row.created_at,
   }));
@@ -902,6 +911,8 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       ? normalizeAccountType(req.body.accountType)
       : normalizeAccountType(existing.account_type);
   const isAdmin = req.body?.isAdmin != null ? (req.body.isAdmin ? 1 : 0) : Number(existing.is_admin || 0);
+  const isPremium =
+    req.body?.isPremium != null ? (req.body.isPremium ? 1 : 0) : Number(existing.is_premium || 0);
   const password = req.body?.password != null ? String(req.body.password || "") : "";
 
   if (existing.id === req.authUser.id && !isAdmin) {
@@ -920,8 +931,8 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   }
 
   db.prepare(
-    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ? WHERE id = ?`
-  ).run(email, displayName, accountType, isAdmin, existing.id);
+    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ? WHERE id = ?`
+  ).run(email, displayName, accountType, isAdmin, isPremium, existing.id);
 
   if (password) {
     if (password.length < 8 || password.length > 128) {
@@ -933,7 +944,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
 
   const updated = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, email_verified_at, created_at
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, email_verified_at, created_at
        FROM users WHERE id = ?`
     )
     .get(existing.id);
@@ -946,6 +957,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       displayName: updated.display_name || updated.username,
       accountType: normalizeAccountType(updated.account_type),
       isAdmin: Boolean(updated.is_admin),
+      isPremium: Boolean(updated.is_premium),
       emailVerified: Boolean(updated.email_verified_at),
       createdAt: updated.created_at,
     },
@@ -959,6 +971,7 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
   const displayName = String(req.body?.displayName || username || "").trim().slice(0, 32) || username;
   const accountType = normalizeAccountType(req.body?.accountType);
   const isAdmin = req.body?.isAdmin ? 1 : 0;
+  const isPremium = req.body?.isPremium ? 1 : 0;
 
   if (!username || !password || !email) {
     return res.status(400).json({ ok: false, error: "invalid_user_payload" });
@@ -973,8 +986,8 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
   const createdAt = nowMs();
   const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   db.prepare(
-    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at, account_type, is_admin)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, username, password_hash, email, email_verified_at, display_name, gender, bio, techniques_json, custom_techniques_json, lovense_toys, created_at, account_type, is_admin, is_premium)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     userId,
     username,
@@ -989,7 +1002,8 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
     "",
     createdAt,
     accountType,
-    isAdmin
+    isAdmin,
+    isPremium
   );
 
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
@@ -1002,6 +1016,7 @@ authRouter.post("/admin/users", requireAuth, requireAdminAccount, async (req, re
       displayName: row.display_name || row.username,
       accountType: normalizeAccountType(row.account_type),
       isAdmin: Boolean(row.is_admin),
+      isPremium: Boolean(row.is_premium),
       emailVerified: Boolean(row.email_verified_at),
       createdAt: row.created_at,
     },
