@@ -1,9 +1,8 @@
 /**
- * Floating Messages panel — drag, resize, pop-out to second monitor.
+ * Floating Messages panel — drag and resize.
  */
 (function (global) {
   const STORAGE_KEY = "dualpeer-messages-panel-geom";
-  const POPUP_NAME = "tangentMessages";
   const DEFAULTS = { left: 80, top: 72, width: 380, height: 480 };
 
   function loadGeom() {
@@ -40,7 +39,6 @@
     const btn = document.getElementById("btnHeaderChat");
     const panel = document.getElementById("floatingMessagesPanel");
     const closeBtn = document.getElementById("headerChatClose");
-    const popoutBtn = document.getElementById("btnMessagesPopout");
     const dragHandle = panel?.querySelector("[data-messages-drag]");
     const resizeHandle = panel?.querySelector("[data-messages-resize]");
 
@@ -70,21 +68,6 @@
     });
 
     closeBtn?.addEventListener("click", () => setOpen(false));
-
-    popoutBtn?.addEventListener("click", () => {
-      const g = loadGeom();
-      const features = [
-        `width=${Math.round(g.width)}`,
-        `height=${Math.round(g.height)}`,
-        `left=${Math.round(g.left)}`,
-        `top=${Math.round(g.top)}`,
-        "resizable=yes",
-        "scrollbars=yes",
-      ].join(",");
-      const url = `${location.origin}${location.pathname}?chatPopup=1`;
-      const win = window.open(url, POPUP_NAME, features);
-      if (win) setOpen(false);
-    });
 
     let drag = null;
     dragHandle?.addEventListener("pointerdown", (e) => {

@@ -563,23 +563,6 @@
     history.replaceState({}, "", location.pathname + (qs ? `?${qs}` : "") + location.hash);
   }
 
-  function initChatPopup() {
-    const head = document.getElementById("chatCardHead");
-    if (!head) return;
-    head.addEventListener("dblclick", () => {
-      const url = `${location.origin}${location.pathname}?chatPopup=1`;
-      window.open(url, "tangentChat", "width=440,height=720,resizable=yes,scrollbars=yes");
-    });
-  }
-
-  function initChatPopupView() {
-    if (!new URLSearchParams(location.search).has("chatPopup")) return;
-    document.body.classList.add("chat-popup-view");
-    const panel = document.getElementById("floatingMessagesPanel");
-    if (panel) panel.hidden = false;
-    global.DualPeerMessagesPanel?.open?.();
-  }
-
   function refreshAuthUi() {
     const btn = document.getElementById("btnHeaderChat");
     const profileSessions = document.getElementById("profileSessionsField");
@@ -603,8 +586,6 @@
     mountMeetingBlocks();
     initMeetingBlocks();
     initHeaderChatSend();
-    initChatPopup();
-    initChatPopupView();
     handleCalendarRedirect();
 
     global.addEventListener("dualpeer-auth-change", () => refreshAuthUi());
