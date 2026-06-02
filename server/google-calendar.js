@@ -172,6 +172,16 @@ export async function createCalendarEvent(accessToken, { title, description, sta
   };
 }
 
+export async function deleteCalendarEvent(accessToken, eventId) {
+  const id = String(eventId || "").trim();
+  if (!id || !accessToken) return false;
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(id)}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  return res.ok || res.status === 404 || res.status === 410;
+}
+
 export async function listCalendarEvents(accessToken, { timeMin, timeMax, maxResults = 30 }) {
   const params = new URLSearchParams({
     timeMin: toRfc3339(timeMin),

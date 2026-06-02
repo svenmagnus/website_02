@@ -240,6 +240,8 @@
       for (const m of state.meetings.slice(0, 8)) {
         const row = document.createElement("div");
         row.className = "meeting-list-item";
+        const body = document.createElement("div");
+        body.className = "meeting-list-item-body";
         const partner = m.isHost ? m.guest : m.host;
         const when = m.scheduledStartAt
           ? new Date(m.scheduledStartAt).toLocaleString(undefined, {
@@ -247,7 +249,7 @@
               timeStyle: "short",
             })
           : "—";
-        row.innerHTML =
+        body.innerHTML =
           `<strong>${m.mode === "instant" ? "Instant" : "Scheduled"}</strong> · ${m.status}` +
           (partner ? ` · ${escapeHtml(partner.displayName)}` : "") +
           (m.mode === "scheduled" ? `<br><span class="status-line">${when}</span>` : "") +
@@ -260,9 +262,26 @@
           cal.rel = "noopener";
           cal.className = "meeting-cal-link";
           cal.textContent = m.googleEventId ? "Open in Google Calendar" : "Calendar link";
-          row.appendChild(document.createElement("br"));
-          row.appendChild(cal);
+          body.appendChild(document.createElement("br"));
+          body.appendChild(cal);
         }
+        row.appendChild(body);
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "meeting-delete-btn";
+        delBtn.title = "Remove session";
+        delBtn.textContent = "Remove";
+        delBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          if (!window.confirm("Remove this session from your list?")) return;
+          try {
+            await deleteMeeting(m.id);
+            setMeetingStatusOnAll("Session removed.", "ok");
+          } catch (err) {
+            setMeetingStatusOnAll(err.message || "Could not remove session.", "err");
+          }
+        });
+        row.appendChild(delBtn);
         list.appendChild(row);
       }
     });
@@ -320,6 +339,8 @@
     btn.title = n ? `Messages (${n} saved)` : "Messages";
   }
 
+  let meetingCreateInFlight = false;
+
   async function createMeeting(payload) {
     const data = await api("/api/social/meetings", {
       method: "POST",
@@ -332,6 +353,24 @@
     });
     await bootstrap();
     return data.meeting;
+  }
+
+  async function deleteMeeting(meetingId) {
+    await api(`/api/social/meetings/${encodeURIComponent(meetingId)}`, { method: "DELETE" });
+    await bootstrap();
+  }
+
+  function setMeetingMenuOpen(block, open) {
+    if (!block) return;
+    block.classList.toggle("is-menu-open", open);
+    const menu = block.querySelector(".js-meeting-menu");
+    const btn = block.querySelector(".js-meeting-menu-btn");
+    if (menu) menu.hidden = !open;
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function closeAllMeetingMenus() {
+    document.querySelectorAll(".meeting-menu-block").forEach((b) => setMeetingMenuOpen(b, false));
   }
 
   async function publishHostPeerId(meetingId, hostPeerId) {
@@ -404,21 +443,23 @@
 
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        menu.hidden = !menu.hidden;
-        btn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
+        const willOpen = menu.hidden;
+        closeAllMeetingMenus();
+        setMeetingMenuOpen(block, willOpen);
       });
 
       menu.querySelectorAll("[data-meeting-action]").forEach((item) => {
         item.addEventListener("click", async (e) => {
           e.stopPropagation();
-          menu.hidden = true;
-          btn.setAttribute("aria-expanded", "false");
+          setMeetingMenuOpen(block, false);
           const action = item.dataset.meetingAction;
           const partnerId = block.querySelector(".js-meeting-partner-select")?.value;
           if (!partnerId) {
             setMeetingStatus(block, "Select your host or guest first.", "err");
             return;
           }
+          if (meetingCreateInFlight) return;
+          meetingCreateInFlight = true;
           const scheduleEl = block.querySelector(".js-meeting-schedule-start");
           try {
             if (action === "instant") {
@@ -467,19 +508,14 @@
             }
           } catch (err) {
             setMeetingStatus(block, err.message || "Could not create session.", "err");
+          } finally {
+            meetingCreateInFlight = false;
           }
         });
       });
     });
 
-    document.addEventListener("click", () => {
-      document.querySelectorAll(".js-meeting-menu").forEach((m) => {
-        m.hidden = true;
-      });
-      document.querySelectorAll(".js-meeting-menu-btn").forEach((b) => {
-        b.setAttribute("aria-expanded", "false");
-      });
-    });
+    document.addEventListener("click", () => closeAllMeetingMenus());
   }
 
   function fillPartnerSelects(threads = []) {

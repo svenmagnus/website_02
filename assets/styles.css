@@ -2727,6 +2727,12 @@ footer {
   margin: 0;
 }
 
+.meeting-menu-row {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
 .meeting-menu-dropdown {
   position: relative;
   display: block;
@@ -2737,22 +2743,33 @@ footer {
 .meeting-menu {
   position: absolute;
   top: calc(100% + 0.35rem);
-  left: 0;
+  right: 0;
+  left: auto;
   z-index: 600;
   min-width: 300px;
   width: max-content;
-  max-width: min(100%, 360px);
+  max-width: min(92vw, 360px);
   height: auto;
   max-height: none;
   padding: 0.4rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
   overflow: visible;
+}
+
+.meeting-menu-block.is-menu-open .js-meeting-menu-spacer {
+  height: 9.75rem;
+  flex-shrink: 0;
+}
+
+.js-meeting-menu-spacer {
+  height: 0;
+  transition: height 0.15s ease;
 }
 
 .meeting-menu[hidden] {
@@ -2796,9 +2813,35 @@ footer {
 }
 
 .meeting-list-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
   font-size: 0.78rem;
-  padding: 0.35rem 0;
+  padding: 0.45rem 0;
   border-bottom: 1px solid var(--border);
+}
+
+.meeting-list-item-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.meeting-delete-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.meeting-delete-btn:hover {
+  background: var(--danger);
+  color: #fff;
 }
 
 .meeting-peer-id {

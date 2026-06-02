@@ -15,6 +15,7 @@ import {
   getAccessTokenForUser,
   syncMeetingToGoogle,
   listCalendarEvents,
+  deleteCalendarEvent,
 } from "./google-calendar.js";
 
 export const socialRouter = Router();
@@ -449,6 +450,28 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
       hostPeerId: updated.host_peer_id || "",
     },
   });
+});
+
+socialRouter.delete("/social/meetings/:id", requireAuth, async (req, res) => {
+  const db = getDb();
+  const meeting = db.prepare("SELECT * FROM meetings WHERE id = ?").get(req.params.id);
+  if (!meeting) return res.status(404).json({ ok: false, error: "meeting_not_found" });
+  const uid = req.authUser.id;
+  if (meeting.host_user_id !== uid && meeting.guest_user_id !== uid) {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+
+  if (meeting.google_event_id && req.authUser.google_refresh_token_enc) {
+    try {
+      const accessToken = await getAccessTokenForUser(db, uid);
+      if (accessToken) await deleteCalendarEvent(accessToken, meeting.google_event_id);
+    } catch (err) {
+      console.warn("[calendar] delete event failed:", err.message);
+    }
+  }
+
+  db.prepare("DELETE FROM meetings WHERE id = ?").run(meeting.id);
+  res.json({ ok: true });
 });
 
 socialRouter.get("/social/calendar/status", requireAuth, (req, res) => {
