@@ -11,6 +11,7 @@ import {
   isSmtpConfiguredForUser,
   resolveMailConfig,
   sendInviteEmail,
+  sendRegistrationConfirmationEmail,
   sendVerificationEmail,
   sendTestEmail,
   STRATO_MAIL_PRESET,
@@ -577,6 +578,7 @@ authRouter.post("/auth/register", async (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
   let emailSent = false;
   let devVerifyUrl = null;
+  const loginUrl = `${getAppPublicUrl()}/index.html`;
 
   let mailSenderRow = user;
   if (invite) {
@@ -584,27 +586,48 @@ authRouter.post("/auth/register", async (req, res) => {
       db.prepare("SELECT * FROM users WHERE id = ?").get(invite.host_user_id) || user;
   }
 
+  const mailConfig = resolveMailConfig(mailSenderRow);
+  let verifyUrl = null;
+
   if (SKIP_EMAIL_VERIFY) {
     markEmailVerified(userId);
     console.log(`[auth] SKIP_EMAIL_VERIFY — ${email} auto-verified`);
-  } else if (!resolveMailConfig(mailSenderRow)) {
+  } else if (!mailConfig) {
     markEmailVerified(userId);
     console.log(`[auth] No SMTP — ${email} auto-verified (dev / no mail config)`);
   } else {
+    const verifyToken = await createVerificationToken(userId);
+    verifyUrl = `${getAppPublicUrl()}/verify-email.html?token=${encodeURIComponent(verifyToken)}`;
+  }
+
+  if (mailConfig) {
     try {
-      const sent = await sendUserVerificationEmail(user, { mailUserRow: mailSenderRow });
-      emailSent = sent.mailResult.sent;
-      if (DEV_EXPOSE_VERIFY_URL || sent.mailResult.devMode) {
-        devVerifyUrl = sent.verifyUrl;
+      const verifiedNow = Boolean(
+        db.prepare("SELECT email_verified_at FROM users WHERE id = ?").get(userId).email_verified_at
+      );
+      const mailResult = await sendRegistrationConfirmationEmail({
+        to: email,
+        username,
+        email,
+        password,
+        loginUrl,
+        verifyUrl: verifiedNow ? null : verifyUrl,
+        userRow: mailSenderRow,
+      });
+      emailSent = mailResult.sent;
+      if (DEV_EXPOSE_VERIFY_URL || mailResult.devMode) {
+        devVerifyUrl = verifyUrl || undefined;
       }
-      if (!emailSent) {
-        devVerifyUrl = devVerifyUrl || sent.verifyUrl;
+      if (!emailSent && verifyUrl) {
+        devVerifyUrl = devVerifyUrl || verifyUrl;
         console.log(
-          `[mail] Verify link for ${email} (not sent — check SMTP):\n  ${sent.verifyUrl}`
+          `[mail] Registration confirmation for ${email} (not sent — check SMTP):\n` +
+            `  Login: ${loginUrl}\n` +
+            (verifyUrl ? `  Verify: ${verifyUrl}\n` : "")
         );
       }
     } catch (err) {
-      console.error("[mail] verification send failed:", err);
+      console.error("[mail] registration confirmation send failed:", err);
       db.prepare("DELETE FROM users WHERE id = ?").run(userId);
       return res.status(500).json({ ok: false, error: "email_failed", message: err.message });
     }
@@ -635,9 +658,11 @@ authRouter.post("/auth/register", async (req, res) => {
     user: token ? rowToProfile(verifiedUser) : undefined,
     devVerifyUrl: devVerifyUrl || undefined,
     message: verifiedUser.email_verified_at
-      ? "Account created — set up your profile next."
+      ? emailSent
+        ? "Account created. A confirmation email with your login details was sent."
+        : "Account created — set up your profile next."
       : emailSent
-        ? "Account created. Please confirm your email (check spam folder too)."
+        ? "Account created. A confirmation email with your login details and email confirmation link was sent (check spam too)."
         : "Account created. Email delivery not active — see confirmation link below or server console.",
   });
 });

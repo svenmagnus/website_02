@@ -286,6 +286,84 @@ export async function sendTestEmail({ to, username, userRow }) {
   return sendMail({ to, subject, text, html, userRow, logContext: "test" });
 }
 
+/**
+ * @param {{ to: string, username: string, email: string, password: string, loginUrl: string, verifyUrl?: string|null, userRow?: Record<string, unknown>|null }} opts
+ */
+export async function sendRegistrationConfirmationEmail({
+  to,
+  username,
+  email,
+  password,
+  loginUrl,
+  verifyUrl,
+  userRow,
+}) {
+  const needsVerify = Boolean(verifyUrl);
+  const subject = needsVerify
+    ? `Your ${SITE_NAME} account — please confirm your email`
+    : `Your ${SITE_NAME} account is ready`;
+
+  const credentialsText =
+    `Email: ${email}\n` + `Username: ${username}\n` + `Password: ${password}\n`;
+
+  const verifyText = needsVerify
+    ? `\nPlease confirm your email address before logging in (link valid 48 hours):\n${verifyUrl}\n`
+    : "";
+
+  const text =
+    `Hello ${username},\n\n` +
+    `your account on ${SITE_NAME} was created successfully.\n\n` +
+    `Your login details:\n${credentialsText}\n` +
+    `Log in: ${loginUrl}\n` +
+    verifyText +
+    `\nKeep this message safe and do not share your password.\n\n${SITE_NAME}`;
+
+  const credentialsHtml = `<table cellpadding="0" cellspacing="0" style="margin:16px 0;width:100%;font-size:14px;line-height:1.6;color:#e8e8ec;">
+    <tr><td style="padding:4px 12px 4px 0;color:#888;vertical-align:top;">Email</td><td><strong style="color:#fff;">${escapeHtml(email)}</strong></td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#888;vertical-align:top;">Username</td><td><strong style="color:#fff;">${escapeHtml(username)}</strong></td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#888;vertical-align:top;">Password</td><td><code style="font-size:15px;color:#f97316;">${escapeHtml(password)}</code></td></tr>
+  </table>`;
+
+  const verifyHtml = needsVerify
+    ? `<p style="line-height:1.55;color:#c8c8d0;margin-top:20px;">Please confirm your email address before logging in:</p>` +
+      `<p style="margin:16px 0;"><a href="${escapeHtml(verifyUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Confirm email</a></p>` +
+      `<p style="font-size:13px;color:#888;word-break:break-all;">${escapeHtml(verifyUrl)}</p>`
+    : "";
+
+  const html = emailLayout({
+    title: "your account is ready",
+    bodyHtml:
+      `<p style="line-height:1.55;color:#c8c8d0;">Hello <strong style="color:#fff;">${escapeHtml(username)}</strong>,</p>` +
+      `<p style="line-height:1.55;color:#c8c8d0;">your account on ${escapeHtml(SITE_NAME)} was created successfully.</p>` +
+      `<p style="margin-top:16px;font-size:13px;color:#a0a0b0;">Your login details:</p>` +
+      credentialsHtml +
+      `<p style="margin:20px 0;"><a href="${escapeHtml(loginUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Log in</a></p>` +
+      `<p style="font-size:13px;color:#888;word-break:break-all;">${escapeHtml(loginUrl)}</p>` +
+      verifyHtml,
+    footerNote: "Keep this message safe and do not share your password.",
+  });
+
+  const result = await sendMail({
+    to,
+    subject,
+    text,
+    html,
+    userRow,
+    logContext: "register-confirm",
+  });
+
+  if (result.devMode) {
+    console.log(
+      `[mail] Registration confirmation (manual) for ${to}:\n` +
+        `  Login: ${loginUrl}\n` +
+        `  Email: ${email}\n` +
+        `  Username: ${username}\n` +
+        (needsVerify ? `  Verify: ${verifyUrl}\n` : "")
+    );
+  }
+  return result;
+}
+
 export async function sendVerificationEmail({ to, verifyUrl, username, userRow }) {
   const subject = `Bitte bestätige dein ${SITE_NAME}-Konto`;
   const text =

@@ -1440,7 +1440,7 @@
             successEmailHint.hidden = false;
             successEmailHint.className = "status-line";
             successEmailHint.textContent = result.emailSent
-              ? "No email? Check spam — or use the confirmation link below."
+              ? "Check your inbox for login details (email, password, login link). Also check spam."
               : "Email delivery is not active — open the confirmation link below.";
           }
           if (devEl && result.devVerifyUrl) {
