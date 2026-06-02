@@ -353,6 +353,12 @@ function validateEmail(email) {
   return e;
 }
 
+function validateGuestName(name) {
+  const n = String(name || "").trim().slice(0, 64);
+  if (!n) return null;
+  return n;
+}
+
 function findActiveInviteByToken(token) {
   if (!token) return null;
   const db = getDb();
@@ -824,8 +830,12 @@ authRouter.post("/profile/mail/test", requireAuth, requireAdminAccount, async (r
 
 authRouter.post("/invites", requireAuth, async (req, res) => {
   const email = validateEmail(req.body?.email);
+  const guestName = validateGuestName(req.body?.guestName);
   if (!email) {
     return res.status(400).json({ ok: false, error: "invalid_email" });
+  }
+  if (!guestName) {
+    return res.status(400).json({ ok: false, error: "invalid_guest_name" });
   }
 
   const inviteToken = randomBytes(24).toString("base64url");
@@ -839,9 +849,9 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
   db.prepare("UPDATE users SET account_type = 'host' WHERE id = ?").run(req.authUser.id);
 
   db.prepare(
-    `INSERT INTO invites (token, email, host_user_id, invite_code_hash, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(inviteToken, email, req.authUser.id, inviteCodeHash, createdAt, expiresAt);
+    `INSERT INTO invites (token, email, host_user_id, invite_code_hash, guest_name, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(inviteToken, email, req.authUser.id, inviteCodeHash, guestName, createdAt, expiresAt);
 
   const inviteUrl = `${getAppPublicUrl()}/register.html?token=${encodeURIComponent(inviteToken)}`;
   const hostName = req.authUser.display_name || req.authUser.username;
@@ -856,6 +866,7 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
         inviteUrl,
         hostName,
         inviteCode,
+        guestName,
         userRow: hostRow,
       })
     );

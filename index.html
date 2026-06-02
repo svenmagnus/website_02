@@ -111,6 +111,16 @@
         <h2 id="inviteModalTitle">Invite guest by email</h2>
         <p class="login-overlay-hint">The guest receives a registration link and code.</p>
         <div class="login-overlay-row">
+          <label for="inviteGuestNameInput">Name</label>
+          <input
+            type="text"
+            id="inviteGuestNameInput"
+            autocomplete="name"
+            maxlength="64"
+            placeholder="Guest's first name"
+          />
+        </div>
+        <div class="login-overlay-row">
           <label for="inviteEmailInput">Guest email</label>
           <input type="email" id="inviteEmailInput" autocomplete="email" placeholder="guest@example.com" />
         </div>
@@ -823,7 +833,7 @@
     <script src="assets/technique-presets.js?v=8425"></script>
     <script src="assets/ui-shell.js?v=8434"></script>
     <script src="assets/app.js?v=8440"></script>
-    <script src="assets/auth.js?v=8441"></script>
+    <script src="assets/auth.js?v=8442"></script>
     <script src="assets/member-profile.js?v=8436"></script>
   </body>
 </html>

@@ -79,6 +79,9 @@ function runMigrations(database) {
   if (!inviteCols.includes("invite_code_hash")) {
     database.exec(`ALTER TABLE invites ADD COLUMN invite_code_hash TEXT`);
   }
+  if (!inviteCols.includes("guest_name")) {
+    database.exec(`ALTER TABLE invites ADD COLUMN guest_name TEXT NOT NULL DEFAULT ''`);
+  }
 
   const smtpCols = [
     ["smtp_out_host", "TEXT"],

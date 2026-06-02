@@ -223,13 +223,14 @@ export async function sendMail({ to, subject, text, html, userRow, logContext = 
 }
 
 /**
- * @param {{ to: string, inviteUrl: string, hostName: string, inviteCode: string, userRow?: Record<string, unknown>|null }} opts
+ * @param {{ to: string, inviteUrl: string, hostName: string, inviteCode: string, guestName: string, userRow?: Record<string, unknown>|null }} opts
  */
-export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, userRow }) {
+export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, guestName, userRow }) {
+  const safeGuestName = escapeHtml(String(guestName || "").trim() || "Guest");
   const subject = `${hostName} invites you to ${SITE_NAME}`;
   const text =
-    `Hello,\n\n` +
-    `${hostName} invites you to a private session on ${SITE_NAME}.\n\n` +
+    `Dear ${String(guestName || "").trim() || "Guest"},\n\n` +
+    `You are invited by ${hostName} to join ${SITE_NAME}.\n\n` +
     `Registration (one-time link, valid for 7 days):\n${inviteUrl}\n\n` +
     `If the link does not open — invitation code (4 digits): ${inviteCode}\n` +
     `(enter on the registration page together with your email address)\n\n` +
@@ -238,8 +239,8 @@ export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, use
   const html = emailLayout({
     title: "You are invited",
     bodyHtml:
-      `<p style="line-height:1.55;color:#c8c8d0;">` +
-      `<strong style="color:#fff;">${escapeHtml(hostName)}</strong> invites you to a private session on ${escapeHtml(SITE_NAME)}.</p>` +
+      `<p style="line-height:1.55;color:#e8e8d0;">Dear <strong style="color:#fff;">${safeGuestName}</strong>,</p>` +
+      `<p style="line-height:1.55;color:#c8c8d0;margin-top:12px;">You are invited by <strong style="color:#fff;">${escapeHtml(hostName)}</strong> to join ${escapeHtml(SITE_NAME)}.</p>` +
       `<p style="margin:20px 0;"><a href="${escapeHtml(inviteUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Create Account</a></p>` +
       `<p style="font-size:14px;color:#a0a0b0;line-height:1.5;">Or copy link:<br><span style="word-break:break-all;color:#e8e8ec;">${escapeHtml(inviteUrl)}</span></p>` +
       `<p style="margin-top:20px;padding:14px;background:#12121a;border-radius:8px;font-size:14px;color:#e8e8ec;">` +

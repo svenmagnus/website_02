@@ -387,10 +387,10 @@
     return profile;
   }
 
-  async function sendInvite(email, options = {}) {
+  async function sendInvite(email, guestName, options = {}) {
     return api("/api/invites", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, guestName }),
       timeoutMs: 20000,
       ...options,
     });
@@ -863,6 +863,7 @@
     const openBtn = document.getElementById("btnInviteByEmail");
     const closeBtn = document.getElementById("inviteModalClose");
     const sendBtn = document.getElementById("inviteSendBtn");
+    const nameInput = document.getElementById("inviteGuestNameInput");
     const emailInput = document.getElementById("inviteEmailInput");
     const status = document.getElementById("inviteModalStatus");
     const INVITE_SEND_TIMEOUT_MS = 15000;
@@ -893,7 +894,8 @@
       if (global.dualPeerUi?.openAuthModal) {
         global.dualPeerUi.openAuthModal("inviteModal");
       } else if (modal) modal.hidden = false;
-      if (emailInput instanceof HTMLInputElement) emailInput.focus();
+      if (nameInput instanceof HTMLInputElement) nameInput.focus();
+      else if (emailInput instanceof HTMLInputElement) emailInput.focus();
       if (status) status.textContent = "";
     };
 
@@ -919,8 +921,24 @@
     }
     if (sendBtn) {
       sendBtn.addEventListener("click", async () => {
+        const guestName = nameInput instanceof HTMLInputElement ? nameInput.value.trim() : "";
         const email = emailInput instanceof HTMLInputElement ? emailInput.value.trim() : "";
-        if (!email) return;
+        if (!guestName) {
+          if (status) {
+            status.className = "status-line err";
+            status.textContent = "Please enter the guest's name.";
+          }
+          nameInput?.focus();
+          return;
+        }
+        if (!email) {
+          if (status) {
+            status.className = "status-line err";
+            status.textContent = "Please enter a guest email address.";
+          }
+          emailInput?.focus();
+          return;
+        }
         if (inviteSendAbort) inviteSendAbort.abort();
         inviteSendAbort = new AbortController();
         const signal = inviteSendAbort.signal;
@@ -932,7 +950,7 @@
           status.appendChild(document.createTextNode("Sending…"));
         }
         try {
-          const result = await sendInvite(email, {
+          const result = await sendInvite(email, guestName, {
             signal,
             timeoutMs: INVITE_SEND_TIMEOUT_MS,
           });
@@ -966,6 +984,7 @@
               status.appendChild(codeLine);
             }
           }
+          if (nameInput instanceof HTMLInputElement) nameInput.value = "";
           if (emailInput instanceof HTMLInputElement) emailInput.value = "";
         } catch (err) {
           if (err.code === "request_aborted") return;
@@ -973,6 +992,8 @@
             status.className = "status-line err";
             status.replaceChildren();
             const map = {
+              invalid_guest_name: "Please enter the guest's name.",
+              invalid_email: "Please enter a valid email address.",
               timeout: "Sending timed out. Check SMTP settings or try again.",
               smtp_timeout: "SMTP connection timed out. Check port 465 (SSL) or 587.",
               smtp_auth_failed: "SMTP login failed — check mailbox password in Email server settings.",
