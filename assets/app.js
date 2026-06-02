@@ -2769,12 +2769,16 @@ function handleIncomingDataMessage(raw) {
 function publishHostPeerIdToGuest(peerId) {
   if (!peerId || !global.DualPeerSocial?.publishHostPeerId) return;
   const meetingId = global.DualPeerSocial.getActiveLiveMeetingId?.();
-  if (meetingId) {
-    global.DualPeerSocial.publishHostPeerId(meetingId, peerId).catch((err) => {
-      console.warn("[social] publish peer id failed:", err);
-    });
+  if (!meetingId) {
+    console.warn("[social] no active meeting — create an instant session in Setup first.");
+    return;
   }
+  global.DualPeerSocial.publishHostPeerId(meetingId, peerId).catch((err) => {
+    console.warn("[social] publish peer id failed:", err);
+  });
 }
+
+global.appSessionRole = () => sessionRole;
 
 function relayChatToPeer(text, sender) {
   const payload = {

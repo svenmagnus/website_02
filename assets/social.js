@@ -3,6 +3,10 @@
  */
 (function (global) {
   const CHAT_CHANNEL = "dualpeer-chat-sync";
+  const MEETINGS_CHANNEL = "dualpeer-meetings-sync";
+  const MEETINGS_POLL_MS = 3500;
+  let meetingsPollTimer = null;
+  let meetingsBroadcastChannel = null;
   const state = {
     threadId: null,
     partner: null,
@@ -226,8 +230,82 @@
       updateMeetingPanels();
       updateCalendarUi();
       updateHeaderChatBadge();
+      applyHostPeerIdFromMeetings();
     } catch (err) {
       console.warn("[social] bootstrap failed:", err);
+    }
+  }
+
+  async function refreshMeetingsFromServer() {
+    if (!isLoggedIn()) return;
+    const data = await api("/api/social/bootstrap");
+    state.meetings = data.meetings || [];
+    updateMeetingPanels();
+    applyHostPeerIdFromMeetings();
+  }
+
+  function applyHostPeerIdFromMeetings() {
+    if (global.DualPeerAuth?.isAccountHost?.()) return;
+    const peerIn = document.getElementById("peerIdIn");
+    if (!(peerIn instanceof HTMLInputElement)) return;
+    const waiting = state.meetings.find(
+      (m) =>
+        !m.isHost &&
+        m.hostPeerId &&
+        (m.status === "live" || (m.mode === "instant" && m.status !== "ended"))
+    );
+    if (!waiting?.hostPeerId) return;
+    if (peerIn.value.trim() !== waiting.hostPeerId) {
+      peerIn.value = waiting.hostPeerId;
+      peerIn.placeholder = "Host Peer ID (auto-filled) …";
+      peerIn.dispatchEvent(new Event("input", { bubbles: true }));
+      const guestStatus = document.getElementById("statusGuest");
+      if (guestStatus && !global.appSessionRole?.()) {
+        guestStatus.textContent = "Host Peer ID ready — click Connect to Host.";
+        guestStatus.className = "status-line ok";
+      }
+    }
+  }
+
+  function broadcastMeetingsChanged() {
+    try {
+      const bc = getMeetingsBroadcastChannel();
+      if (!bc) return;
+      bc.postMessage({ type: "meetings-changed", sourceId: global.__dualpeerTabId });
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function getMeetingsBroadcastChannel() {
+    if (meetingsBroadcastChannel) return meetingsBroadcastChannel;
+    try {
+      meetingsBroadcastChannel = new BroadcastChannel(MEETINGS_CHANNEL);
+      meetingsBroadcastChannel.addEventListener("message", (ev) => {
+        const data = ev.data;
+        if (data?.type !== "meetings-changed") return;
+        if (data.sourceId && data.sourceId === global.__dualpeerTabId) return;
+        refreshMeetingsFromServer().catch(() => {});
+      });
+      return meetingsBroadcastChannel;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function startMeetingsPolling() {
+    stopMeetingsPolling();
+    getMeetingsBroadcastChannel();
+    meetingsPollTimer = setInterval(() => {
+      if (document.hidden || !isLoggedIn()) return;
+      refreshMeetingsFromServer().catch(() => {});
+    }, MEETINGS_POLL_MS);
+  }
+
+  function stopMeetingsPolling() {
+    if (meetingsPollTimer) {
+      clearInterval(meetingsPollTimer);
+      meetingsPollTimer = null;
     }
   }
 
@@ -251,17 +329,12 @@
       hostHint.hidden = false;
       hostHint.innerHTML =
         `Your host: <strong>${escapeHtml(state.inviteHost.displayName)}</strong> (@${escapeHtml(state.inviteHost.username)}). ` +
-        `Use <strong>Messages</strong> in the header to chat — history is saved. ` +
-        `When they start a session, the <strong>Host Peer ID</strong> appears in chat; paste it below.`;
+        `Use <strong>Messages</strong> in the header to chat. ` +
+        `When the host starts streaming, the <strong>Host Peer ID</strong> is filled in automatically below.`;
     }
     if (peerHelp) peerHelp.hidden = false;
 
-    const liveMeeting = state.meetings.find((m) => m.status === "live" && m.hostPeerId);
-    const peerIn = document.getElementById("peerIdIn");
-    if (liveMeeting?.hostPeerId && peerIn instanceof HTMLInputElement && !peerIn.value.trim()) {
-      peerIn.value = liveMeeting.hostPeerId;
-      peerIn.placeholder = "Host Peer ID from chat …";
-    }
+    applyHostPeerIdFromMeetings();
   }
 
   function escapeHtml(s) {
@@ -314,10 +387,10 @@
         delBtn.textContent = "Remove";
         delBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
-          if (!window.confirm("Remove this session from your list?")) return;
+          if (!window.confirm("Remove this session for you and your partner?")) return;
           try {
             await deleteMeeting(m.id);
-            setMeetingStatusOnAll("Session removed.", "ok");
+            setMeetingStatusOnAll("Session removed for both sides.", "ok");
           } catch (err) {
             setMeetingStatusOnAll(err.message || "Could not remove session.", "err");
           }
@@ -399,6 +472,7 @@
   async function deleteMeeting(meetingId) {
     await api(`/api/social/meetings/${encodeURIComponent(meetingId)}`, { method: "DELETE" });
     await bootstrap();
+    broadcastMeetingsChanged();
   }
 
   function setMeetingMenuOpen(block, open) {
@@ -420,10 +494,13 @@
       method: "PATCH",
       body: JSON.stringify({ hostPeerId }),
     });
+    state._pendingMeetingId = null;
     await bootstrap();
+    broadcastMeetingsChanged();
   }
 
   function getActiveLiveMeetingId() {
+    if (state._pendingMeetingId) return state._pendingMeetingId;
     const m = state.meetings.find(
       (x) => x.isHost && (x.status === "live" || x.status === "scheduled") && x.mode === "instant"
     );
@@ -451,12 +528,9 @@
   function mountMeetingBlocks() {
     const tpl = document.getElementById("meetingBlockTemplate");
     const setupMount = document.getElementById("setupMeetingMount");
-    const profileMount = document.getElementById("profileMeetingMount");
     if (!tpl?.content) return;
-    [setupMount, profileMount].forEach((mount) => {
-      if (!mount || mount.querySelector(".meeting-menu-block")) return;
-      mount.appendChild(tpl.content.cloneNode(true));
-    });
+    if (!setupMount || setupMount.querySelector(".meeting-menu-block")) return;
+    setupMount.appendChild(tpl.content.cloneNode(true));
   }
 
   function setMeetingStatus(block, msg, cls) {
@@ -606,7 +680,6 @@
 
   function refreshAuthUi() {
     const btn = document.getElementById("btnHeaderChat");
-    const profileSessions = document.getElementById("profileSessionsField");
     const setupSessions = document.getElementById("setupSessionsField");
     const aboutBox = document.getElementById("tangentAboutBox");
     const peerHelp = document.getElementById("peerIdHelpBox");
@@ -617,9 +690,13 @@
     }
     if (peerHelp) peerHelp.hidden = !loggedIn;
     if (aboutBox) aboutBox.hidden = false;
-    if (profileSessions) profileSessions.hidden = !loggedIn;
     if (setupSessions) setupSessions.hidden = !loggedIn;
-    if (loggedIn) bootstrap();
+    if (loggedIn) {
+      bootstrap();
+      startMeetingsPolling();
+    } else {
+      stopMeetingsPolling();
+    }
   }
 
   function init() {
@@ -644,6 +721,7 @@
     clearChatAfterSession,
     publishHostPeerId,
     getActiveLiveMeetingId,
+    applyHostPeerIdFromMeetings,
     getThreadId: () => state.threadId,
     getMessages: () => state.messages,
     appendLocalEcho(text, senderName, { messageId } = {}) {
