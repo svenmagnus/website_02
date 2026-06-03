@@ -236,6 +236,7 @@
       }
       await loadModelPool();
       fillPartnerSelects(threads);
+      updateSessionActionHighlight();
       updateSetupHints();
       updateMeetingPanels();
       updateCalendarUi();
@@ -253,6 +254,7 @@
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
     await loadModelPool();
+    updateSessionActionHighlight();
   }
 
   function getSelectedPartnerUserId() {
@@ -290,9 +292,82 @@
     return null;
   }
 
+  function findPartnerLiveMeeting() {
+    const partnerId = getSelectedPartnerUserId();
+    const uid = getSessionUserId();
+    if (!uid) return null;
+    for (const m of state.meetings || []) {
+      const peerId = String(m.hostPeerId || "").trim();
+      if (!peerId) continue;
+      if (m.status !== "live" && !(m.mode === "instant" && m.status !== "ended")) continue;
+      const providerId = m.host?.id;
+      if (!providerId || providerId === uid) continue;
+      if (partnerId && providerId !== partnerId) continue;
+      return m;
+    }
+    return null;
+  }
+
+  function findMyPendingProviderMeeting() {
+    const partnerId = getSelectedPartnerUserId();
+    return (
+      state.meetings?.find((m) => {
+        if (!m.isHost || m.status !== "live") return false;
+        if (String(m.hostPeerId || "").trim()) return false;
+        if (partnerId && m.guest?.id !== partnerId) return false;
+        return true;
+      }) || null
+    );
+  }
+
+  function updateSessionActionHighlight() {
+    const startBtn = document.getElementById("btnStartHost");
+    const joinBtn = document.getElementById("btnConnect");
+    if (!startBtn || !joinBtn) return;
+
+    const role = global.appSessionRole?.();
+    const inCall = role === "host" || role === "guest";
+    const partnerLive = !inCall ? findPartnerLiveMeeting() : null;
+    const myTurnToStart = !inCall ? findMyPendingProviderMeeting() : null;
+
+    startBtn.classList.remove("primary", "secondary", "session-action-glow");
+    joinBtn.classList.remove("primary", "secondary", "session-action-glow");
+
+    if (inCall) return;
+
+    if (partnerLive) {
+      joinBtn.classList.add("primary", "session-action-glow");
+      startBtn.classList.add("secondary");
+      if (!joinBtn.disabled) {
+        joinBtn.title = "Partner is live — click to join their session";
+      }
+      if (!startBtn.disabled) {
+        startBtn.title = "Start your own camera (partner is already live)";
+      }
+      return;
+    }
+
+    if (myTurnToStart) {
+      startBtn.classList.add("primary");
+      joinBtn.classList.add("secondary");
+      if (!startBtn.disabled) {
+        startBtn.title = "Start your camera and share a Session ID";
+      }
+      return;
+    }
+
+    startBtn.classList.add("secondary");
+    joinBtn.classList.add("secondary");
+    if (!startBtn.disabled) {
+      startBtn.title = "Start your camera and share a Session ID";
+    }
+    if (!joinBtn.disabled) {
+      joinBtn.title = "Join your partner's live session";
+    }
+  }
+
   function applyHostPeerIdFromMeetings(peerIdOverride) {
     const peerIn = document.getElementById("peerIdIn");
-    if (!(peerIn instanceof HTMLInputElement)) return;
     const partnerId = getSelectedPartnerUserId();
     const waiting =
       state.meetings.find((m) => {
@@ -307,8 +382,7 @@
       }) ||
       state.meetings.find((m) => !m.isHost && m.hostPeerId);
     const peerId = peerIdOverride || waiting?.hostPeerId;
-    if (!peerId) return;
-    if (peerIn.value.trim() !== peerId) {
+    if (peerIn instanceof HTMLInputElement && peerId && peerIn.value.trim() !== peerId) {
       peerIn.value = peerId;
       peerIn.placeholder = "Session ID (auto-filled) …";
       peerIn.dispatchEvent(new Event("input", { bubbles: true }));
@@ -318,6 +392,7 @@
         guestStatus.className = "status-line ok";
       }
     }
+    updateSessionActionHighlight();
   }
 
   function broadcastMeetingsChanged() {
@@ -923,6 +998,13 @@
       if (p && !partners.some((x) => x.id === p.id)) partners.push(p);
     }
     document.querySelectorAll(".js-meeting-partner-select").forEach((sel) => {
+      if (!sel.dataset.partnerHighlightBound) {
+        sel.dataset.partnerHighlightBound = "1";
+        sel.addEventListener("change", () => {
+          applyHostPeerIdFromMeetings();
+          updateSessionActionHighlight();
+        });
+      }
       sel.replaceChildren();
       if (!partners.length) {
         const opt = document.createElement("option");
@@ -989,6 +1071,7 @@
     handleCalendarRedirect();
 
     global.addEventListener("dualpeer-auth-change", () => refreshAuthUi());
+    global.addEventListener("dualpeer-session-role", () => updateSessionActionHighlight());
     if (global.DualPeerAuth?.onReady) {
       global.DualPeerAuth.onReady(() => refreshAuthUi());
     } else {
@@ -1005,6 +1088,7 @@
     getActiveLiveMeetingId,
     resolveLiveMeetingId,
     applyHostPeerIdFromMeetings,
+    updateSessionActionHighlight,
     ensureChatThread,
     loadModelPool,
     addModelToPool,

@@ -3086,6 +3086,24 @@ footer {
   color: var(--accent);
 }
 
+.setup-session-actions button.session-action-glow {
+  animation: session-action-pulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+@keyframes session-action-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent),
+      0 0 14px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent),
+      0 0 22px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+}
+
 .setup-session-actions-hint {
   margin: 0.35rem 0 0.5rem;
   font-size: 0.78rem;

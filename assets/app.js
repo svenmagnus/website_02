@@ -1625,6 +1625,7 @@ function hangup() {
   }
   sessionRole = null;
   notifySessionRole();
+  global.DualPeerSocial?.updateSessionActionHighlight?.();
   partnerRemoteToys = [];
   renderToyControls([]);
   clearTimeout(obsCaptureRetryTimer);
@@ -3515,6 +3516,7 @@ function applyAccountStreamingUi() {
     els.btnConnect.disabled = false;
     els.btnConnect.title = "Join your partner's live session";
   }
+  global.DualPeerSocial?.updateSessionActionHighlight?.();
 }
 
 function setVideoAccessUi(unlocked) {
