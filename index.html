@@ -35,7 +35,7 @@
       // false = Stream Master token tips (fixed seconds per Basic Level).
       window.DUALPEER_DIRECT_MOTOR = true;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8468"></script>
+    <script src="assets/lovense-broadcast.js?v=8470"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -924,14 +924,15 @@
           <div class="panel-tab-panel" data-remote-tab-panel="toys" hidden>
             <h2 class="panel-tab-title">Remote Control (toys)</h2>
             <p class="status-line" style="margin: 0 0 0.5rem">
-              Controls your partner&apos;s toys (host and guest share lists). Low/Medium/High use mapped tip tokens; 0 = stop.
+              Same controls as <strong>Local Test</strong> on your partner&apos;s device: motor holds until they move the
+              slider to 0; presets Low→Ultra (Max 18/20, Ultra 20/20); Specials on/off via checkbox.
             </p>
             <div id="toyControlList" class="toy-control-list" aria-live="polite">
               <div class="toy-empty-note">Waiting for partner toys — connect via PeerJS.</div>
             </div>
             <p class="status-line toy-hold-hint" style="margin: 0.65rem 0 0">
-              Hold: active preset again or slider 0 to stop. Specials need tokens in Stream Master;
-              unchecking restores your last preset level.
+              Commands run on the partner&apos;s Lovense (they must have toys connected). Slider 0 or uncheck Special
+              stops the pattern; partner can restore their last level after a special.
             </p>
           </div>
           <div class="panel-tab-panel" data-remote-tab-panel="modelpool" hidden>
@@ -1074,7 +1075,7 @@
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
     <script src="assets/ui-shell.js?v=8464"></script>
-    <script src="assets/app.js?v=8468"></script>
+    <script src="assets/app.js?v=8471"></script>
     <script src="assets/auth.js?v=8464"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8464"></script>

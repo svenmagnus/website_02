@@ -27,6 +27,14 @@
   const PRESET_PATTERN_SEC = 20;
   const PRESET_HOLD_REFRESH_MS = 17000;
   const presetHoldIntervals = Object.create(null);
+  const specialTipHoldIntervals = Object.create(null);
+  /** Fallback token amounts (match Stream Master Special Commands on test:Tangent-Club). */
+  const SPECIAL_DEFAULT_TOKENS = {
+    earthquake: 100,
+    fireworks: 120,
+    wave: 160,
+    pulse: 200,
+  };
   /** Last normal intensity per toy — used to restore after a special pattern ends. */
   const toyBaseSessions = Object.create(null);
   /** Cached Stream Master settings from getSettings() — drives token amounts for tips. */
@@ -257,18 +265,25 @@
     return toys.find((t) => t && String(t.id) === id) || null;
   }
 
+  /** Preset button → motor strength 1–20 (Ultra slightly above Max). */
+  const PRESET_MOTOR_STRENGTH = {
+    20: 4,
+    45: 8,
+    70: 12,
+    85: 18,
+    100: 20,
+  };
+
   function levelToStrength(level) {
     const lv = Math.max(0, Math.min(100, Number(level) || 0));
     if (lv <= 0) return 0;
+    if (PRESET_MOTOR_STRENGTH[lv] != null) return PRESET_MOTOR_STRENGTH[lv];
     return Math.max(1, Math.min(20, Math.round((lv / 100) * 20)));
   }
 
-  /** Distinct motor levels per preset slider position (sendCommand fallback). */
+  /** Distinct motor levels per preset slider position (sendCommand). */
   function strengthForLevel(level) {
-    const lv = Math.max(0, Math.min(100, Number(level) || 0));
-    const presetMap = { 20: 5, 45: 10, 70: 15, 85: 18, 100: 20 };
-    if (presetMap[lv] != null) return presetMap[lv];
-    return levelToStrength(lv);
+    return levelToStrength(level);
   }
 
   function stopHardwareOnly(toyId) {
@@ -481,6 +496,37 @@
     });
   }
 
+  function stopSpecialTipHold(toyId) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return;
+    const key = String(resolvedId);
+    if (specialTipHoldIntervals[key]) {
+      clearInterval(specialTipHoldIntervals[key]);
+      delete specialTipHoldIntervals[key];
+    }
+  }
+
+  function stopAllSpecialTipHolds() {
+    Object.keys(specialTipHoldIntervals).forEach((key) => {
+      clearInterval(specialTipHoldIntervals[key]);
+      delete specialTipHoldIntervals[key];
+    });
+  }
+
+  function startSpecialTipHold(toyId, tokens, tipperName, specialType) {
+    const resolvedId = resolveToyId(toyId);
+    if (!resolvedId) return;
+    stopSpecialTipHold(resolvedId);
+    const tipTokens = Math.max(1, Math.round(Number(tokens) || 0));
+    const name = String(tipperName || "Remote").slice(0, 40);
+    const type = String(specialType || "").trim();
+    if (!type || !tipTokens) return;
+    const key = String(resolvedId);
+    const pulse = () => sendSpecialTip(tipTokens, name, type, resolvedId);
+    pulse();
+    specialTipHoldIntervals[key] = setInterval(pulse, PRESET_HOLD_REFRESH_MS);
+  }
+
   function startPresetHold(toyId, presetName) {
     const resolvedId = resolveToyId(toyId);
     if (!resolvedId) return;
@@ -500,6 +546,7 @@
     stopToyHold(resolvedId);
     stopMotorHold(resolvedId);
     stopPresetHold(resolvedId);
+    stopSpecialTipHold(resolvedId);
 
     if (!hasToysForCommands()) return true;
 
@@ -614,6 +661,10 @@
         if (matchKey) spec = specials[matchKey];
       }
       if (!spec) {
+        const def = SPECIAL_DEFAULT_TOKENS[key.toLowerCase()];
+        if (def) {
+          return { tokens: def, enabled: true, configured: true, fromDefault: true };
+        }
         return { tokens: null, enabled: false, configured: false };
       }
       if (spec.enable === false || spec.enabled === false) enabled = false;
@@ -769,6 +820,8 @@
     if (!enabled) {
       session.activeSpecial = null;
       toyBaseSessions[key] = session;
+      stopSpecialTipHold(resolvedId);
+      stopPresetHold(resolvedId);
       stopToyHardware(resolvedId);
 
       const restoreLevel = Math.max(0, Math.min(100, Number(level) || 0));
@@ -837,16 +890,22 @@
       }
     }
 
-    const specialTokens = specConfig.tokens || tipAmount || 100;
+    const specialTokens =
+      specConfig.tokens ||
+      SPECIAL_DEFAULT_TOKENS[specialType.toLowerCase()] ||
+      (tipAmount > 0 ? Math.round(Number(tipAmount)) : 0) ||
+      100;
+
     if (sendSpecialTip(specialTokens, name, specialType, resolvedId)) {
+      startSpecialTipHold(resolvedId, specialTokens, name, specialType);
       session.activeSpecial = specialType;
       toyBaseSessions[key] = session;
       return {
         ok: true,
-        method: "special",
+        method: "special-tip-hold",
         special: specialType,
-        tokens: specConfig.tokens || specialTokens,
-        hint: `Pattern ${specialType} · ${specConfig.tokens || specialTokens} tokens (Stream Master fallback)`,
+        tokens: specialTokens,
+        hint: `Pattern ${specialType} on — uncheck to stop (${specialTokens} tokens)`,
       };
     }
 
@@ -890,6 +949,7 @@
     stopAllToyHolds();
     stopAllMotorHolds();
     stopAllPresetHolds();
+    stopAllSpecialTipHolds();
     let stopped = false;
 
     if (hasToysForCommands()) {
@@ -1096,6 +1156,7 @@
     resolveToyId,
     getCommandToyId,
     levelToStrength,
+    strengthForLevel,
     getSiteName() {
       return global.LOVENSE_SITE_NAME || "test:Tangent-Club";
     },

@@ -1724,12 +1724,13 @@ function setDataActivityStatus(msg, cls) {
   if (els.statusData) setStatus(els.statusData, msg, cls);
 }
 
+/** Slider % per button; motor 4→8→12→18→20 (Ultra one step above Max). */
 const TOY_PRESET_LEVELS = [
-  { label: "Low", value: 20 },
-  { label: "Medium", value: 45 },
-  { label: "High", value: 70 },
-  { label: "Max", value: 85 },
-  { label: "Ultra", value: 100 },
+  { label: "Low", value: 20, motor: 4 },
+  { label: "Medium", value: 45, motor: 8 },
+  { label: "High", value: 70, motor: 12 },
+  { label: "Max", value: 85, motor: 18 },
+  { label: "Ultra", value: 100, motor: 20 },
 ];
 
 /**
@@ -1766,10 +1767,10 @@ const LOVENSE_SETUP_HINT =
   "Special patterns are ~20s bursts; uncheck or slider 0 to stop. Open the Lovense widget on this tab once.";
 
 const TOY_SPECIAL_COMMANDS = [
-  { id: "earthquake", label: "Earthquake" },
-  { id: "pulse", label: "Pulse" },
-  { id: "wave", label: "Wave" },
-  { id: "fireworks", label: "Fireworks" },
+  { id: "earthquake", label: "Earthquake", tokens: 100 },
+  { id: "fireworks", label: "Fireworks", tokens: 120 },
+  { id: "wave", label: "Wave", tokens: 160 },
+  { id: "pulse", label: "Pulse", tokens: 200 },
 ];
 
 let toyControlState = {};
@@ -1816,13 +1817,16 @@ function isDirectMotorMode() {
 }
 
 function presetMotorStrength(levelValue) {
+  const preset = TOY_PRESET_LEVELS.find((p) => p.value === levelValue);
+  if (preset && preset.motor > 0) return preset.motor;
   const bridge = window.dualPeerLovense;
+  if (bridge && typeof bridge.strengthForLevel === "function") {
+    return bridge.strengthForLevel(levelValue);
+  }
   if (bridge && typeof bridge.levelToStrength === "function") {
-    const map = { 20: 5, 45: 10, 70: 15, 85: 18, 100: 20 };
-    if (map[levelValue] != null) return map[levelValue];
     return bridge.levelToStrength(levelValue);
   }
-  return Math.max(1, Math.round((Number(levelValue) / 100) * 20));
+  return Math.max(1, Math.min(20, Math.round((Number(levelValue) / 100) * 20)));
 }
 
 function presetTokenEntry(toyId, presetLabel) {
@@ -1921,9 +1925,22 @@ function sendPartnerToyCommand(toyId, levelPercent, tokensOverride) {
     return false;
   }
   if (level <= 0) {
-    setDataActivityStatus(`Stop sent to partner (${toyId}).`, "ok");
+    setDataActivityStatus(`Stop sent — partner toy until slider 0 ends (${toyId}).`, "ok");
+    updateToyActivityDisplay(toyId, "remote", "Stop sent to partner");
   } else {
-    setDataActivityStatus(`Sent ${tipAmount} tokens (${level}%) to partner toy ${toyId}.`, "ok");
+    const label = presetLabelForLevel(level);
+    const motor = presetMotorStrength(level);
+    setDataActivityStatus(
+      `Sent ${label || level + "%"} (motor ${motor}/20) to partner — holds until they set slider 0.`,
+      "ok"
+    );
+    updateToyActivityDisplay(
+      toyId,
+      "remote",
+      isDirectMotorMode()
+        ? `${label || level + "%"} · motor ${motor}/20 — waiting for partner`
+        : `${label || level + "%"} · ${tipAmount} tokens — waiting for partner`
+    );
   }
   return true;
 }
@@ -2151,8 +2168,8 @@ function formatActivityFromResult(result, level) {
   if (result.method === "sendCommand") {
     return result.hint || `Motor ${result.strength || "?"}/20 (direct)`;
   }
-  if (result.method === "preset-direct") {
-    return result.hint || `Pattern ${result.special} (direct)`;
+  if (result.method === "preset-direct" || result.method === "special-tip-hold") {
+    return result.hint || `Pattern ${result.special} — uncheck to stop`;
   }
   if (result.method === "special") {
     return `Pattern ${result.special} · ${result.tokens} tokens`;
@@ -2291,26 +2308,46 @@ function applyToySpecialLocal(toyId, special, enabled, scope) {
   });
 }
 
+function resolveSpecialTipAmount(toyId, special, level, tipAmount) {
+  let tokens = Math.round(Number(tipAmount) || 0);
+  if (tokens < 1) {
+    const cmd = TOY_SPECIAL_COMMANDS.find((c) => c.id === special);
+    if (cmd?.tokens) tokens = cmd.tokens;
+    else if (level > 0) tokens = resolveTokensForToy(toyId, level, null);
+  }
+  return tokens;
+}
+
 function sendToySpecialPayload(toyId, special, checked) {
   if (!dataConn || !dataConn.open) {
     setDataActivityStatus("No data channel — connect first.", "err");
     return;
   }
   const ctx = getToyControlContext(toyId, "remote");
+  const tipAmount = checked
+    ? resolveSpecialTipAmount(toyId, special, ctx.level, ctx.tipAmount)
+    : ctx.tipAmount;
   const sent = sendDataChannelMessage({
     type: "toy_special",
     toyId,
     special,
     enabled: !!checked,
     level: ctx.level,
-    tipAmount: ctx.tipAmount,
+    tipAmount,
     tipperName: ctx.tipperName,
     ts: Date.now(),
   });
   if (sent) {
     setDataActivityStatus(
-      `${special} ${checked ? "on" : "off"} sent to partner (${ctx.tipAmount || 0} base tokens saved).`,
+      checked
+        ? `${special} on sent to partner (${tipAmount} tokens) — uncheck to stop.`
+        : `${special} off sent — partner restores base level if set.`,
       "ok"
+    );
+    updateToyActivityDisplay(
+      toyId,
+      "remote",
+      checked ? `Pattern ${special} sent — waiting for partner` : `Pattern ${special} stop sent`
     );
   } else {
     setDataActivityStatus("Send failed — data channel not open.", "err");
@@ -2420,6 +2457,7 @@ function buildToyControlBlock(toy, idx, scope, stateMap) {
     cb.checked = !!stateMap[toyId].specials[cmd.id];
     const span = document.createElement("span");
     span.textContent = cmd.label;
+    cb.title = `Checkbox on/off — ${cmd.tokens || "?"} tokens in Stream Master`;
     item.appendChild(cb);
     item.appendChild(span);
     specialWrap.appendChild(item);
@@ -2734,6 +2772,30 @@ function handleIncomingDataMessage(raw) {
       data.ok ? `Partner applied your command${methodNote}.` : "Partner could not apply the command.",
       data.ok ? "ok" : "err"
     );
+    if (data.toyId) {
+      const hint = data.ok
+        ? data.method === "sendCommand"
+          ? "Partner: motor active (until they set slider 0)"
+          : data.hint || `Partner applied${methodNote}`
+        : "Partner: command failed";
+      updateToyActivityDisplay(String(data.toyId), "remote", hint);
+    }
+    return;
+  }
+  if (data.type === "toy_special_ack") {
+    setDataActivityStatus(
+      data.ok
+        ? data.hint || `Partner: ${data.special} ${data.enabled ? "on" : "off"}.`
+        : data.hint || `Partner could not apply ${data.special}.`,
+      data.ok ? "ok" : "err"
+    );
+    if (data.toyId) {
+      updateToyActivityDisplay(
+        String(data.toyId),
+        "remote",
+        data.ok ? data.hint || `Partner: ${data.special} ${data.enabled ? "on" : "off"}` : `Partner: ${data.special} failed`
+      );
+    }
     return;
   }
   if (data.type === "toy") {
@@ -3220,27 +3282,32 @@ function handleIncomingToyPayload(data) {
 
   const methodLabel =
     applyMethod === "sendCommand"
-      ? "hold until stop"
-      : applyMethod === "receiveTip-hold"
+      ? "motor hold until slider 0"
+      : applyMethod === "receiveTip-hold" || applyMethod === "tipMessage-hold"
         ? "hold until stop"
         : applyMethod === "receiveTip"
           ? "extension tip"
           : applyMethod === "tipMessage"
-          ? "targeted tip"
-          : applyMethod;
+            ? "targeted tip"
+            : applyMethod;
+
+  const resultHint =
+    ok && applyMethod === "sendCommand" ? `Motor from ${name} — move slider to 0 to stop` : null;
 
   if (ok) {
     setLovenseStatus(`Remote control (${methodLabel}): ${toyLabel} from ${name}.`);
-    sendDataChannelMessage({
-      type: "toy_ack",
-      ok: true,
-      toyId,
-      tokens: tipTokens,
-      level,
-      method: applyMethod,
-      ts: Date.now(),
-    });
   }
+
+  sendDataChannelMessage({
+    type: "toy_ack",
+    ok: !!ok,
+    toyId,
+    tokens: tipTokens,
+    level,
+    method: applyMethod,
+    hint: ok ? resultHint : null,
+    ts: Date.now(),
+  });
 
   let failDetail = lovenseNotReadyMessage();
   if (!ok && applyMethod === "no-lovense-api") {
@@ -3266,8 +3333,8 @@ function handleIncomingToySpecialPayload(data) {
   const name = data.tipperName || "Partner";
   const level = Math.max(0, Math.min(100, Number(data.level) || 0));
   let tipAmount = Math.round(Number(data.tipAmount) || 0);
-  if (enabled && tipAmount < 1 && level > 0) {
-    tipAmount = resolveTokensForToy(toyId, level, null);
+  if (enabled && tipAmount < 1) {
+    tipAmount = resolveSpecialTipAmount(toyId, special, level, tipAmount);
   }
 
   syncLovenseFromBridge();
@@ -3296,6 +3363,15 @@ function handleIncomingToySpecialPayload(data) {
       : result?.hint ||
         `Special ${special} failed for ${toyId} — check Stream Master Special Commands.`;
     setDataActivityStatus(statusMsg, ok ? "ok" : "err");
+    sendDataChannelMessage({
+      type: "toy_special_ack",
+      ok: !!ok,
+      toyId,
+      special,
+      enabled,
+      hint: result?.hint || statusMsg,
+      ts: Date.now(),
+    });
   });
 }
 
