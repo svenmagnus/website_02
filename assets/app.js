@@ -1602,6 +1602,7 @@ function endSessionChat() {
 }
 
 function hangup() {
+  const wasStreamProvider = sessionRole === "host";
   const hadLiveCall = !!(dataConn?.open || mediaConn?.open);
   if (dataConn?.open) {
     try {
@@ -1640,6 +1641,9 @@ function hangup() {
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
+  if (wasStreamProvider) {
+    global.DualPeerSocial?.endLiveSession?.().catch(() => {});
+  }
   if (hadLiveCall) endSessionChat();
   if (videoAccessUnlocked) applyAccountStreamingUi();
   else {
@@ -3334,14 +3338,6 @@ function setupPeerHandlers() {
 }
 
 els.btnStartHost.addEventListener("click", async () => {
-  if (global.DualPeerAuth?.isAccountGuest?.()) {
-    setStatus(
-      els.statusHost,
-      "Start as Host is not available on a guest account. Use Connect to Host, or upgrade when Premium launches.",
-      "err"
-    );
-    return;
-  }
   hangup();
   sessionRole = "host";
   notifySessionRole();
@@ -3388,6 +3384,30 @@ els.btnConnect.addEventListener("click", async () => {
   if (!remoteId) {
     setStatus(els.statusGuest, "Please enter the host Peer ID.", "err");
     return;
+  }
+  if (global.DualPeerSocial?.checkConnectAvailable) {
+    try {
+      const check = await global.DualPeerSocial.checkConnectAvailable({ hostPeerId: remoteId });
+      if (!check?.available) {
+        setStatus(
+          els.statusGuest,
+          check?.message ||
+            "Der Host ist aktuell in einer anderen Session beschäftigt. Bitte versuchen Sie es später erneut.",
+          "err"
+        );
+        return;
+      }
+    } catch (err) {
+      if (err?.status === 409 || err?.code === "provider_busy") {
+        setStatus(
+          els.statusGuest,
+          err.message ||
+            "Der Host ist aktuell in einer anderen Session beschäftigt. Bitte versuchen Sie es später erneut.",
+          "err"
+        );
+        return;
+      }
+    }
   }
   hangup();
   sessionRole = "guest";
@@ -4012,22 +4032,28 @@ function initModelPoolActions() {
     if (!auth?.isLoggedIn?.()) {
       root.innerHTML = "";
       status.className = "status-line";
-      status.textContent = "Sign in to load premium models.";
+      status.textContent = "Sign in to load your model pool.";
       return;
     }
     status.className = "status-line";
-    status.textContent = "Loading premium models...";
+    status.textContent = "Loading model pool...";
     try {
+      if (global.DualPeerSocial?.loadModelPool) {
+        await global.DualPeerSocial.loadModelPool();
+        const count = global.DualPeerSocial.getModelPool?.().length || 0;
+        status.className = "status-line ok";
+        status.textContent = count > 0 ? `${count} model(s) in your pool.` : "Invite models by email from the account menu.";
+        return;
+      }
       const result = await auth.fetchPremiumModels();
       renderModels(result?.models || []);
       const count = (result?.models || []).length;
       status.className = "status-line ok";
-      status.textContent =
-        count > 0 ? `${count} premium model(s) loaded.` : "No real models yet — showing demo cards.";
+      status.textContent = count > 0 ? `${count} model(s) loaded.` : "No models in pool yet.";
     } catch (err) {
       renderModels([]);
       status.className = "status-line err";
-      status.textContent = "Could not load real model pool — showing demo cards.";
+      status.textContent = "Could not load model pool.";
     }
   };
 

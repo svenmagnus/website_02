@@ -411,9 +411,9 @@
     return global.dualPeerSession?.getRole?.() === "guest";
   }
 
-  /** Host account may send guest invites (not session role). */
+  /** Any signed-in member may invite models into their personal pool. */
   function canManageInvites() {
-    return isLoggedIn() && isAccountHost();
+    return isLoggedIn();
   }
 
   function canAccessMailSettings() {

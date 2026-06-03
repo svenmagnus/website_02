@@ -660,7 +660,8 @@
             <strong>Webcam &amp; microphone</strong> for normal streaming without OBS → (3) Pick camera/mic →
             <strong>Start as Host</strong>. For OBS scenes: broadcast <strong>OBS (WHIP)</strong>.
             <span class="setup-flow-hint-member"
-              >Host accounts: Start as Host and invite guests from the menu. Guest accounts: Connect to Host only.</span
+              >Invite models from the account menu. Either side can <strong>Start as Host</strong> (camera first) or
+              <strong>Connect to Host</strong> (join).</span
             >
           </p>
           <div class="row premium-setup-row" id="premiumSetupRow">
@@ -672,6 +673,14 @@
               Sign in to join a session. Invited? Use the account from your email.
             </p>
           </div>
+          <fieldset class="setup-model-pool-field" id="setupModelPoolField" hidden>
+            <legend>My model pool</legend>
+            <p class="status-line profile-field-hint">
+              Models you invited appear here. <strong>Angemeldet</strong> = signed in now.
+            </p>
+            <div id="setupModelPoolList" class="model-pool-grid"></div>
+            <p class="status-line" id="setupModelPoolStatus"></p>
+          </fieldset>
           <fieldset class="setup-sessions-field" id="setupSessionsField" hidden>
             <legend>Sessions &amp; calendar</legend>
             <div id="setupMeetingMount"></div>
@@ -834,9 +843,9 @@
             </p>
           </div>
           <div class="panel-tab-panel" data-remote-tab-panel="modelpool" hidden>
-            <h2 class="panel-tab-title">Premium Model Pool</h2>
+            <h2 class="panel-tab-title">My model pool</h2>
             <p class="status-line" style="margin: 0 0 0.5rem">
-              Browse premium models and send a session request. Models can define future availability windows.
+              Everyone you invited — same list as in Setup. <strong>Angemeldet</strong> when they are signed in now.
             </p>
             <div id="modelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="modelPoolStatus">Sign in to load premium models.</p>
@@ -970,10 +979,10 @@
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
     <script src="assets/ui-shell.js?v=8434"></script>
-    <script src="assets/app.js?v=8452"></script>
-    <script src="assets/auth.js?v=8446"></script>
+    <script src="assets/app.js?v=8453"></script>
+    <script src="assets/auth.js?v=8453"></script>
     <script src="assets/messages-panel.js?v=8449"></script>
-    <script src="assets/social.js?v=8452"></script>
+    <script src="assets/social.js?v=8453"></script>
     <script src="assets/member-profile.js?v=8446"></script>
   </body>
 </html>

@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -197,7 +198,50 @@ function runMigrations(database) {
     database.exec(`ALTER TABLE meetings ADD COLUMN created_by_user_id TEXT`);
   }
 
+  let userColsPresence = tableColumns(database, "users");
+  if (!userColsPresence.includes("last_seen_at")) {
+    database.exec(`ALTER TABLE users ADD COLUMN last_seen_at INTEGER`);
+    userColsPresence = tableColumns(database, "users");
+  }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS model_pool (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL,
+      model_user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      registered_at INTEGER,
+      FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (model_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE (owner_user_id, model_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_model_pool_owner ON model_pool(owner_user_id);
+  `);
+
+  backfillModelPool(database);
   backfillAccountRoles(database);
+}
+
+function backfillModelPool(database) {
+  const rows = database
+    .prepare(
+      `SELECT host_user_id, used_by_user_id, created_at, used_at
+       FROM invites WHERE used_by_user_id IS NOT NULL AND host_user_id IS NOT NULL`
+    )
+    .all();
+  const ins = database.prepare(
+    `INSERT OR IGNORE INTO model_pool (id, owner_user_id, model_user_id, created_at, registered_at)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+  for (const row of rows) {
+    ins.run(
+      randomUUID(),
+      row.host_user_id,
+      row.used_by_user_id,
+      row.created_at,
+      row.used_at || row.created_at
+    );
+  }
 }
 
 /** host = can stream as host & invite; guest = invited member; is_admin = SMTP (site admin). */

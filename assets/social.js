@@ -13,6 +13,7 @@
     partner: null,
     inviteHost: null,
     meetings: [],
+    modelPool: [],
     messages: [],
     loaded: false,
     calendar: { configured: false, connected: false, email: "" },
@@ -233,6 +234,7 @@
           await loadThreadMessages(fromMeeting.threadId);
         }
       }
+      await loadModelPool();
       fillPartnerSelects(threads);
       updateSetupHints();
       updateMeetingPanels();
@@ -250,6 +252,7 @@
     state.meetings = data.meetings || [];
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
+    await loadModelPool();
   }
 
   function getSelectedPartnerUserId() {
@@ -719,8 +722,119 @@
     document.addEventListener("click", () => closeAllMeetingMenus());
   }
 
+  let presenceTimer = null;
+
+  async function loadModelPool() {
+    if (!isLoggedIn()) {
+      state.modelPool = [];
+      renderModelPoolPanels();
+      return;
+    }
+    try {
+      const data = await api("/api/social/model-pool");
+      state.modelPool = data.models || [];
+      renderModelPoolPanels();
+    } catch (err) {
+      console.warn("[social] model pool failed:", err);
+    }
+  }
+
+  function renderModelPoolPanels() {
+    const targets = [
+      {
+        root: document.getElementById("setupModelPoolList"),
+        status: document.getElementById("setupModelPoolStatus"),
+      },
+      { root: document.getElementById("modelPoolList"), status: document.getElementById("modelPoolStatus") },
+    ];
+    for (const { root, status } of targets) {
+      if (!root) continue;
+      root.replaceChildren();
+      if (!state.modelPool.length) {
+        if (status) {
+          status.className = "status-line";
+          status.textContent = "Invite someone by email — they appear here after registration.";
+        }
+        continue;
+      }
+      if (status) {
+        status.className = "status-line ok";
+        status.textContent = `${state.modelPool.length} model(s) in your pool.`;
+      }
+      for (const m of state.modelPool) {
+        const card = document.createElement("div");
+        card.className = "model-card" + (m.signedIn ? " is-signed-in" : "");
+        const head = document.createElement("div");
+        head.className = "model-card-head";
+        const name = document.createElement("strong");
+        name.textContent = m.displayName || m.username || "Model";
+        head.appendChild(name);
+        if (m.signedIn) {
+          const badge = document.createElement("span");
+          badge.className = "model-signed-in-badge";
+          badge.textContent = "Angemeldet";
+          head.appendChild(badge);
+        }
+        const meta = document.createElement("span");
+        meta.textContent = m.signedIn ? "Signed in now" : "Offline";
+        card.appendChild(head);
+        card.appendChild(meta);
+        root.appendChild(card);
+      }
+    }
+  }
+
+  function startPresenceHeartbeat() {
+    stopPresenceHeartbeat();
+    const beat = () => api("/api/social/presence", { method: "POST" }).catch(() => {});
+    beat();
+    presenceTimer = setInterval(beat, 30_000);
+  }
+
+  function stopPresenceHeartbeat() {
+    if (presenceTimer) {
+      clearInterval(presenceTimer);
+      presenceTimer = null;
+    }
+  }
+
+  async function checkConnectAvailable({ hostPeerId, providerUserId } = {}) {
+    try {
+      const data = await api("/api/social/session/connect-check", {
+        method: "POST",
+        body: JSON.stringify({ hostPeerId, providerUserId }),
+      });
+      return { available: true, ...data };
+    } catch (err) {
+      if (err?.status === 409 || err?.code === "provider_busy") {
+        return {
+          available: false,
+          message:
+            err.message ||
+            "Der Host ist aktuell in einer anderen Session beschäftigt. Bitte versuchen Sie es später erneut.",
+        };
+      }
+      throw err;
+    }
+  }
+
+  async function endLiveSession() {
+    await api("/api/social/session/end-live", { method: "POST" });
+    await bootstrap();
+  }
+
   function fillPartnerSelects(threads = []) {
     const partners = [];
+    for (const m of state.modelPool || []) {
+      if (m.id && !partners.some((p) => p.id === m.id)) {
+        partners.push({
+          id: m.id,
+          username: m.username,
+          displayName: m.displayName,
+          accountType: "guest",
+        });
+      }
+    }
     for (const t of threads) {
       if (t.partner && !partners.some((p) => p.id === t.partner.id)) partners.push(t.partner);
     }
@@ -744,7 +858,7 @@
         const opt = document.createElement("option");
         opt.value = p.id;
         const role = p.accountType === "host" ? "Host" : "Guest";
-        opt.textContent = `${p.displayName} (@${p.username}) · ${role}`;
+        opt.textContent = `${p.displayName} (@${p.username}) · Model`;
         sel.appendChild(opt);
       }
     });
@@ -767,6 +881,7 @@
   function refreshAuthUi() {
     const btn = document.getElementById("btnHeaderChat");
     const setupSessions = document.getElementById("setupSessionsField");
+    const setupModelPool = document.getElementById("setupModelPoolField");
     const aboutBox = document.getElementById("tangentAboutBox");
     const peerHelp = document.getElementById("peerIdHelpBox");
     const loggedIn = isLoggedIn();
@@ -777,11 +892,14 @@
     if (peerHelp) peerHelp.hidden = !loggedIn;
     if (aboutBox) aboutBox.hidden = false;
     if (setupSessions) setupSessions.hidden = !loggedIn;
+    if (setupModelPool) setupModelPool.hidden = !loggedIn;
     if (loggedIn) {
       bootstrap();
       startMeetingsPolling();
+      startPresenceHeartbeat();
     } else {
       stopMeetingsPolling();
+      stopPresenceHeartbeat();
     }
   }
 
@@ -810,6 +928,10 @@
     resolveLiveMeetingId,
     applyHostPeerIdFromMeetings,
     ensureChatThread,
+    loadModelPool,
+    checkConnectAvailable,
+    endLiveSession,
+    getModelPool: () => state.modelPool,
     getThreadId: () => state.threadId,
     getMessages: () => state.messages,
     appendLocalEcho(text, senderName, { messageId } = {}) {

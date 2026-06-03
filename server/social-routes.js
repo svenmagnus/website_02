@@ -118,13 +118,76 @@ export function linkInviteHostToGuest(db, hostUserId, guestUserId, guestName) {
     db,
     thread.id,
     hostUserId,
-    `Welcome ${name}! You are connected with ${hostLabel} on Tangent Club. ` +
-      `Use this chat anytime — it stays saved between sessions. ` +
-      `When ${hostLabel} starts a video session, your Host Peer ID will appear here for you to connect.`,
+    `Welcome ${name}! You are in ${hostLabel}'s model pool on Tangent Club. ` +
+      `Use this chat anytime. When ${hostLabel} starts a session (camera first), your Connect field fills automatically.`,
     { kind: "system" }
   );
 
+  ensureModelPoolEntry(db, hostUserId, guestUserId);
+
   return { threadId: thread.id, hostUserId, guestUserId };
+}
+
+const PRESENCE_ONLINE_MS = 90_000;
+
+export function ensureModelPoolEntry(db, ownerUserId, modelUserId) {
+  if (!ownerUserId || !modelUserId || ownerUserId === modelUserId) return null;
+  const existing = db
+    .prepare("SELECT id FROM model_pool WHERE owner_user_id = ? AND model_user_id = ?")
+    .get(ownerUserId, modelUserId);
+  if (existing) return existing;
+  const id = randomUUID();
+  const at = nowMs();
+  db.prepare(
+    `INSERT INTO model_pool (id, owner_user_id, model_user_id, created_at, registered_at)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(id, ownerUserId, modelUserId, at, at);
+  return db.prepare("SELECT * FROM model_pool WHERE id = ?").get(id);
+}
+
+function touchPresence(db, userId) {
+  db.prepare("UPDATE users SET last_seen_at = ? WHERE id = ?").run(nowMs(), userId);
+}
+
+function isUserOnline(db, userId) {
+  const row = db.prepare("SELECT last_seen_at FROM users WHERE id = ?").get(userId);
+  return Boolean(row?.last_seen_at && row.last_seen_at > nowMs() - PRESENCE_ONLINE_MS);
+}
+
+function getActiveProviderSession(db, providerUserId) {
+  return (
+    db
+      .prepare(
+        `SELECT m.*, gu.display_name AS guest_display_name, gu.username AS guest_username
+         FROM meetings m
+         LEFT JOIN users gu ON gu.id = m.guest_user_id
+         WHERE m.host_user_id = ? AND m.status = 'live' AND TRIM(m.host_peer_id) != ''
+         ORDER BY m.updated_at DESC LIMIT 1`
+      )
+      .get(providerUserId) || null
+  );
+}
+
+export function endLiveSessionsForProvider(db, providerUserId) {
+  if (!providerUserId) return;
+  const at = nowMs();
+  db.prepare(
+    `UPDATE meetings SET status = 'completed', updated_at = ? WHERE host_user_id = ? AND status = 'live'`
+  ).run(at, providerUserId);
+}
+
+function resolveProviderUserId(db, { providerUserId, hostPeerId }) {
+  const byId = String(providerUserId || "").trim();
+  if (byId) return byId;
+  const peer = String(hostPeerId || "").trim();
+  if (!peer) return null;
+  const row = db
+    .prepare(
+      `SELECT host_user_id FROM meetings WHERE host_peer_id = ? AND status = 'live'
+       ORDER BY updated_at DESC LIMIT 1`
+    )
+    .get(peer);
+  return row?.host_user_id || null;
 }
 
 function partnerIdForThread(thread, userId) {
@@ -144,9 +207,102 @@ function mapMessageRow(row, db) {
   };
 }
 
+socialRouter.post("/social/presence", requireAuth, (req, res) => {
+  const db = getDb();
+  touchPresence(db, req.authUser.id);
+  res.json({ ok: true, online: true });
+});
+
+socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
+  const db = getDb();
+  const uid = req.authUser.id;
+  touchPresence(db, uid);
+  const rows = db
+    .prepare(
+      `SELECT mp.*, u.username, u.display_name, u.last_seen_at
+       FROM model_pool mp
+       JOIN users u ON u.id = mp.model_user_id
+       WHERE mp.owner_user_id = ?
+       ORDER BY COALESCE(u.last_seen_at, mp.registered_at, mp.created_at) DESC`
+    )
+    .all(uid);
+
+  const models = rows.map((row) => ({
+    id: row.model_user_id,
+    username: row.username,
+    displayName: row.display_name || row.username,
+    registeredAt: row.registered_at || row.created_at,
+    online: isUserOnline(db, row.model_user_id),
+    signedIn: isUserOnline(db, row.model_user_id),
+  }));
+
+  res.json({ ok: true, models });
+});
+
+socialRouter.post("/social/session/connect-check", requireAuth, (req, res) => {
+  const db = getDb();
+  const uid = req.authUser.id;
+  touchPresence(db, uid);
+
+  const providerUserId = resolveProviderUserId(db, {
+    providerUserId: req.body?.providerUserId,
+    hostPeerId: req.body?.hostPeerId,
+  });
+  if (!providerUserId) {
+    return res.status(400).json({ ok: false, error: "provider_not_found" });
+  }
+  if (providerUserId === uid) {
+    return res.json({ ok: true, available: true, reason: "self" });
+  }
+
+  const active = getActiveProviderSession(db, providerUserId);
+  if (!active) {
+    return res.json({ ok: true, available: true });
+  }
+
+  if (active.guest_user_id === uid) {
+    return res.json({ ok: true, available: true, meetingId: active.id });
+  }
+
+  const consumer = userPublicRow(req.authUser);
+  const consumerName = consumer?.displayName || consumer?.username || "Someone";
+  const provider = userPublicRow(
+    db.prepare("SELECT * FROM users WHERE id = ?").get(providerUserId)
+  );
+  const assignedGuest = userPublicRow(
+    db.prepare("SELECT * FROM users WHERE id = ?").get(active.guest_user_id)
+  );
+  const thread = ensureChatThread(db, providerUserId, uid);
+  const guestLabel = assignedGuest?.displayName || assignedGuest?.username || "another guest";
+  insertChatMessage(
+    db,
+    thread.id,
+    uid,
+    `${consumerName} tried to connect while you are in a session with ${guestLabel}.`,
+    { kind: "system" }
+  );
+
+  res.status(409).json({
+    ok: false,
+    available: false,
+    error: "provider_busy",
+    message:
+      "Der Host ist aktuell in einer anderen Session beschäftigt. Bitte versuchen Sie es später erneut.",
+    providerId: providerUserId,
+    providerName: provider?.displayName || provider?.username,
+  });
+});
+
+socialRouter.post("/social/session/end-live", requireAuth, (req, res) => {
+  const db = getDb();
+  endLiveSessionsForProvider(db, req.authUser.id);
+  res.json({ ok: true });
+});
+
 socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
   const db = getDb();
   const uid = req.authUser.id;
+  touchPresence(db, uid);
 
   let threads = db
     .prepare(
@@ -312,18 +468,20 @@ socialRouter.post("/social/meetings", requireAuth, async (req, res) => {
   const partner = db.prepare("SELECT * FROM users WHERE id = ?").get(partnerUserId);
   if (!partner) return res.status(404).json({ ok: false, error: "partner_not_found" });
 
-  let hostUserId;
-  let guestUserId;
-  if (isHostAccount(req.authUser)) {
-    hostUserId = req.authUser.id;
-    guestUserId = partnerUserId;
-  } else if (isHostAccount(partner)) {
-    hostUserId = partnerUserId;
-    guestUserId = req.authUser.id;
-  } else {
-    hostUserId = partnerUserId;
-    guestUserId = req.authUser.id;
+  const activeLive = getActiveProviderSession(db, req.authUser.id);
+  if (mode === "instant" && activeLive) {
+    return res.status(409).json({
+      ok: false,
+      error: "provider_session_active",
+      message: "You already have an active session. End it before starting a new one.",
+    });
   }
+
+  // Stream provider (camera first) = session creator; partner = consumer (Connect to Host).
+  const hostUserId = req.authUser.id;
+  const guestUserId = partnerUserId;
+  ensureModelPoolEntry(db, req.authUser.id, partnerUserId);
+  ensureModelPoolEntry(db, partnerUserId, req.authUser.id);
 
   const host = db.prepare("SELECT * FROM users WHERE id = ?").get(hostUserId);
   const guest = db.prepare("SELECT * FROM users WHERE id = ?").get(guestUserId);
