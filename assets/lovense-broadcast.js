@@ -136,14 +136,6 @@
     const tipTokens = Math.round(Number(tokens) || 0);
     if (!tipTokens || tipTokens < 1) return { ok: false, method: "no-tokens" };
 
-    if (!state.ready || !state.instance) {
-      return {
-        ok: false,
-        method: "not-ready",
-        hint: "Extension not ready — open the Lovense widget on this tab (test:Tangent-Club, On).",
-      };
-    }
-
     const name = String(tipperName || "Remote").slice(0, 40);
     const resolvedId = toyId ? resolveToyId(toyId) : null;
 
@@ -265,11 +257,11 @@
     return toys.find((t) => t && String(t.id) === id) || null;
   }
 
-  /** Preset button → motor strength 1–20 (Ultra slightly above Max). */
+  /** Preset button → motor strength 1–20 (Max 18, Ultra 20 — proven on test:Tangent-Club). */
   const PRESET_MOTOR_STRENGTH = {
-    20: 4,
-    45: 8,
-    70: 12,
+    20: 5,
+    45: 10,
+    70: 15,
     85: 18,
     100: 20,
   };
@@ -741,52 +733,51 @@
 
     let result = null;
 
-    if (isDirectMotorMode()) {
-      if (hasLovenseSendCommand() && hasToysForCommands()) {
-        if (sendVibrateCommand(resolvedId, strength, { continuous: true })) {
-          startMotorHold(resolvedId, strength);
-          result = {
-            ok: true,
-            method: "sendCommand",
-            toyId: getCommandToyId(resolvedId),
-            tokens: tipTokens || null,
-            strength,
-            hint: `Motor ${strength}/20 — runs until slider 0 (direct, not Stream Master time)`,
-          };
-        }
+    if (isDirectMotorMode() && hasLovenseSendCommand() && hasToysForCommands()) {
+      if (sendVibrateCommand(resolvedId, strength, { continuous: true })) {
+        startMotorHold(resolvedId, strength);
+        result = {
+          ok: true,
+          method: "sendCommand",
+          toyId: getCommandToyId(resolvedId),
+          tokens: tipTokens || null,
+          strength,
+          hint: `Motor ${strength}/20 (direct — holds until slider 0)`,
+        };
       }
-      if (!result?.ok && tipTokens >= 1) {
-        result = tryStreamMasterTip(tipTokens, name, resolvedId);
-        if (result?.ok) {
-          result.hint = `${tipTokens} tokens (timed — direct motor unavailable; open widget / Lovense Connect)`;
-        }
-      }
-      if (!result?.ok) {
+    }
+
+    if (!result?.ok) {
+      if (tipTokens < 1) {
         return {
           ok: false,
           method: "motor-failed",
-          hint:
-            "Direct motor failed — Lovense Connect + widget on this tab. Stream Master Basic Levels not used for hold.",
+          hint: isDirectMotorMode()
+            ? "Direct motor failed — reload page, open Lovense widget, Lovense Connect (PC)."
+            : "No token amount — configure Stream Master or enable direct motor.",
         };
       }
-    } else if (tipTokens >= 1) {
-      result = tryStreamMasterTip(tipTokens, name, resolvedId);
-      if (!result?.ok) {
-        const fired = firePresetTip(tipTokens, name, resolvedId);
+
+      const fired = firePresetTip(tipTokens, name, resolvedId);
+      if (fired.ok) {
+        startTipHold(resolvedId, tipTokens, name);
+        result = {
+          ok: true,
+          method: fired.method === "tipMessage" ? "tipMessage-hold" : "receiveTip-hold",
+          toyId: resolvedId,
+          tokens: tipTokens,
+          strength,
+          hint: `${tipTokens} tokens · Stream Master fallback (timed)`,
+        };
+      } else {
         return {
           ok: false,
           method: "tip-failed",
           hint:
             fired.hint ||
-            `Tip ${tipTokens} failed — token must be inside Basic Level ranges in Stream Master.`,
+            `Token ${tipTokens} must fall in Stream Master range for this toy.`,
         };
       }
-    } else {
-      return {
-        ok: false,
-        method: "no-tokens",
-        hint: "No token amount — set DUALPEER_DIRECT_MOTOR = true for hold-until-zero.",
-      };
     }
 
     if (result?.ok) {

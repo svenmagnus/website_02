@@ -1724,11 +1724,11 @@ function setDataActivityStatus(msg, cls) {
   if (els.statusData) setStatus(els.statusData, msg, cls);
 }
 
-/** Slider % per button; motor 4→8→12→18→20 (Ultra one step above Max). */
+/** Slider % per button; motor 5→10→15→18→20 (Ultra = full, Max one step below). */
 const TOY_PRESET_LEVELS = [
-  { label: "Low", value: 20, motor: 4 },
-  { label: "Medium", value: 45, motor: 8 },
-  { label: "High", value: 70, motor: 12 },
+  { label: "Low", value: 20, motor: 5 },
+  { label: "Medium", value: 45, motor: 10 },
+  { label: "High", value: 70, motor: 15 },
   { label: "Max", value: 85, motor: 18 },
   { label: "Ultra", value: 100, motor: 20 },
 ];
@@ -2068,41 +2068,32 @@ function applyLocalToyIntensity(toyId, levelPercent, options) {
   const run = () => {
     if (level > 0) clearToySpecialsForToy(safeToyId, "local");
     const tokens = resolveTokensForToy(safeToyId, level, tokensOverride);
-    if (!bridge || typeof bridge.applyRemoteControl !== "function") {
-      updateToyActivityDisplay(
-        safeToyId,
-        "local",
-        "Lovense not ready — open the widget on this tab (test:Tangent-Club)."
-      );
-      return;
-    }
-    const result = bridge.applyRemoteControl({
+    applyLovenseControl({
       toyId: safeToyId,
       level,
       tipAmount: tokens,
       tipperName: "Local-Test",
+    }).then((result) => {
+      updateToyActivityDisplay(safeToyId, "local", formatActivityFromResult(result, level));
     });
-    updateToyActivityDisplay(safeToyId, "local", formatActivityFromResult(result, level));
   };
 
   if (throttle) {
     scheduleThrottledToyAction(level, safeToyId, tokensOverride, localToyThrottleState, (lvl, tok) => {
       if (lvl > 0) clearToySpecialsForToy(safeToyId, "local");
       const tokens = resolveTokensForToy(safeToyId, lvl, tok);
-      let result = null;
-      if (bridge && typeof bridge.applyRemoteControl === "function") {
-        result = bridge.applyRemoteControl({
-          toyId: safeToyId,
-          level: lvl,
-          tipAmount: tokens,
-          tipperName: "Local-Test",
-        });
-      }
-      updateToyActivityDisplay(
-        safeToyId,
-        "local",
-        formatActivityFromResult(result || { ok: false, hint: "Lovense command failed" }, lvl)
-      );
+      applyLovenseControl({
+        toyId: safeToyId,
+        level: lvl,
+        tipAmount: tokens,
+        tipperName: "Local-Test",
+      }).then((result) => {
+        updateToyActivityDisplay(
+          safeToyId,
+          "local",
+          formatActivityFromResult(result || { ok: false, hint: "Lovense command failed" }, lvl)
+        );
+      });
     });
     return;
   }
@@ -2271,23 +2262,18 @@ function getToyControlContext(toyId, scope) {
 }
 
 function applyToySpecialLocal(toyId, special, enabled, scope) {
-  syncLovenseFromBridge();
-  const bridge = window.dualPeerLovense;
-  if (!bridge || typeof bridge.applyToySpecial !== "function") {
-    setDataActivityStatus(`Special ${special} failed — Lovense not ready.`, "err");
-    return;
-  }
   const ctx = getToyControlContext(toyId, scope);
-  Promise.resolve(
-    bridge.applyToySpecial({
-      toyId,
-      special,
-      enabled,
-      level: ctx.level,
-      tipAmount: ctx.tipAmount,
-      tipperName: ctx.tipperName,
-    })
-  ).then((result) => {
+  const tipAmount = enabled
+    ? resolveSpecialTipAmount(toyId, special, ctx.level, ctx.tipAmount)
+    : ctx.tipAmount;
+  applyLovenseSpecial({
+    toyId,
+    special,
+    enabled,
+    level: ctx.level,
+    tipAmount,
+    tipperName: ctx.tipperName,
+  }).then((result) => {
     const ok = result && result.ok;
     const ctxAfter = getToyControlContext(toyId, scope);
     const statusMsg = ok
@@ -3218,9 +3204,11 @@ function handleIncomingToyInventory(data) {
   }
 }
 
-function handleIncomingToyPayload(data) {
+async function handleIncomingToyPayload(data) {
   if (!data || typeof data !== "object") return;
   if (data.type !== "toy") return;
+
+  await ensureLovenseInitialized();
 
   const level = Math.max(0, Math.min(100, Number(data.level) || 0));
   const name = data.tipperName || "Partner";
@@ -3228,17 +3216,12 @@ function handleIncomingToyPayload(data) {
   const toyId = data.toyId ? String(data.toyId) : "";
   const toyLabel = toyId || "all toys";
 
-  syncLovenseFromBridge();
-  const bridge = window.dualPeerLovense;
   let ok = false;
 
   if (level <= 0) {
-    if (bridge && typeof bridge.applyRemoteControl === "function") {
-      const stopResult = bridge.applyRemoteControl({ ...data, level: 0, tipAmount: 0 });
-      ok = stopResult && typeof stopResult === "object" ? !!stopResult.ok : !!stopResult;
-    } else {
-      ok = stopLocalLovenseToys(toyId);
-    }
+    const stopResult = await applyLovenseControl({ ...data, level: 0, tipAmount: 0 });
+    ok = stopResult && typeof stopResult === "object" ? !!stopResult.ok : !!stopResult;
+    if (!ok) ok = stopLocalLovenseToys(toyId);
     setDataActivityStatus(
       ok ? `Stop received for ${toyLabel}.` : `Stop received for ${toyLabel}.`,
       ok ? "ok" : "err"
@@ -3258,26 +3241,18 @@ function handleIncomingToyPayload(data) {
 
   const tipTokens = tokens;
   let applyMethod = "none";
-  if (bridge && typeof bridge.applyRemoteControl === "function") {
-    const result = bridge.applyRemoteControl({
-      ...data,
-      level,
-      tipAmount: tipTokens,
-      tipperName: name,
-    });
-    if (result && typeof result === "object") {
-      ok = !!result.ok;
-      applyMethod = result.method || "unknown";
-    } else {
-      ok = !!result;
-      applyMethod = ok ? "legacy" : "failed";
-    }
-  } else if (toyId) {
+  const result = await applyLovenseControl({
+    ...data,
+    level,
+    tipAmount: tipTokens,
+    tipperName: name,
+  });
+  if (result && typeof result === "object") {
+    ok = !!result.ok;
+    applyMethod = result.method || "unknown";
+  } else {
     ok = false;
     applyMethod = "no-bridge";
-  } else {
-    ok = fireLovenseTip(tipTokens, name);
-    applyMethod = ok ? "receiveTip-all" : "receiveTip-failed";
   }
 
   const methodLabel =
@@ -3309,7 +3284,7 @@ function handleIncomingToyPayload(data) {
     ts: Date.now(),
   });
 
-  let failDetail = lovenseNotReadyMessage();
+  let failDetail = (result && result.hint) || lovenseNotReadyMessage();
   if (!ok && applyMethod === "no-lovense-api") {
     failDetail =
       "lovense.sendCommand not available — hard-reload host page. Without it, tips vibrate all toys.";
@@ -3325,8 +3300,11 @@ function handleIncomingToyPayload(data) {
   );
 }
 
-function handleIncomingToySpecialPayload(data) {
+async function handleIncomingToySpecialPayload(data) {
   if (!data || typeof data !== "object" || data.type !== "toy_special") return;
+
+  await ensureLovenseInitialized();
+
   const toyId = data.toyId || "toy";
   const special = data.special || "special";
   const enabled = !!data.enabled;
@@ -3337,23 +3315,14 @@ function handleIncomingToySpecialPayload(data) {
     tipAmount = resolveSpecialTipAmount(toyId, special, level, tipAmount);
   }
 
-  syncLovenseFromBridge();
-  const bridge = window.dualPeerLovense;
-  if (!bridge || typeof bridge.applyToySpecial !== "function") {
-    setDataActivityStatus(`Special ${special} failed — Lovense not ready.`, "err");
-    return;
-  }
-
-  Promise.resolve(
-    bridge.applyToySpecial({
-      toyId,
-      special,
-      enabled,
-      tipperName: name,
-      level,
-      tipAmount,
-    })
-  ).then((result) => {
+  applyLovenseSpecial({
+    toyId,
+    special,
+    enabled,
+    tipperName: name,
+    level,
+    tipAmount,
+  }).then((result) => {
     const ok = result && result.ok;
     const statusMsg = ok
       ? result.hint ||
@@ -3647,7 +3616,12 @@ let lovenseEventsBound = false;
 
 /** Load LAN SDK + Cam Extension bridge only when user opens Lovense-related UI. */
 async function ensureLovenseInitialized() {
-  if (lovenseBootInFlight) return;
+  if (lovenseBootInFlight) {
+    while (lovenseBootInFlight) {
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return;
+  }
   lovenseBootInFlight = true;
   try {
     if (typeof loadLovenseLanScript === "function") {
@@ -3663,12 +3637,33 @@ async function ensureLovenseInitialized() {
       if (typeof window.dualPeerLovense?.retryInit === "function") {
         window.dualPeerLovense.retryInit();
       }
-      startLovenseConnectionWatch();
+      if (window.dualPeerLovense?.ready) {
+        window.dualPeerLovense.refreshStreamSettings?.().catch(() => null);
+      }
     }
     updateLovensePatternUrl();
   } finally {
     lovenseBootInFlight = false;
   }
+}
+
+/** Host-side Lovense command (local test + partner remote) — always load LAN SDK first. */
+async function applyLovenseControl(payload) {
+  await ensureLovenseInitialized();
+  const bridge = window.dualPeerLovense;
+  if (!bridge || typeof bridge.applyRemoteControl !== "function") {
+    return { ok: false, method: "no-bridge", hint: "Lovense bridge not ready." };
+  }
+  return bridge.applyRemoteControl(payload);
+}
+
+async function applyLovenseSpecial(payload) {
+  await ensureLovenseInitialized();
+  const bridge = window.dualPeerLovense;
+  if (!bridge || typeof bridge.applyToySpecial !== "function") {
+    return { ok: false, method: "no-bridge", hint: "Lovense not ready." };
+  }
+  return bridge.applyToySpecial(payload);
 }
 
 function updateLovensePatternUrl() {
