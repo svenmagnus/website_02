@@ -232,8 +232,8 @@ export async function syncMeetingToGoogle(db, userId, meeting, { hostUser, guest
   const title = `Tangent Club — ${hostUser.display_name || hostUser.username} & ${guestUser.display_name || guestUser.username}`;
   const description =
     `${getAppPublicUrl()}/index.html\n\n` +
-    `Host Peer ID will be shared in Tangent Club chat before the session.\n` +
-    `Guest: Connect to Host under Setup.`;
+    `Session ID will be shared in Tangent Club chat before the session.\n` +
+    `Partner: Join Session under Setup.`;
 
   const attendeeEmails = [hostUser.email, guestUser.email].filter(Boolean);
   const event = await createCalendarEvent(accessToken, {

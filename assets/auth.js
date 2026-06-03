@@ -769,7 +769,7 @@
   function getHeaderRoleLabel() {
     if (!isLoggedIn()) return "Visitor";
     if (isAdmin()) return "Administrator";
-    return isAccountHost() ? "Host" : "Guest";
+    return "Model";
   }
 
   function updateHeaderRoleBadge() {
@@ -777,8 +777,9 @@
     if (!badge) return;
     const label = getHeaderRoleLabel();
     badge.textContent = label;
-    badge.classList.remove("is-host", "is-guest", "is-admin", "is-visitor");
-    if (label === "Host") badge.classList.add("is-host");
+    badge.classList.remove("is-host", "is-guest", "is-admin", "is-visitor", "is-model");
+    if (label === "Model") badge.classList.add("is-model");
+    else if (label === "Host") badge.classList.add("is-host");
     else if (label === "Guest") badge.classList.add("is-guest");
     else if (label === "Administrator") badge.classList.add("is-admin");
     else badge.classList.add("is-visitor");
@@ -803,7 +804,7 @@
     if (inviteBtn) {
       const show = canManageInvites();
       inviteBtn.hidden = !show;
-      inviteBtn.title = show ? "Invite a guest by email" : "";
+      inviteBtn.title = show ? "Invite a model by email" : "";
     }
 
     if (roleEl) {
@@ -814,14 +815,10 @@
         roleEl.textContent = isAdmin()
           ? "Administrator"
           : isPremium()
-            ? isAccountHost()
-              ? "Premium Host"
-              : "Premium Guest"
-            : isAccountHost()
-              ? "Host account"
-              : "Guest account";
-        roleEl.classList.toggle("is-host", isAccountHost());
-        roleEl.classList.toggle("is-guest", isAccountGuest());
+            ? "Premium Model"
+            : "Model";
+        roleEl.classList.toggle("is-model", !isAdmin());
+        roleEl.classList.remove("is-host", "is-guest");
         roleEl.classList.toggle("is-admin", isAdmin());
       }
     }
@@ -830,23 +827,16 @@
     document.body.classList.toggle("account-guest", loggedIn && isAccountGuest());
 
     if (premiumSetupRow) {
-      premiumSetupRow.hidden = !(loggedIn && isAccountHost() && !isPremium());
+      premiumSetupRow.hidden = !(loggedIn && !isPremium());
     }
     if (premiumSetupBtn instanceof HTMLButtonElement) {
-      if (loggedIn && isAccountGuest()) {
-        premiumSetupBtn.disabled = true;
-        premiumSetupBtn.title = "Premium subscription (coming soon) unlocks a host account.";
-      } else {
-        premiumSetupBtn.disabled = false;
-        premiumSetupBtn.title = "";
-      }
+      premiumSetupBtn.disabled = false;
+      premiumSetupBtn.title = "";
     }
     if (premiumSetupHint) {
-      if (loggedIn && isAccountGuest()) {
+      if (loggedIn && !isPremium()) {
         premiumSetupHint.textContent =
-          "You have a guest account — use Connect to Host. Premium (coming soon) will unlock hosting and invites.";
-      } else if (loggedIn && isAccountHost() && !isPremium()) {
-        premiumSetupHint.textContent = "Upgrade to Premium to unlock future host premium tools.";
+          "Premium (coming soon) will unlock extended model pool and booking tools.";
       } else {
         premiumSetupHint.textContent = "";
       }
@@ -1059,16 +1049,11 @@
   function buildAdminUserRow(user) {
     const tr = document.createElement("tr");
     tr.dataset.userId = user.id;
-    const status = user.accountType === "host" ? "host" : "guest";
-    const statusLabel = status === "host" ? "Host" : "Guest";
+    tr.dataset.accountType = user.accountType === "host" ? "host" : "guest";
     tr.innerHTML = `
       <td><strong>${escAdminAttr(user.username)}</strong></td>
       <td class="admin-status-cell">
-        <span class="admin-status-badge admin-status-badge--${status}">${statusLabel}</span>
-        <select class="admin-input admin-status-select" data-field="accountType" aria-label="Status">
-          <option value="guest"${user.accountType === "guest" ? " selected" : ""}>Guest</option>
-          <option value="host"${user.accountType === "host" ? " selected" : ""}>Host</option>
-        </select>
+        <span class="admin-status-badge admin-status-badge--model">Model</span>
       </td>
       <td><input type="email" class="admin-input" data-field="email" value="${escAdminAttr(user.email)}" /></td>
       <td><input type="text" class="admin-input" data-field="displayName" maxlength="32" value="${escAdminAttr(user.displayName)}" /></td>
@@ -1084,15 +1069,6 @@
         <button type="button" class="admin-delete-btn">Delete</button>
       </td>
     `;
-    const statusSelect = tr.querySelector(".admin-status-select");
-    const statusBadge = tr.querySelector(".admin-status-badge");
-    if (statusSelect && statusBadge) {
-      statusSelect.addEventListener("change", () => {
-        const isHost = statusSelect.value === "host";
-        statusBadge.textContent = isHost ? "Host" : "Guest";
-        statusBadge.className = `admin-status-badge admin-status-badge--${isHost ? "host" : "guest"}`;
-      });
-    }
     return tr;
   }
 
@@ -1199,13 +1175,12 @@
       const userId = tr.dataset.userId;
       const emailEl = tr.querySelector('[data-field="email"]');
       const displayNameEl = tr.querySelector('[data-field="displayName"]');
-      const accountTypeEl = tr.querySelector('[data-field="accountType"]');
       const isModelEl = tr.querySelector('[data-field="isModel"]');
       const isAdminEl = tr.querySelector('[data-field="isAdmin"]');
       const patch = {
         email: emailEl?.value,
         displayName: displayNameEl?.value,
-        accountType: accountTypeEl?.value,
+        accountType: tr.dataset.accountType || "guest",
         nationality: tr.querySelector('[data-field="nationality"]')?.value,
         languages: tr.querySelector('[data-field="languages"]')?.value,
         location: tr.querySelector('[data-field="location"]')?.value,

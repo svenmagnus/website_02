@@ -310,11 +310,11 @@
     if (!peerId) return;
     if (peerIn.value.trim() !== peerId) {
       peerIn.value = peerId;
-      peerIn.placeholder = "Host Peer ID (auto-filled) …";
+      peerIn.placeholder = "Session ID (auto-filled) …";
       peerIn.dispatchEvent(new Event("input", { bubbles: true }));
       const guestStatus = document.getElementById("statusGuest");
       if (guestStatus && !global.appSessionRole?.()) {
-        guestStatus.textContent = "Host Peer ID ready — click Connect to Host.";
+        guestStatus.textContent = "Session ID ready — click Join Session.";
         guestStatus.className = "status-line ok";
       }
     }
@@ -397,7 +397,7 @@
       hostHint.innerHTML =
         `Your host: <strong>${escapeHtml(state.inviteHost.displayName)}</strong> (@${escapeHtml(state.inviteHost.username)}). ` +
         `Use <strong>Messages</strong> in the header to chat. ` +
-        `When the host starts streaming, the <strong>Host Peer ID</strong> is filled in automatically below.`;
+        `When your partner starts the camera, the <strong>Session ID</strong> is filled in automatically below.`;
     }
     if (peerHelp) peerHelp.hidden = false;
 
@@ -675,8 +675,8 @@
               setMeetingStatus(
                 block,
                 global.DualPeerAuth?.isAccountHost?.()
-                  ? "Instant session — click Start as Host to share your Peer ID."
-                  : "Instant session — wait for host Peer ID in Messages.",
+                  ? "Instant session — click Start Camera to share your Session ID."
+                  : "Instant session — wait for Session ID in Messages or below.",
                 "ok"
               );
               if (global.DualPeerAuth?.isAccountHost?.()) {
@@ -772,7 +772,7 @@
         if (m.signedIn) {
           const badge = document.createElement("span");
           badge.className = "model-signed-in-badge";
-          badge.textContent = "Angemeldet";
+          badge.textContent = "Signed in";
           head.appendChild(badge);
         }
         const meta = document.createElement("span");
@@ -811,7 +811,7 @@
           available: false,
           message:
             err.message ||
-            "Der Host ist aktuell in einer anderen Session beschäftigt. Bitte versuchen Sie es später erneut.",
+            "Your partner is in another session. Please try again later.",
         };
       }
       throw err;

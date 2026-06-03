@@ -2414,6 +2414,12 @@ footer {
   color: #fdba74;
 }
 
+.admin-status-badge--model {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
 .admin-status-badge--guest {
   background: color-mix(in srgb, #60a5fa 20%, transparent);
   color: #93c5fd;
@@ -2924,6 +2930,12 @@ footer {
   border-radius: 4px;
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent);
+}
+
+.setup-session-actions-hint {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .setup-model-pool-field {

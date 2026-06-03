@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8449" />
+    <link rel="stylesheet" href="assets/styles.css?v=8454" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -117,11 +117,11 @@
             id="inviteGuestNameInput"
             autocomplete="name"
             maxlength="64"
-            placeholder="Guest's first name"
+            placeholder="Model's first name"
           />
         </div>
         <div class="login-overlay-row">
-          <label for="inviteEmailInput">Guest email</label>
+          <label for="inviteEmailInput">Model email</label>
           <input type="email" id="inviteEmailInput" autocomplete="email" placeholder="guest@example.com" />
         </div>
         <p class="status-line" id="inviteModalStatus"></p>
@@ -144,8 +144,8 @@
       <div class="login-overlay-card auth-card">
         <h2 id="premiumLoginModalTitle">Sign in to your account</h2>
         <p class="login-overlay-hint">
-          Same username and password as on the start screen. Host accounts can invite guests; guest accounts join
-          via Connect to Host.
+          Same username and password as on the start screen. All members are models — invite others or join their
+          session with Start Camera / Join Session.
         </p>
         <p class="status-line ok" id="loginVerifiedBanner" hidden></p>
         <form id="memberLoginForm">
@@ -259,8 +259,8 @@
       <div class="login-overlay-card auth-card-wide">
         <h2 id="adminUsersModalTitle">Administrator: User Profiles</h2>
         <p class="login-overlay-hint">
-          Review all registered accounts. Status is <strong>Host</strong> or <strong>Guest</strong> (guests are passive in
-          sessions but may invite others by email — see User Guide). Click <strong>Save</strong> on each row after edits.
+          Review all registered accounts. Everyone is a <strong>Model</strong> (symmetric roles in video: start camera or
+          join a session). Click <strong>Save</strong> on each row after edits.
           Use <strong>Delete</strong> to remove a user permanently.
         </p>
         <p class="status-line" id="adminUsersStatus"></p>
@@ -269,7 +269,7 @@
             <thead>
               <tr>
                 <th>User</th>
-                <th>Status</th>
+                <th>Role</th>
                 <th>Email</th>
                 <th>Display name</th>
                 <th>Nationality</th>
@@ -289,10 +289,7 @@
           <input type="text" id="adminCreateUsername" class="admin-input" placeholder="new username" />
           <input type="email" id="adminCreateEmail" class="admin-input" placeholder="new email" />
           <input type="password" id="adminCreatePassword" class="admin-input" placeholder="password (min 8)" />
-          <select id="adminCreateRole" class="admin-input">
-            <option value="guest">Guest</option>
-            <option value="host">Host</option>
-          </select>
+          <input type="hidden" id="adminCreateRole" value="guest" />
           <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsModel" /> Model</label>
           <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsAdmin" /> Admin</label>
           <button type="button" class="primary" id="adminUsersCreateBtn">Create</button>
@@ -398,14 +395,14 @@
       <section class="stage" id="stage" data-layout="split" data-pip-corner="br" aria-label="Video area">
         <article class="panel panel-host">
           <div class="panel-head">
-            <span>Host</span>
-            <span class="tag you">You</span>
+            <span>You</span>
+            <span class="tag you">Camera</span>
           </div>
           <div class="video-wrap" id="hostFsTarget">
             <video id="localVideo" autoplay playsinline muted></video>
             <div id="localPulse" class="toy-pulse" aria-hidden="true"></div>
             <div id="localPlaceholder" class="video-placeholder is-visible" aria-hidden="false">
-              Camera starts with &ldquo;Start as Host&rdquo; or &ldquo;Connect to Host&rdquo;.
+              Use <strong>Start Camera</strong> or <strong>Join Session</strong> in Setup.
             </div>
             <div class="video-media-overlay" data-panel="local" aria-label="Your video controls">
               <button
@@ -437,8 +434,8 @@
 
         <article class="panel panel-guest">
           <div class="panel-head">
-            <span>Guest</span>
-            <span class="tag partner">Partner</span>
+            <span>Partner</span>
+            <span class="tag partner">Stream</span>
           </div>
           <div class="video-wrap" id="guestFsTarget">
             <video id="remoteVideo" autoplay playsinline></video>
@@ -636,8 +633,8 @@
               <button type="button" id="btnHangupStream">Disconnect</button>
               <button type="button" class="secondary" id="btnOpenSetupTab">Open Setup</button>
             </div>
-            <p class="status-line" id="streamStatusHost">Host: not started yet.</p>
-            <p class="status-line" id="streamStatusGuest">Guest: not connected yet.</p>
+            <p class="status-line" id="streamStatusHost">Your camera: not started yet.</p>
+            <p class="status-line" id="streamStatusGuest">Partner stream: not connected yet.</p>
             <p class="status-line" id="streamStatusData">Data channel: disconnected.</p>
             <p class="status-line" data-partner-technique-summary>Partner: not connected</p>
           </div>
@@ -648,8 +645,8 @@
             <h3 class="tangent-about-title">What is Tangent Club?</h3>
             <p class="status-line tangent-about-text">
               A <strong>private 1:1 video lounge</strong> — not a public cam site. You connect only with people you
-              invite (or who invited you). Sessions use a <strong>Host Peer ID</strong>: the host starts streaming and
-              shares that ID; the guest pastes it to join. Optional <strong>Lovense</strong> toy control and technique
+              invite (or who invited you). One partner <strong>starts the camera</strong>; the other <strong>joins the
+              session</strong> with the shared Session ID. Optional <strong>Lovense</strong> toy control and technique
               requests make it interactive — but there is no public gallery, tipping room, or anonymous browsing like on
               typical adult platforms.
             </p>
@@ -658,10 +655,10 @@
           <p class="status-line setup-flow-hint">
             <strong>Start as host:</strong> (1) Sign in on the start screen → (2) Choose broadcast
             <strong>Webcam &amp; microphone</strong> for normal streaming without OBS → (3) Pick camera/mic →
-            <strong>Start as Host</strong>. For OBS scenes: broadcast <strong>OBS (WHIP)</strong>.
+            <strong>Start Camera</strong>. For OBS scenes: broadcast <strong>OBS (WHIP)</strong>.
             <span class="setup-flow-hint-member"
-              >Invite models from the account menu. Either side can <strong>Start as Host</strong> (camera first) or
-              <strong>Connect to Host</strong> (join).</span
+              >Invite models from the account menu. Either side can <strong>Start Camera</strong> or
+              <strong>Join Session</strong>.</span
             >
           </p>
           <div class="row premium-setup-row" id="premiumSetupRow">
@@ -676,7 +673,7 @@
           <fieldset class="setup-model-pool-field" id="setupModelPoolField" hidden>
             <legend>My model pool</legend>
             <p class="status-line profile-field-hint">
-              Models you invited appear here. <strong>Angemeldet</strong> = signed in now.
+              Models you invited appear here. <strong>Signed in</strong> = online now.
             </p>
             <div id="setupModelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="setupModelPoolStatus"></p>
@@ -685,11 +682,17 @@
             <legend>Sessions &amp; calendar</legend>
             <div id="setupMeetingMount"></div>
           </fieldset>
-          <div class="row">
-            <button type="button" class="primary" id="btnStartHost" disabled>
-              Start as Host
+          <p class="status-line setup-session-actions-hint">
+            <strong>Start Camera</strong> — you go live first. <strong>Join Session</strong> — you connect to your
+            partner&rsquo;s camera.
+          </p>
+          <div class="row setup-session-actions">
+            <button type="button" class="primary" id="btnStartHost" disabled title="Start your camera and share a Session ID">
+              Start Camera
             </button>
-            <button type="button" class="secondary" id="btnConnect" disabled>Connect to Host</button>
+            <button type="button" class="secondary" id="btnConnect" disabled title="Join your partner's live session">
+              Join Session
+            </button>
             <button type="button" id="btnHangup">Disconnect</button>
           </div>
           <div class="row media-source-row">
@@ -758,23 +761,23 @@
             </select>
           </div>
           <p class="status-line media-source-hint" id="mediaSourceHint">
-            Webcam mode: pick camera and microphone above (or “Default”), then Start as Host — no OBS required.
+            Webcam mode: pick camera and microphone above (or “Default”), then Start Camera — no OBS required.
           </p>
           <p class="status-line" id="mediaSourceStatus" hidden></p>
           <div class="peer-id-help-box" id="peerIdHelpBox" hidden>
-            <h3 class="peer-id-help-title">How the Host Peer ID works</h3>
+            <h3 class="peer-id-help-title">How the Session ID works</h3>
             <ol class="peer-id-help-list">
-              <li><strong>Host</strong> creates a session (menu above) and clicks <strong>Start as Host</strong>.</li>
-              <li>Your <strong>Peer ID</strong> appears below — it is also sent to your guest in <strong>Messages</strong>.</li>
-              <li><strong>Guest</strong> copies that ID into <em>Host Peer ID</em> and clicks <strong>Connect to Host</strong>.</li>
+              <li>Create a session (menu above), then click <strong>Start Camera</strong>.</li>
+              <li>Your <strong>Session ID</strong> appears below — it is also sent in <strong>Messages</strong>.</li>
+              <li>Your partner uses <strong>Join Session</strong> (ID is filled in automatically when possible).</li>
             </ol>
           </div>
           <div class="row">
-            <label for="peerIdIn">Host Peer ID</label>
-            <input type="text" id="peerIdIn" placeholder="Paste host ID from chat …" autocomplete="off" />
+            <label for="peerIdIn">Partner Session ID</label>
+            <input type="text" id="peerIdIn" placeholder="Filled automatically when partner is live …" autocomplete="off" />
           </div>
-          <p class="status-line" id="statusHost">Host: not started yet.</p>
-          <p class="status-line" id="statusGuest">Guest: not connected yet.</p>
+          <p class="status-line" id="statusHost">Your camera: not started yet.</p>
+          <p class="status-line" id="statusGuest">Partner stream: not connected yet.</p>
           <p class="status-line" id="statusData">Data channel: disconnected.</p>
           <div>
             <span class="status-line">Your current Peer ID:</span>
@@ -845,7 +848,7 @@
           <div class="panel-tab-panel" data-remote-tab-panel="modelpool" hidden>
             <h2 class="panel-tab-title">My model pool</h2>
             <p class="status-line" style="margin: 0 0 0.5rem">
-              Everyone you invited — same list as in Setup. <strong>Angemeldet</strong> when they are signed in now.
+              Everyone you invited — same list as in Setup. <strong>Signed in</strong> when they are online now.
             </p>
             <div id="modelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="modelPoolStatus">Sign in to load premium models.</p>
@@ -979,10 +982,10 @@
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
     <script src="assets/ui-shell.js?v=8434"></script>
-    <script src="assets/app.js?v=8453"></script>
-    <script src="assets/auth.js?v=8453"></script>
+    <script src="assets/app.js?v=8454"></script>
+    <script src="assets/auth.js?v=8454"></script>
     <script src="assets/messages-panel.js?v=8449"></script>
-    <script src="assets/social.js?v=8453"></script>
+    <script src="assets/social.js?v=8454"></script>
     <script src="assets/member-profile.js?v=8446"></script>
   </body>
 </html>

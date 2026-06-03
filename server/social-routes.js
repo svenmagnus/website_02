@@ -286,8 +286,8 @@ socialRouter.post("/social/session/connect-check", requireAuth, (req, res) => {
     ok: false,
     available: false,
     error: "provider_busy",
-    message:
-      "Der Host ist aktuell in einer anderen Session beschäftigt. Bitte versuchen Sie es später erneut.",
+      message:
+      "Your partner is in another session. Please try again later.",
     providerId: providerUserId,
     providerName: provider?.displayName || provider?.username,
   });
@@ -499,7 +499,7 @@ socialRouter.post("/social/meetings", requireAuth, async (req, res) => {
   const title = `Tangent Club session — ${host.display_name || host.username} & ${guest.display_name || guest.username}`;
   const details =
     `${getAppPublicUrl()}/index.html\n\n` +
-    `Host starts the stream and shares a Peer ID in chat. Guest: paste the Host Peer ID under Setup → Connect to Host.`;
+    `One partner starts the camera and shares a Session ID in chat. Partner joins via Setup → Join Session.`;
   let calendarUrl = buildGoogleCalendarUrl({
     title,
     startMs: scheduledStart,
@@ -607,8 +607,8 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
         db,
         meeting.thread_id,
         uid,
-        `${hostName}'s Host Peer ID for your session: ${hostPeerId}\n\n` +
-          `Guest: open Setup → Host Peer ID is filled automatically → Connect to Host.`,
+        `${hostName}'s Session ID: ${hostPeerId}\n\n` +
+          `Partner: open Setup → Session ID is filled automatically → Join Session.`,
         { kind: "system" }
       );
     }

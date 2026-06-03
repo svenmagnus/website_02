@@ -1063,7 +1063,7 @@ async function refreshMediaDeviceLists() {
     );
   } else if (videoInputs.length) {
     setMediaSourceStatus(
-      `${videoInputs.length} Kamera(s) bereit — Webcam-Modus: Quelle wählen, dann Start as Host.`,
+      `${videoInputs.length} camera(s) ready — pick a source, then Start Camera.`,
       "ok"
     );
   } else {
@@ -1183,8 +1183,8 @@ function syncBroadcastModeUi() {
   if (hint) {
     hint.textContent =
       mode === "whip"
-        ? "OBS-Modus: Nach Start as Host WHIP-Daten in OBS eintragen und dort „Streaming starten“. Für reine Webcam: Broadcast „Webcam & Mikrofon“ wählen."
-        : "Webcam-Modus: Kamera und Mikrofon oben wählen (Laptop-Webcam reicht), dann Start as Host — kein OBS nötig. Optional: OBS Virtual Camera als Videoquelle.";
+        ? "OBS mode: after Start Camera, paste WHIP details into OBS and start streaming. For webcam only: choose Webcam & microphone."
+        : "Webcam mode: pick camera and microphone above, then Start Camera — no OBS required. Optional: OBS Virtual Camera as video source.";
   }
 }
 
@@ -1653,8 +1653,8 @@ function hangup() {
 }
 
 function resetConnectionLabels() {
-  setStatus(els.statusHost, "Host: not started yet.");
-  setStatus(els.statusGuest, "Guest: not connected yet.");
+  setStatus(els.statusHost, "Your camera: not started yet.");
+  setStatus(els.statusGuest, "Partner stream: not connected yet.");
   updateConnectionUi();
 }
 
@@ -2630,7 +2630,7 @@ function playTechniqueBell() {
 
 function getChatDisplayName() {
   if (global.MemberProfile?.getChatSenderName) return MemberProfile.getChatSenderName();
-  return sessionRole === "host" ? "Host" : sessionRole === "guest" ? "Guest" : "You";
+  return sessionRole === "host" ? "You" : sessionRole === "guest" ? "Partner" : "You";
 }
 
 function shareMemberProfileOverDataChannel() {
@@ -2782,13 +2782,13 @@ async function publishHostPeerIdToGuest(peerId) {
     if (!meetingId) {
       setStatus(
         els.statusHost,
-        "First create an instant session (Setup → New session), then Start as Host.",
+        "First create an instant session (Setup → New session), then Start Camera.",
         "err"
       );
       return;
     }
     await global.DualPeerSocial.publishHostPeerId(meetingId, peerId);
-    setStatus(els.statusHost, `Peer ID shared with guest: ${peerId}`, "ok");
+    setStatus(els.statusHost, `Session ID shared with partner: ${peerId}`, "ok");
     if (dataConn?.open) {
       sendDataChannelMessage({ type: "host_peer_id", peerId });
     }
@@ -3382,7 +3382,7 @@ els.btnStartHost.addEventListener("click", async () => {
 els.btnConnect.addEventListener("click", async () => {
   const remoteId = (els.peerIdIn.value || "").trim();
   if (!remoteId) {
-    setStatus(els.statusGuest, "Please enter the host Peer ID.", "err");
+    setStatus(els.statusGuest, "Please enter the partner Session ID.", "err");
     return;
   }
   if (global.DualPeerSocial?.checkConnectAvailable) {
@@ -3392,7 +3392,7 @@ els.btnConnect.addEventListener("click", async () => {
         setStatus(
           els.statusGuest,
           check?.message ||
-            "Der Host ist aktuell in einer anderen Session beschäftigt. Bitte versuchen Sie es später erneut.",
+            "Your partner is in another session. Please try again later.",
           "err"
         );
         return;
@@ -3402,7 +3402,7 @@ els.btnConnect.addEventListener("click", async () => {
         setStatus(
           els.statusGuest,
           err.message ||
-            "Der Host ist aktuell in einer anderen Session beschäftigt. Bitte versuchen Sie es später erneut.",
+            "Your partner is in another session. Please try again later.",
           "err"
         );
         return;
@@ -3487,29 +3487,14 @@ function initMemberProfileBridge() {
 }
 
 function applyAccountStreamingUi() {
-  const auth = global.DualPeerAuth;
   if (!videoAccessUnlocked) return;
-  const guestAccount = auth?.isAccountGuest?.() === true;
-  const hostAccount = auth?.isAccountHost?.() === true;
-  if (guestAccount) {
-    if (els.btnStartHost) {
-      els.btnStartHost.disabled = true;
-      els.btnStartHost.title =
-        "Start as Host requires a host account. Premium (coming soon) or ask your host to invite you as a host.";
-    }
-    if (els.btnConnect) {
-      els.btnConnect.disabled = false;
-      els.btnConnect.title = "";
-    }
-  } else if (hostAccount) {
-    if (els.btnStartHost) {
-      els.btnStartHost.disabled = false;
-      els.btnStartHost.title = "";
-    }
-    if (els.btnConnect) {
-      els.btnConnect.disabled = true;
-      els.btnConnect.title = "Connect to Host is only available for guest accounts.";
-    }
+  if (els.btnStartHost) {
+    els.btnStartHost.disabled = false;
+    els.btnStartHost.title = "Start your camera and share a Session ID";
+  }
+  if (els.btnConnect) {
+    els.btnConnect.disabled = false;
+    els.btnConnect.title = "Join your partner's live session";
   }
 }
 
