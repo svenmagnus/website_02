@@ -292,7 +292,7 @@
     if (userAction) userPinnedTab = true;
     const next = tabId || "setup";
     setTabInGroup(getConnectionTabsRoot(), next, "data-panel-tab", "data-panel-tab-panel");
-    document.dispatchEvent(new CustomEvent("dualpeer-panel-tab", { detail: { tab: next } }));
+    document.dispatchEvent(new CustomEvent("dualpeer-panel-tab", { detail: { tab: next, userAction } }));
   }
 
   function setRemoteTab(tabId) {

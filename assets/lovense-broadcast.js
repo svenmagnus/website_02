@@ -1021,4 +1021,7 @@
     retryInit,
     requestBoot: scheduleBoot,
   };
+
+  // Start CamExtension bridge as soon as the page loads (not only after Setup tab click).
+  scheduleBoot();
 })(window);

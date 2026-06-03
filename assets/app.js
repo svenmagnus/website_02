@@ -2454,8 +2454,8 @@ function renderLocalToyTestPanel() {
   list.innerHTML = "";
 
   if (!isLovenseReady()) {
-    list.innerHTML =
-      '<div class="toy-empty-note">Extension not ready — open Cam Extension, select test:Tangent-Club, connect toys.</div>';
+    const hint = lovenseNotReadyMessage();
+    list.innerHTML = `<div class="toy-empty-note">${hint}</div>`;
     return;
   }
 
@@ -3023,8 +3023,32 @@ function onLovenseToys(toys) {
   renderLocalToyTestPanel();
 }
 
+function bindLovenseEventsOnce() {
+  if (lovenseEventsBound) return;
+  lovenseEventsBound = true;
+  document.addEventListener("dualpeer-lovense-ready", (e) => {
+    onLovenseReady(e.detail);
+    renderLocalToyTestPanel();
+  });
+  document.addEventListener("dualpeer-lovense-error", (e) => onLovenseError(e.detail));
+  document.addEventListener("dualpeer-lovense-toys", (e) => {
+    onLovenseToys(e.detail);
+    renderLocalToyTestPanel();
+  });
+  document.addEventListener("dualpeer-lovense-settings", (e) => {
+    syncLovenseFromBridge();
+    const ver = window.dualPeerLovense?.version;
+    setLovenseStatus(
+      `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
+        formatLovenseMotorStatus(e.detail)
+    );
+    renderLocalToyTestPanel();
+  });
+}
+
 function initLovenseIfPresent() {
   syncLovenseFromBridge();
+  bindLovenseEventsOnce();
   updateLovenseSetupHint();
   renderLocalToyTestPanel();
 
@@ -3053,22 +3077,12 @@ function initLovenseIfPresent() {
   } else if (window.dualPeerLovense.error) {
     onLovenseError(window.dualPeerLovense.error);
   } else {
+    const pageUrl = location.origin + location.pathname;
     setLovenseStatus(
-      "SDK loaded — Chrome Cam Extension: select test:Tangent-Club, pair toys, and wait for 'ready'."
+      `Waiting for Cam Extension (test:Tangent-Club) — open the Lovense widget on this tab (${pageUrl}), toggle extension On, then wait for ready.`
     );
+    startLovenseConnectionWatch();
   }
-
-  document.addEventListener("dualpeer-lovense-ready", (e) => onLovenseReady(e.detail));
-  document.addEventListener("dualpeer-lovense-error", (e) => onLovenseError(e.detail));
-  document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
-  document.addEventListener("dualpeer-lovense-settings", (e) => {
-    syncLovenseFromBridge();
-    const ver = window.dualPeerLovense?.version;
-    setLovenseStatus(
-      `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
-        formatLovenseMotorStatus(e.detail)
-    );
-  });
 }
 
 function fireLovenseTip(amount, tipperName, toyId) {
@@ -3542,6 +3556,7 @@ function setVideoAccessUi(unlocked) {
 
 let lovenseUiBooted = false;
 let lovenseBootInFlight = false;
+let lovenseEventsBound = false;
 
 /** Load LAN SDK + Cam Extension bridge only when user opens Lovense-related UI. */
 async function ensureLovenseInitialized() {
@@ -3582,9 +3597,8 @@ function initLovenseLazyBoot() {
     if (hit) ensureLovenseInitialized();
   };
   document.addEventListener("click", trigger);
-  document.addEventListener("dualpeer-panel-tab", (e) => {
-    const tab = e.detail?.tab;
-    if (tab === "setup" || tab === "stream") ensureLovenseInitialized();
+  document.addEventListener("dualpeer-panel-tab", () => {
+    ensureLovenseInitialized();
   });
   const retryBtn = document.getElementById("btnLovenseRetry");
   if (retryBtn) {
@@ -3628,6 +3642,8 @@ function initAccessGate() {
 
   global.addEventListener("dualpeer-site-access-granted", () => {
     grantSiteAccess();
+    initLovenseIfPresent();
+    ensureLovenseInitialized();
   });
   global.addEventListener("dualpeer-site-access-revoked", () => {
     revokeSiteAccess();
@@ -3635,7 +3651,11 @@ function initAccessGate() {
 
   if (global.DualPeerAuth?.onReady) {
     global.DualPeerAuth.onReady(() => {
-      if (global.DualPeerAuth.isLoggedIn()) grantSiteAccess();
+      if (global.DualPeerAuth.isLoggedIn()) {
+        grantSiteAccess();
+        initLovenseIfPresent();
+        ensureLovenseInitialized();
+      }
     });
   }
 
@@ -3684,26 +3704,43 @@ function initLogout() {
 
 global.dualPeerPerformLogout = performAppLogout;
 
+let lovenseWatchTimer = null;
+
 function startLovenseConnectionWatch() {
+  if (lovenseWatchTimer) return;
   let ticks = 0;
-  const timer = setInterval(() => {
+  lovenseWatchTimer = setInterval(() => {
     syncLovenseFromBridge();
     const bridge = window.dualPeerLovense;
-    if (bridge?.ready || bridge?.error) {
-      clearInterval(timer);
+    if (bridge?.ready) {
+      clearInterval(lovenseWatchTimer);
+      lovenseWatchTimer = null;
+      onLovenseReady({ version: bridge.version, toys: bridge.toys });
+      return;
+    }
+    if (bridge?.error?.code === "NO_SDK") {
+      clearInterval(lovenseWatchTimer);
+      lovenseWatchTimer = null;
+      onLovenseError(bridge.error);
       return;
     }
     ticks += 1;
-    if (ticks === 4 && typeof bridge?.retryInit === "function") {
-      bridge.retryInit();
+    if (ticks === 2 || ticks === 6 || ticks === 12) {
+      if (typeof bridge?.retryInit === "function") bridge.retryInit();
     }
-    if (ticks % 5 === 0) {
+    if (ticks % 4 === 0) {
       const pageUrl = location.origin + location.pathname;
+      const hasInstance = !!bridge?.instance;
       setLovenseStatus(
-        `Waiting for Cam Extension (test:Tangent-Club) — open the Lovense widget on ${pageUrl}, connect toys, then wait for ready.`
+        (hasInstance ? "CamExtension started — " : "") +
+          `waiting for extension on ${pageUrl}. Chrome: Lovense icon → On → site test:Tangent-Club. Open the pink widget on this page.`
       );
+      renderLocalToyTestPanel();
     }
-    if (ticks >= 45) clearInterval(timer);
+    if (ticks >= 60) {
+      clearInterval(lovenseWatchTimer);
+      lovenseWatchTimer = null;
+    }
   }, 2000);
 }
 
@@ -4154,6 +4191,8 @@ document.addEventListener("DOMContentLoaded", () => {
   bindVideoOverlayRefresh(els.remoteVideo);
   refreshVideoOverlays();
   initAccessGate();
+  initLovenseIfPresent();
+  ensureLovenseInitialized();
   initLovenseLazyBoot();
   initLogout();
   initMediaSourceControls();
