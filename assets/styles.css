@@ -2621,9 +2621,25 @@ footer {
   overflow-y: auto;
 }
 
-.floating-messages-input-row {
-  margin: 0.45rem 0.55rem 0.55rem;
+.floating-messages-compose {
   flex-shrink: 0;
+  margin: 0 0.55rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.floating-messages-input-row {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.floating-messages-panel .chat-emoji-bar-mount {
+  min-height: 0;
+}
+
+.floating-messages-panel .chat-emoji-bar {
+  margin: 0;
 }
 
 .floating-messages-resize {

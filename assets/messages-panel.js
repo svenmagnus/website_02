@@ -118,6 +118,7 @@
     });
 
     global.DualPeerMessagesPanel = { open: () => setOpen(true), close: () => setOpen(false) };
+    global.DualPeerChat?.ensureEmojiBars?.();
   }
 
   if (document.readyState === "loading") {

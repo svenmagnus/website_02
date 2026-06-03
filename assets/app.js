@@ -2817,6 +2817,7 @@ function relayChatToPeer(text, sender) {
 
 global.DualPeerChat = {
   relayToPeer: (text) => relayChatToPeer(text, getChatDisplayName()),
+  ensureEmojiBars: ensureChatEmojiBars,
 };
 
 function sendChatMessage() {
@@ -2866,9 +2867,8 @@ const CHAT_EMOJIS = [
   "😈",
 ];
 
-function insertEmojiIntoChatInput(emoji) {
-  if (!els.chatInput) return;
-  const input = els.chatInput;
+function insertEmojiIntoInput(input, emoji) {
+  if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
   const value = input.value || "";
   const start = Number.isInteger(input.selectionStart) ? input.selectionStart : value.length;
   const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : value.length;
@@ -2880,34 +2880,53 @@ function insertEmojiIntoChatInput(emoji) {
   input.focus();
 }
 
-function ensureChatEmojiBar() {
-  const chatRow = document.getElementById("chat-input-row");
-  if (!chatRow) return;
-  let bar = document.getElementById("chatEmojiBar");
-  if (!bar) {
-    bar = document.createElement("div");
-    bar.id = "chatEmojiBar";
-    bar.className = "chat-emoji-bar";
-    CHAT_EMOJIS.forEach((emoji) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "chat-emoji-btn";
-      btn.textContent = emoji;
-      btn.dataset.emoji = emoji;
-      btn.title = `Insert ${emoji}`;
-      bar.appendChild(btn);
-    });
-    chatRow.insertAdjacentElement("beforebegin", bar);
-  }
+function insertEmojiIntoChatInput(emoji) {
+  insertEmojiIntoInput(els.chatInput, emoji);
+}
+
+function mountChatEmojiBar({ anchor, barId, getInput, placement = "before" }) {
+  if (!anchor || !barId || typeof getInput !== "function") return;
+  if (document.getElementById(barId)) return;
+  const bar = document.createElement("div");
+  bar.id = barId;
+  bar.className = "chat-emoji-bar";
+  CHAT_EMOJIS.forEach((emoji) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chat-emoji-btn";
+    btn.textContent = emoji;
+    btn.dataset.emoji = emoji;
+    btn.title = `Insert ${emoji}`;
+    bar.appendChild(btn);
+  });
   bar.addEventListener("click", (e) => {
     const btn = e.target?.closest?.(".chat-emoji-btn");
     if (!btn) return;
-    insertEmojiIntoChatInput(btn.dataset.emoji || btn.textContent || "");
+    insertEmojiIntoInput(getInput(), btn.dataset.emoji || btn.textContent || "");
+  });
+  if (placement === "inside") {
+    anchor.appendChild(bar);
+  } else {
+    anchor.insertAdjacentElement("beforebegin", bar);
+  }
+}
+
+function ensureChatEmojiBars() {
+  mountChatEmojiBar({
+    anchor: document.getElementById("chat-input-row"),
+    barId: "chatEmojiBar",
+    getInput: () => els.chatInput,
+  });
+  mountChatEmojiBar({
+    anchor: document.getElementById("headerChatEmojiMount"),
+    barId: "headerChatEmojiBar",
+    getInput: () => document.getElementById("headerChatInput"),
+    placement: "inside",
   });
 }
 
 function initChatControls() {
-  ensureChatEmojiBar();
+  ensureChatEmojiBars();
   if (els.chatSend) {
     els.chatSend.type = "button";
     els.chatSend.addEventListener("click", sendChatMessage);
