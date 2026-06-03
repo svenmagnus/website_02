@@ -1,5 +1,7 @@
 {
   "$schema": "Tangent Club design tokens — source for CSS themes and email HTML",
+  "storageKey": "theme",
+  "legacyStorageKey": "dualpeer-theme",
   "themes": {
     "cb-dark": {
       "label": "Dark mode",

@@ -1,14 +1,25 @@
 /**
- * Shared header UI: CB light/dark theme + account dropdown (Chaturbate-style).
+ * Shared header UI: theme picker + account dropdown.
  */
 (function (global) {
-  const THEME_STORAGE_KEY = "dualpeer-theme";
+  const THEME_STORAGE_KEY = "theme";
   const PROFILE_NAME_KEY = "dualpeer-profile-name";
   const ALLOWED_THEMES = ["cb-dark", "cb-light", "hippie"];
 
+  const THEME_LABELS = {
+    "cb-light": "Light",
+    "cb-dark": "Dark",
+    hippie: "Hippie",
+  };
+
   function normalizeTheme(theme) {
-    if (theme === "original") return "cb-dark";
-    return ALLOWED_THEMES.includes(theme) ? theme : "cb-dark";
+    if (global.dualPeerTheme && typeof global.dualPeerTheme.normalize === "function") {
+      return global.dualPeerTheme.normalize(theme);
+    }
+    const t = String(theme || "").trim().toLowerCase();
+    if (t === "original" || t === "dark") return "cb-dark";
+    if (t === "light") return "cb-light";
+    return ALLOWED_THEMES.includes(t) ? t : "cb-dark";
   }
 
   function getSavedTheme() {
@@ -22,53 +33,68 @@
     }
   }
 
-  function syncDarkModeToggle(theme) {
-    const toggle = document.getElementById("darkModeToggle");
-    if (!(toggle instanceof HTMLInputElement)) return;
-    if (theme === "hippie") {
-      toggle.indeterminate = true;
-      toggle.checked = false;
-      return;
-    }
-    toggle.indeterminate = false;
-    toggle.checked = theme === "cb-dark";
-  }
-
-  function syncThemeRadios(theme) {
+  function syncThemeSegmentedControls(theme) {
+    const t = normalizeTheme(theme);
+    document.querySelectorAll("[data-theme-segmented]").forEach((root) => {
+      root.querySelectorAll(".theme-segment[data-theme-value]").forEach((btn) => {
+        if (!(btn instanceof HTMLButtonElement)) return;
+        const active = btn.dataset.themeValue === t;
+        btn.classList.toggle("is-active", active);
+        btn.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+    });
     document.querySelectorAll('input[name="appearanceTheme"]').forEach((el) => {
       if (el instanceof HTMLInputElement) {
-        el.checked = el.value === theme;
+        el.checked = el.value === t;
       }
     });
   }
 
+  function initThemeSegmentedControls() {
+    document.querySelectorAll("[data-theme-segmented]").forEach((root) => {
+      if (root.dataset.themeBound === "1") return;
+      root.dataset.themeBound = "1";
+      root.querySelectorAll(".theme-segment[data-theme-value]").forEach((btn) => {
+        if (!(btn instanceof HTMLButtonElement)) return;
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const value = btn.dataset.themeValue;
+          if (!value) return;
+          applyTheme(value);
+        });
+      });
+    });
+    syncThemeSegmentedControls(getSavedTheme());
+  }
+
   function applyTheme(theme, options) {
     const opts = options || {};
-    const t =
-      global.dualPeerTheme && typeof global.dualPeerTheme.apply === "function"
-        ? global.dualPeerTheme.apply(theme)
-        : normalizeTheme(theme);
-
-    document.documentElement.setAttribute("data-theme", t);
-    document.documentElement.dataset.theme = t;
+    let t;
+    if (global.dualPeerTheme && typeof global.dualPeerTheme.apply === "function") {
+      t = global.dualPeerTheme.apply(theme, { persist: opts.skipStorage !== true });
+    } else {
+      t = normalizeTheme(theme);
+      document.documentElement.setAttribute("data-theme", t);
+      document.documentElement.dataset.theme = t;
+      if (!opts.skipStorage) {
+        try {
+          localStorage.setItem(THEME_STORAGE_KEY, t);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    }
 
     const main = document.getElementById("appMain");
     if (main) {
       main.classList.add("layout-cb");
     }
 
-    syncDarkModeToggle(t);
-    syncThemeRadios(t);
-
-    if (!opts.skipStorage) {
-      try {
-        localStorage.setItem(THEME_STORAGE_KEY, t);
-      } catch (_) {
-        /* ignore */
-      }
-    }
+    syncThemeSegmentedControls(t);
 
     document.dispatchEvent(new CustomEvent("dualpeer-theme-change", { detail: { theme: t } }));
+    return t;
   }
 
   function getProfileName() {
@@ -186,17 +212,20 @@
     if (menu) menu.classList.add("is-open");
     if (btn) btn.setAttribute("aria-expanded", "true");
     if (panel) panel.hidden = false;
+    syncThemeSegmentedControls(getSavedTheme());
   }
 
   function initAccountMenu() {
     const btn = document.getElementById("accountMenuBtn");
     const panel = document.getElementById("accountDropdown");
     const logoutBtn = document.getElementById("accountLogoutBtn");
-    const darkToggle = document.getElementById("darkModeToggle");
 
     refreshProfileLabels();
-    global.addEventListener("dualpeer-profile-update", () => refreshProfileAvatars());
-    global.addEventListener("dualpeer-auth-change", () => refreshProfileAvatars());
+    initThemeSegmentedControls();
+    global.addEventListener("dualpeer-theme-change", (e) => {
+      const theme = e?.detail?.theme;
+      if (theme) syncThemeSegmentedControls(theme);
+    });
 
     if (btn && panel) {
       btn.addEventListener("click", (e) => {
@@ -228,13 +257,6 @@
       closeAccountMenu();
     });
 
-    if (darkToggle instanceof HTMLInputElement) {
-      darkToggle.addEventListener("change", () => {
-        if (darkToggle.indeterminate) darkToggle.indeterminate = false;
-        applyTheme(darkToggle.checked ? "cb-dark" : "cb-light");
-      });
-    }
-
     if (logoutBtn) {
       logoutBtn.addEventListener("click", async () => {
         closeAccountMenu();
@@ -256,6 +278,7 @@
 
     applyTheme(getSavedTheme(), { skipStorage: true });
     initAccountMenu();
+    initThemeSegmentedControls();
 
     document.querySelectorAll('input[name="appearanceTheme"]').forEach((el) => {
       if (!(el instanceof HTMLInputElement)) return;
@@ -291,6 +314,7 @@
     getSavedTheme,
     initShell,
     initSettingsPage,
+    initThemeSegmentedControls,
     setProfileName,
     getProfileName,
     closeAccountMenu,
@@ -298,5 +322,6 @@
     closeAuthModals,
     openAuthModal,
     getOpenAuthModal,
+    THEME_LABELS,
   };
 })(window);

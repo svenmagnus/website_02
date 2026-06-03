@@ -307,6 +307,70 @@ button.linkish {
   background: var(--border);
 }
 
+.account-theme-picker {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  cursor: default;
+}
+
+.account-theme-picker-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.theme-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border-radius: calc(var(--radius) + 4px);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 65%, var(--surface));
+}
+
+.theme-segmented--settings {
+  max-width: 20rem;
+}
+
+.theme-segment {
+  margin: 0;
+  padding: 0.45rem 0.35rem;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.theme-segment:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.theme-segment.is-active,
+.theme-segment[aria-pressed="true"] {
+  color: var(--secondary-text, var(--text));
+  background: var(--accent);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+html[data-theme="hippie"] .theme-segment.is-active,
+html[data-theme="hippie"] .theme-segment[aria-pressed="true"] {
+  color: #fff8ed;
+}
+
 .account-toggle-row {
   justify-content: space-between;
   cursor: pointer;
