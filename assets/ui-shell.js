@@ -77,6 +77,32 @@
     refreshProfileLabels(safe);
   }
 
+  function getAccountAvatarUrl() {
+    const cached = global.DualPeerAuth?.getCachedProfile?.();
+    if (cached?.avatarUrl) return cached.avatarUrl;
+    const session = global.DualPeerAuth?.getSession?.();
+    return session?.user?.avatarUrl || null;
+  }
+
+  function refreshProfileAvatars(avatarUrl) {
+    const path = avatarUrl !== undefined ? avatarUrl : getAccountAvatarUrl();
+    const src = path && global.DualPeerAuth?.resolveAssetUrl ? global.DualPeerAuth.resolveAssetUrl(path) : "";
+    document.querySelectorAll("[data-profile-avatar-photo]").forEach((img) => {
+      if (!(img instanceof HTMLImageElement)) return;
+      const wrap = img.closest("[data-account-avatar]");
+      if (src) {
+        img.src = src;
+        img.hidden = false;
+        img.alt = "";
+        if (wrap) wrap.classList.add("has-photo");
+      } else {
+        img.hidden = true;
+        img.removeAttribute("src");
+        if (wrap) wrap.classList.remove("has-photo");
+      }
+    });
+  }
+
   function refreshProfileLabels(name) {
     const label = name || getProfileName();
     const initial = label.charAt(0).toUpperCase() || "G";
@@ -90,6 +116,7 @@
     if (input instanceof HTMLInputElement && document.activeElement !== input) {
       input.value = label === "Guest" ? "" : label;
     }
+    refreshProfileAvatars();
   }
 
   const AUTH_MODAL_IDS = ["mailSettingsModal", "inviteModal", "premiumLoginModal", "adminUsersModal"];
@@ -149,6 +176,8 @@
     const darkToggle = document.getElementById("darkModeToggle");
 
     refreshProfileLabels();
+    global.addEventListener("dualpeer-profile-update", () => refreshProfileAvatars());
+    global.addEventListener("dualpeer-auth-change", () => refreshProfileAvatars());
 
     if (btn && panel) {
       btn.addEventListener("click", (e) => {

@@ -200,6 +200,7 @@ html[data-theme="cb-light"] .logo-link .site-logo--theme-light {
 }
 
 .account-avatar {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -211,6 +212,24 @@ html[data-theme="cb-light"] .logo-link .site-logo--theme-light {
   font-size: 0.85rem;
   font-weight: 700;
   text-transform: uppercase;
+  overflow: hidden;
+}
+
+.account-avatar.has-photo {
+  background: var(--bg);
+}
+
+.account-avatar-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.account-avatar.has-photo [data-profile-initial] {
+  visibility: hidden;
 }
 
 html[data-theme="cb-dark"] .account-avatar {
@@ -2890,6 +2909,55 @@ footer {
   margin-bottom: 0.55rem;
 }
 
+.profile-avatar-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.profile-avatar-preview-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 6rem;
+  height: 6rem;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-avatar-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
+
+.profile-avatar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.profile-avatar-upload-label {
+  cursor: pointer;
+  width: fit-content;
+}
+
 .model-card {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -2898,6 +2966,16 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  align-items: center;
+  text-align: center;
+}
+
+.model-card-photo {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid var(--border);
 }
 
 .model-card strong {

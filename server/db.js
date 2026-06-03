@@ -203,6 +203,13 @@ function runMigrations(database) {
     database.exec(`ALTER TABLE users ADD COLUMN last_seen_at INTEGER`);
     userColsPresence = tableColumns(database, "users");
   }
+  if (!userColsPresence.includes("avatar_path")) {
+    database.exec(`ALTER TABLE users ADD COLUMN avatar_path TEXT NOT NULL DEFAULT ''`);
+    userColsPresence = tableColumns(database, "users");
+  }
+  if (!userColsPresence.includes("avatar_updated_at")) {
+    database.exec(`ALTER TABLE users ADD COLUMN avatar_updated_at INTEGER`);
+  }
 
   database.exec(`
     CREATE TABLE IF NOT EXISTS model_pool (

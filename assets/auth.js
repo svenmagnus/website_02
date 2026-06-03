@@ -16,6 +16,13 @@
     return /(^|\.)tangent-club\.com$/i.test(location.hostname);
   }
 
+  function resolveAssetUrl(path) {
+    if (!path) return "";
+    if (/^https?:\/\//i.test(path)) return path;
+    const base = resolveApiBase();
+    return base ? `${base}${path}` : path;
+  }
+
   function resolveApiBase() {
     const params = new URLSearchParams(location.search);
     const apiOverride = params.get("api");
@@ -103,6 +110,7 @@
       isAdmin: Boolean(user.isAdmin),
       isPremium: Boolean(user.isPremium),
       isModel: Boolean(user.isModel),
+      avatarUrl: user.avatarUrl || null,
     };
   }
 
@@ -149,6 +157,7 @@
       isAdmin: profile.isAdmin,
       isPremium: profile.isPremium,
       isModel: profile.isModel,
+      avatarUrl: profile.avatarUrl ?? session.user?.avatarUrl ?? null,
     });
   }
 
@@ -392,6 +401,46 @@
     updateAccountMenuAuthState();
     global.dispatchEvent(new CustomEvent("dualpeer-profile-update", { detail: { profile } }));
     return profile;
+  }
+
+  async function uploadProfileAvatar(imageData) {
+    const data = await api("/api/profile/avatar", {
+      method: "POST",
+      body: JSON.stringify({ imageData }),
+    });
+    const session = getSession();
+    if (session?.user) {
+      session.user.avatarUrl = data.avatarUrl || null;
+      setSession(session.token, session.user);
+    }
+    const cached = getCachedProfile();
+    if (cached) {
+      cached.avatarUrl = data.avatarUrl || null;
+      cacheProfile(cached);
+    }
+    global.dispatchEvent(
+      new CustomEvent("dualpeer-profile-update", {
+        detail: { profile: { ...cached, avatarUrl: data.avatarUrl } },
+      })
+    );
+    return data.avatarUrl;
+  }
+
+  async function deleteProfileAvatar() {
+    await api("/api/profile/avatar", { method: "DELETE" });
+    const session = getSession();
+    if (session?.user) {
+      session.user.avatarUrl = null;
+      setSession(session.token, session.user);
+    }
+    const cached = getCachedProfile();
+    if (cached) {
+      cached.avatarUrl = null;
+      cacheProfile(cached);
+    }
+    global.dispatchEvent(
+      new CustomEvent("dualpeer-profile-update", { detail: { profile: { ...cached, avatarUrl: null } } })
+    );
   }
 
   async function sendInvite(email, guestName, options = {}) {
@@ -1683,6 +1732,7 @@
     PRESET_TECHNIQUES,
     api,
     resolveApiBase,
+    resolveAssetUrl,
     isLoggedIn,
     isAccountHost,
     isAccountGuest,
@@ -1699,6 +1749,8 @@
     logout,
     fetchProfile,
     updateProfile,
+    uploadProfileAvatar,
+    deleteProfileAvatar,
     sendInvite,
     fetchPremiumModels,
     bookModel,

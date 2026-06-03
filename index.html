@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8454" />
+    <link rel="stylesheet" href="assets/styles.css?v=8456" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -337,11 +337,17 @@
             aria-haspopup="true"
             aria-controls="accountDropdown"
           >
-            <span class="account-avatar" data-profile-initial>G</span>
+            <span class="account-avatar" data-account-avatar>
+              <img class="account-avatar-photo" data-profile-avatar-photo alt="" width="32" height="32" hidden />
+              <span data-profile-initial>G</span>
+            </span>
           </button>
           <div class="account-dropdown" id="accountDropdown" hidden role="menu">
             <div class="account-dropdown-head">
-              <span class="account-avatar account-avatar-lg" data-profile-initial>G</span>
+              <span class="account-avatar account-avatar-lg" data-account-avatar>
+                <img class="account-avatar-photo" data-profile-avatar-photo alt="" width="40" height="40" hidden />
+                <span data-profile-initial>G</span>
+              </span>
               <div class="account-dropdown-meta">
                 <span class="account-name" data-profile-name>Guest</span>
                 <span class="account-role" id="accountRoleLabel">Guest</span>
@@ -540,6 +546,33 @@
               Profile syncs with your account.
             </p>
             <form id="profileForm" class="profile-form">
+              <div class="profile-avatar-block">
+                <div class="profile-avatar-preview-wrap">
+                  <img
+                    id="profileAvatarImg"
+                    class="profile-avatar-img"
+                    alt=""
+                    width="96"
+                    height="96"
+                    hidden
+                  />
+                  <span id="profileAvatarPlaceholder" class="profile-avatar-placeholder" aria-hidden="true">?</span>
+                </div>
+                <div class="profile-avatar-actions">
+                  <label for="profileAvatarInput" class="secondary profile-avatar-upload-label">
+                    Upload photo
+                  </label>
+                  <input
+                    type="file"
+                    id="profileAvatarInput"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                  />
+                  <button type="button" class="secondary" id="profileAvatarRemove" hidden>Remove photo</button>
+                  <p class="status-line profile-field-hint">Shown on your profile and in your partners&rsquo; model pool. JPEG, PNG or WebP, max 2.5&nbsp;MB.</p>
+                  <p class="status-line profile-avatar-status" id="profileAvatarStatus" hidden></p>
+                </div>
+              </div>
               <div class="row">
                 <label for="profileDisplayName">Display name</label>
                 <input type="text" id="profileDisplayName" maxlength="32" placeholder="Name in chat …" autocomplete="nickname" />
@@ -981,11 +1014,11 @@
     <script src="assets/api-config.js?v=8425"></script>
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
-    <script src="assets/ui-shell.js?v=8434"></script>
+    <script src="assets/ui-shell.js?v=8456"></script>
     <script src="assets/app.js?v=8454"></script>
-    <script src="assets/auth.js?v=8454"></script>
+    <script src="assets/auth.js?v=8456"></script>
     <script src="assets/messages-panel.js?v=8449"></script>
-    <script src="assets/social.js?v=8454"></script>
-    <script src="assets/member-profile.js?v=8446"></script>
+    <script src="assets/social.js?v=8456"></script>
+    <script src="assets/member-profile.js?v=8456"></script>
   </body>
 </html>

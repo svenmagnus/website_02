@@ -18,6 +18,11 @@ import { fileURLToPath } from "node:url";
 import { initDb } from "./db.js";
 import { authRouter } from "./auth-routes.js";
 import { socialRouter } from "./social-routes.js";
+import {
+  handleAvatarDelete,
+  handleAvatarUpload,
+  requireAuthAvatar,
+} from "./profile-avatar.js";
 import { WhipReceiver } from "@werift/whip-server";
 import {
   RTCPeerConnection,
@@ -666,6 +671,14 @@ app.use(
     exposedHeaders: ["Location", "ETag", "Link"],
   })
 );
+const avatarBodyParser = express.json({ limit: "4mb" });
+app.post("/api/profile/avatar", avatarBodyParser, requireAuthAvatar, handleAvatarUpload);
+app.delete("/api/profile/avatar", requireAuthAvatar, handleAvatarDelete);
+app.use(
+  "/api/uploads",
+  express.static(path.join(__dirname, "data", "uploads"), { maxAge: "3600000", etag: true })
+);
+
 app.use(express.json({ limit: "32kb" }));
 app.use(express.text({ type: ["application/sdp", "text/plain", "*/*"], limit: "256kb" }));
 

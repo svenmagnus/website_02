@@ -764,6 +764,18 @@
       for (const m of state.modelPool) {
         const card = document.createElement("div");
         card.className = "model-card" + (m.signedIn ? " is-signed-in" : "");
+        const avatarPath = m.avatarUrl || null;
+        if (avatarPath) {
+          const photo = document.createElement("img");
+          photo.className = "model-card-photo";
+          const base = global.DualPeerAuth?.resolveAssetUrl?.(avatarPath) || avatarPath;
+          photo.src = base;
+          photo.alt = "";
+          photo.width = 48;
+          photo.height = 48;
+          photo.loading = "lazy";
+          card.appendChild(photo);
+        }
         const head = document.createElement("div");
         head.className = "model-card-head";
         const name = document.createElement("strong");

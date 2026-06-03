@@ -330,6 +330,145 @@
     });
   }
 
+  function getAccountAvatarUrl() {
+    if (!isAccountMode()) return null;
+    const cached = global.DualPeerAuth?.getCachedProfile?.();
+    if (cached?.avatarUrl) return cached.avatarUrl;
+    const session = global.DualPeerAuth?.getSession?.();
+    return session?.user?.avatarUrl || null;
+  }
+
+  function resolveAvatarSrc(path) {
+    if (!path) return "";
+    return global.DualPeerAuth?.resolveAssetUrl?.(path) || path;
+  }
+
+  function updateProfileAvatarPreview(avatarUrl) {
+    const block = document.querySelector(".profile-avatar-block");
+    const img = document.getElementById("profileAvatarImg");
+    const placeholder = document.getElementById("profileAvatarPlaceholder");
+    const removeBtn = document.getElementById("profileAvatarRemove");
+    const path = avatarUrl !== undefined ? avatarUrl : getAccountAvatarUrl();
+    const src = resolveAvatarSrc(path);
+    const profile = loadProfile();
+    const initial = (profile.displayName || "?").charAt(0).toUpperCase() || "?";
+
+    if (block) block.hidden = !isAccountMode();
+
+    if (placeholder) placeholder.textContent = initial;
+
+    if (img instanceof HTMLImageElement) {
+      if (src) {
+        img.src = src;
+        img.hidden = false;
+        if (placeholder) placeholder.hidden = true;
+      } else {
+        img.hidden = true;
+        img.removeAttribute("src");
+        if (placeholder) placeholder.hidden = false;
+      }
+    }
+    if (removeBtn instanceof HTMLButtonElement) {
+      removeBtn.hidden = !src;
+    }
+  }
+
+  function resizeImageFile(file, maxSide = 512) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        let w = image.naturalWidth;
+        let h = image.naturalHeight;
+        if (!w || !h) {
+          reject(new Error("Invalid image"));
+          return;
+        }
+        const scale = Math.min(1, maxSide / Math.max(w, h));
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Could not process image"));
+          return;
+        }
+        ctx.drawImage(image, 0, 0, w, h);
+        const mime = file.type === "image/png" ? "image/png" : "image/jpeg";
+        const quality = mime === "image/jpeg" ? 0.88 : undefined;
+        resolve(canvas.toDataURL(mime, quality));
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Could not read image"));
+      };
+      image.src = url;
+    });
+  }
+
+  function setProfileAvatarStatus(text, kind) {
+    const el = document.getElementById("profileAvatarStatus");
+    if (!el) return;
+    if (!text) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.className = "status-line profile-avatar-status" + (kind ? ` ${kind}` : "");
+  }
+
+  function initProfileAvatar() {
+    const input = document.getElementById("profileAvatarInput");
+    const removeBtn = document.getElementById("profileAvatarRemove");
+    updateProfileAvatarPreview();
+
+    if (input) {
+      input.addEventListener("change", async () => {
+        const file = input.files?.[0];
+        input.value = "";
+        if (!file || !isAccountMode()) return;
+        if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+          setProfileAvatarStatus("Use JPEG, PNG or WebP.", "err");
+          return;
+        }
+        if (file.size > 2_500_000) {
+          setProfileAvatarStatus("Image must be 2.5 MB or smaller.", "err");
+          return;
+        }
+        setProfileAvatarStatus("Uploading…", "");
+        try {
+          const imageData = await resizeImageFile(file);
+          const url = await global.DualPeerAuth.uploadProfileAvatar(imageData);
+          updateProfileAvatarPreview(url);
+          setProfileAvatarStatus("Photo saved.", "ok");
+          setTimeout(() => setProfileAvatarStatus(""), 2500);
+        } catch (err) {
+          setProfileAvatarStatus(err.message || "Upload failed.", "err");
+        }
+      });
+    }
+
+    if (removeBtn) {
+      removeBtn.addEventListener("click", async () => {
+        if (!isAccountMode()) return;
+        setProfileAvatarStatus("Removing…", "");
+        try {
+          await global.DualPeerAuth.deleteProfileAvatar();
+          updateProfileAvatarPreview(null);
+          setProfileAvatarStatus("Photo removed.", "ok");
+          setTimeout(() => setProfileAvatarStatus(""), 2500);
+        } catch (err) {
+          setProfileAvatarStatus(err.message || "Could not remove photo.", "err");
+        }
+      });
+    }
+  }
+
   function fillProfileForm(profile) {
     const p = normalizeProfile(profile);
     const nameEl = document.getElementById("profileDisplayName");
@@ -352,6 +491,7 @@
       if (!(el instanceof HTMLInputElement)) return;
       el.checked = p.techniques.includes(el.value);
     });
+    updateProfileAvatarPreview();
   }
 
   function renderTechniqueChecklist() {
@@ -621,6 +761,7 @@
   function initProfileForm() {
     renderTechniqueChecklist();
     fillProfileForm(loadProfile());
+    initProfileAvatar();
     refreshAccountMini();
     initWelcomeBannerDismiss();
     refreshWelcomeBanner();

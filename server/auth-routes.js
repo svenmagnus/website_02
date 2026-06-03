@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { getDb } from "./db.js";
 import { encryptSecret } from "./smtp-crypto.js";
 import { linkInviteHostToGuest } from "./social-routes.js";
+import { avatarUrlForUser } from "./profile-avatar.js";
 import {
   getAppPublicUrl,
   hashInviteCode,
@@ -201,6 +202,7 @@ function rowToProfile(row) {
     isAdmin: isAdminAccount(row),
     isPremium: isPremiumAccount(row),
     isModel: isModelAccount(row),
+    avatarUrl: avatarUrlForUser(row),
   };
 }
 

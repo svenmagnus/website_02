@@ -2,3 +2,4 @@ manual/
 server/node_modules/
 server/.env
 server/data/
+server/data/uploads/
