@@ -3545,7 +3545,7 @@ let lovenseBootInFlight = false;
 
 /** Load LAN SDK + Cam Extension bridge only when user opens Lovense-related UI. */
 async function ensureLovenseInitialized() {
-  if (lovenseUiBooted || lovenseBootInFlight) return;
+  if (lovenseBootInFlight) return;
   lovenseBootInFlight = true;
   try {
     if (typeof loadLovenseLanScript === "function") {
@@ -3555,22 +3555,47 @@ async function ensureLovenseInitialized() {
     if (!lovenseUiBooted) {
       lovenseUiBooted = true;
       initLovenseIfPresent();
-    } else if (typeof window.dualPeerLovense?.retryInit === "function") {
-      window.dualPeerLovense.retryInit();
+      startLovenseConnectionWatch();
+    } else {
+      initLovenseIfPresent();
+      if (typeof window.dualPeerLovense?.retryInit === "function") {
+        window.dualPeerLovense.retryInit();
+      }
+      startLovenseConnectionWatch();
     }
+    updateLovensePatternUrl();
   } finally {
     lovenseBootInFlight = false;
   }
 }
 
+function updateLovensePatternUrl() {
+  const el = document.getElementById("lovensePatternUrl");
+  if (el) el.textContent = location.origin + location.pathname;
+}
+
 function initLovenseLazyBoot() {
   const trigger = (e) => {
     const hit = e.target?.closest?.(
-      '[data-panel-tab="setup"], [data-panel-tab="stream"], [data-remote-tab="toys"], #localToyTestList, .local-test-card'
+      '[data-panel-tab="setup"], [data-panel-tab="stream"], [data-remote-tab="toys"], #localToyTestList, .local-test-card, #btnLovenseRetry'
     );
     if (hit) ensureLovenseInitialized();
   };
   document.addEventListener("click", trigger);
+  document.addEventListener("dualpeer-panel-tab", (e) => {
+    const tab = e.detail?.tab;
+    if (tab === "setup" || tab === "stream") ensureLovenseInitialized();
+  });
+  const retryBtn = document.getElementById("btnLovenseRetry");
+  if (retryBtn) {
+    retryBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      lovenseUiBooted = false;
+      setLovenseStatus("Reconnecting Lovense extension…");
+      await ensureLovenseInitialized();
+    });
+  }
+  updateLovensePatternUrl();
 }
 
 function grantSiteAccess() {

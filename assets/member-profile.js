@@ -290,7 +290,9 @@
 
   function setPanelTab(tabId, { userAction = false } = {}) {
     if (userAction) userPinnedTab = true;
-    setTabInGroup(getConnectionTabsRoot(), tabId || "setup", "data-panel-tab", "data-panel-tab-panel");
+    const next = tabId || "setup";
+    setTabInGroup(getConnectionTabsRoot(), next, "data-panel-tab", "data-panel-tab-panel");
+    document.dispatchEvent(new CustomEvent("dualpeer-panel-tab", { detail: { tab: next } }));
   }
 
   function setRemoteTab(tabId) {

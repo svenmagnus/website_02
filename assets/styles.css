@@ -873,6 +873,13 @@ button.auth-model-card {
   text-align: left;
 }
 
+.manual-section-highlight {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+
 .manual-section {
   margin: 1.25rem 0;
 }
@@ -3143,12 +3150,39 @@ footer {
   margin-top: 0.5rem;
 }
 
-.lovense-setup-card .lovense-checklist {
+.setup-lovense-field {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg));
+}
+
+.setup-lovense-field legend {
+  font-weight: 700;
+  padding: 0 0.25rem;
+}
+
+.lovense-setup-card .lovense-checklist,
+.setup-lovense-field .lovense-checklist {
   margin: 0 0 0.75rem;
   padding-left: 1.2rem;
   font-size: 0.82rem;
   color: var(--muted);
-  line-height: 1.5;
+  line-height: 1.55;
+}
+
+.lovense-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.lovense-url-inline {
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  word-break: break-all;
 }
 
 .lovense-url-hint {

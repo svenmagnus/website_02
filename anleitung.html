@@ -14,7 +14,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>User Guide — Tangent Club</title>
-    <link rel="stylesheet" href="assets/styles.css?v=8434" />
+    <link rel="stylesheet" href="assets/styles.css?v=8465" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   </head>
   <body class="auth-page manual-page">
@@ -28,6 +28,37 @@
         <p class="status-line manual-intro">
           Quick start for guests and hosts on Tangent Club (private video chat with Lovense remote control).
         </p>
+
+        <section class="manual-section manual-section-highlight">
+          <h2>Reihenfolge vor dem Stream (Kurz)</h2>
+          <p class="status-line">
+            In Tangent Club gibt es <strong>keinen Lovense-Wizard</strong>. Die Einrichtung passiert in
+            <strong>Stream Master</strong> und der <strong>Chrome-Erweiterung</strong>. Danach diese Reihenfolge:
+          </p>
+          <ol>
+            <li>
+              <strong>Lovense vorbereiten (vor der Session):</strong> Lovense Connect (PC) — Toy verbinden (z.&nbsp;B.
+              Diamo). Chrome-Erweiterung <strong>ein</strong>, Cam-Site <code>test:Tangent-Club</code> in Stream Master
+              gespeichert (Regeln optional). Developer-Dashboard: URL-Muster = Ihre Tangent-Club-Adresse (z.&nbsp;B.
+              <code>https://tangent-club.com/</code>).
+            </li>
+            <li><strong>Anmelden</strong> auf tangent-club.com.</li>
+            <li>
+              Tab <strong>Setup</strong> → unter <strong>Members</strong> Partner hinzufügen oder wählen →
+              <strong>Session with</strong> Partner auswählen.
+            </li>
+            <li><strong>New session</strong> → <strong>Start instant session</strong>.</li>
+            <li>
+              Wer zuerst live geht: <strong>Start Camera</strong> (Kamera/Mikro erlauben). Partner:
+              <strong>Join Session</strong> (leuchtet orange, wenn der andere bereits live ist).
+            </li>
+            <li>Remote-Toys: Tab <strong>Remote Control (Toys)</strong> — erst sinnvoll, wenn Video verbunden ist.</li>
+          </ol>
+          <p class="status-line profile-field-hint">
+            Wenn die Erweiterung „nicht aufgeht“: Popup über das Lovense-Icon in Chrome öffnen (nicht Stream Master).
+            Im Setup-Tab <strong>Retry extension connection</strong> und Status „Extension ready“ prüfen.
+          </p>
+        </section>
 
         <section class="manual-section">
           <h2>1. Account &amp; Profile</h2>
@@ -54,7 +85,7 @@
               an invite can turn or keep your account as a <strong>Host</strong> for invitations.
             </li>
             <li><strong>Host</strong> accounts can start a stream and invite guests.</li>
-            <li><strong>Premium</strong>, <strong>Model</strong>, and <strong>Admin</strong> are separate flags (site admin manages them).</li>
+            <li><strong>Model</strong> and <strong>Admin</strong> are separate flags (site admin manages them).</li>
           </ul>
         </section>
 
@@ -89,13 +120,27 @@
         </section>
 
         <section class="manual-section">
-          <h2>3. Lovense (Chrome)</h2>
+          <h2>3. Lovense (Chrome) — no in-app wizard</h2>
+          <p class="status-line">
+            Stream Master (lovense.com) is for rules and toy pairing. The <strong>Cam Extension</strong> runs on the
+            Tangent Club tab during the stream. Tangent Club only shows status and remote control — it does not open
+            Lovense’s setup wizard.
+          </p>
           <ol>
-            <li>Install the <strong>Lovense Cam Extension</strong> in Google Chrome.</li>
-            <li>Add site <code>test:Tangent-Club</code> inside the extension.</li>
-            <li>Connect toys in the extension; the Lovense widget must appear in the stream page.</li>
-            <li>Wait for status “Extension ready”. List toys in your profile for partner visibility.</li>
-            <li>Set the broadcast URL in Lovense Developer Dashboard (“Model Broadcasting URL Pattern”).</li>
+            <li>Install <strong>Lovense Cam Extension</strong> in Google Chrome (not Safari/Firefox for the extension).</li>
+            <li>
+              In <strong>Stream Master</strong>: add cam site <code>test:Tangent-Club</code> (exact spelling, colon).
+              Connect toy via PC or mobile; save rules if you use tip levels (optional for private 1:1).
+            </li>
+            <li>
+              On stream day: extension popup <strong>On</strong>, “Lovense Connect (pc) Logged in”, toy listed. Open
+              tangent-club.com → <strong>Setup</strong> → status <strong>Extension ready</strong>.
+            </li>
+            <li>List toys in your <strong>Profile</strong> so your partner sees them under Remote Control.</li>
+            <li>
+              Lovense Developer: <strong>Model Broadcasting URL Pattern</strong> = your site origin + path (e.g.
+              <code>https://tangent-club.com/*</code>).
+            </li>
           </ol>
         </section>
 
@@ -111,7 +156,8 @@
           <h2>5. Troubleshooting</h2>
           <ul>
             <li>No camera: check browser permissions, then reload.</li>
-            <li>Connection fails: verify Peer ID, both users online, test without VPN/firewall.</li>
+            <li>Connection fails: complete <strong>New session → instant</strong> first; partner uses <strong>Join Session</strong> when you are live.</li>
+            <li>Lovense: extension on same browser profile; retry in Setup; toy connected in Connect before opening the site.</li>
             <li>“Server unreachable”: host must run API tunnel (Cloudflare → port 8787).</li>
           </ul>
         </section>
