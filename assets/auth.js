@@ -1247,7 +1247,13 @@
           document.getElementById("adminCreateIsModel").checked = false;
           await load();
         } catch (err) {
-          setStatus(err.message || "Create failed.", "err");
+          const map = {
+            invalid_user_payload:
+              "Username (3–24: letters, numbers, _, -), valid email, password min. 8 characters.",
+            username_taken: "Username already taken.",
+            email_taken: "Email already registered.",
+          };
+          setStatus(map[err.code] || err.message || "Create failed.", "err");
         }
       });
     }
@@ -1606,7 +1612,7 @@
             invalid_invite: "Invitation invalid or expired.",
             invite_required: "Invitation required: use the link from the email or a 4-digit code.",
             invalid_invite_code: "Invitation code must be 4 digits.",
-            invalid_username: "Username: 3–24 characters (letters, numbers, _).",
+            invalid_username: "Username: 3–24 characters (letters, numbers, _, -).",
             invalid_password: "Password must be at least 8 characters.",
             invalid_email: "Please enter a valid email address.",
           };

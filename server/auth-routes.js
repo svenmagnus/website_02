@@ -373,7 +373,7 @@ function normalizeAmountMinor(value, fallback = 0) {
 function validateUsername(username) {
   const u = String(username || "").trim();
   if (u.length < 3 || u.length > 24) return null;
-  if (!/^[a-zA-Z0-9_]+$/.test(u)) return null;
+  if (!/^[a-zA-Z0-9_-]+$/.test(u)) return null;
   return u;
 }
 
