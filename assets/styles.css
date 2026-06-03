@@ -889,6 +889,13 @@ button.auth-model-card {
   margin: 0 0 0.5rem;
 }
 
+.manual-section h3.manual-subheading {
+  font-size: 0.88rem;
+  margin: 0.85rem 0 0.35rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .manual-section ol,
 .manual-section ul {
   margin: 0;
