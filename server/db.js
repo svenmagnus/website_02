@@ -225,8 +225,11 @@ function runMigrations(database) {
 function backfillModelPool(database) {
   const rows = database
     .prepare(
-      `SELECT host_user_id, used_by_user_id, created_at, used_at
-       FROM invites WHERE used_by_user_id IS NOT NULL AND host_user_id IS NOT NULL`
+      `SELECT i.host_user_id, i.used_by_user_id, i.created_at, i.used_at
+       FROM invites i
+       INNER JOIN users ho ON ho.id = i.host_user_id
+       INNER JOIN users gu ON gu.id = i.used_by_user_id
+       WHERE i.used_by_user_id IS NOT NULL AND i.host_user_id IS NOT NULL`
     )
     .all();
   const ins = database.prepare(
@@ -234,13 +237,19 @@ function backfillModelPool(database) {
      VALUES (?, ?, ?, ?, ?)`
   );
   for (const row of rows) {
-    ins.run(
-      randomUUID(),
-      row.host_user_id,
-      row.used_by_user_id,
-      row.created_at,
-      row.used_at || row.created_at
-    );
+    try {
+      ins.run(
+        randomUUID(),
+        row.host_user_id,
+        row.used_by_user_id,
+        row.created_at,
+        row.used_at || row.created_at
+      );
+    } catch (err) {
+      if (err?.code !== "SQLITE_CONSTRAINT_FOREIGNKEY" && err?.code !== "SQLITE_CONSTRAINT_UNIQUE") {
+        console.warn("[db] model_pool backfill row skipped:", err.message);
+      }
+    }
   }
 }
 
