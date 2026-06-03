@@ -31,10 +31,11 @@
       // Match Lovense Developer Dashboard (test phase: test: + site name)
       window.LOVENSE_SITE_NAME = "test:Tangent-Club";
       window.__LOVENSE_MODEL_NAME__ = "model1";
-      // Direct motor via lovense.sendCommand — no Stream Master Basic Levels needed
-      window.DUALPEER_DIRECT_MOTOR = true;
+      // false = use your Stream Master Rules / Special Commands (recommended after Lovense updates).
+      // true = direct LAN motor (optional fallback if tips fail).
+      window.DUALPEER_DIRECT_MOTOR = false;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8466"></script>
+    <script src="assets/lovense-broadcast.js?v=8467"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -693,8 +694,9 @@
                 register URL pattern <span id="lovensePatternUrl" class="lovense-url-inline"></span>
               </li>
               <li>
-                <strong>Every session:</strong> Lovense Connect (PC) — toy on (e.g. Diamo). Extension popup
-                <strong>On</strong>, site <code>test:Tangent-Club</code> selected.
+                <strong>Every session:</strong> Lovense Connect (PC) — toy on. Extension <strong>On</strong>, site
+                <code>test:Tangent-Club</code>. Open the <strong>pink widget on tangent-club.com</strong> once (loads
+                your Rules).
               </li>
               <li>Open this <strong>Setup</strong> tab — status below must show <strong>Extension ready</strong> (click
                 the Lovense widget on the page if needed).</li>
@@ -1072,7 +1074,7 @@
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
     <script src="assets/ui-shell.js?v=8464"></script>
-    <script src="assets/app.js?v=8466"></script>
+    <script src="assets/app.js?v=8467"></script>
     <script src="assets/auth.js?v=8464"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8464"></script>

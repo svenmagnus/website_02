@@ -1733,43 +1733,37 @@ const TOY_PRESET_LEVELS = [
 ];
 
 /**
- * Stream Master uses von-bis ranges only — the app sends one fixed token INSIDE each range.
- * Each row in Stream Master must list ONE toy only (Diamo row + Lush row per preset).
- *
- * Your current Stream Master (screenshot):
- *   Low    1–9    → send 5
- *   Medium 10–50  → send 35
- *   High   51–100 → send 75
- *   Ultra  101–500 → send 200
+ * Fallback tokens when Stream Master settings are not loaded yet.
+ * Must sit inside your Basic Level ranges (test:Tangent-Club):
+ *   1–9 → 5 | 10–49 → 25 | 50–99 → 75 | 100–300 → 150 | 301+ → 350
  */
 const LOVENSE_PRESET_TOKENS = {
   lush: {
     Low: { min: 1, max: 9, send: 5 },
-    Medium: { min: 10, max: 50, send: 35 },
-    High: { min: 51, max: 100, send: 75 },
-    Max: { min: 51, max: 100, send: 85 },
-    Ultra: { min: 101, max: 500, send: 200 },
+    Medium: { min: 10, max: 49, send: 25 },
+    High: { min: 50, max: 99, send: 75 },
+    Max: { min: 100, max: 300, send: 150 },
+    Ultra: { min: 301, max: 9999, send: 350 },
   },
   diamo: {
     Low: { min: 1, max: 9, send: 5 },
-    Medium: { min: 10, max: 50, send: 35 },
-    High: { min: 51, max: 100, send: 75 },
-    Max: { min: 51, max: 100, send: 85 },
-    Ultra: { min: 101, max: 500, send: 200 },
+    Medium: { min: 10, max: 49, send: 25 },
+    High: { min: 50, max: 99, send: 75 },
+    Max: { min: 100, max: 300, send: 150 },
+    Ultra: { min: 301, max: 9999, send: 350 },
   },
   default: {
     Low: { min: 1, max: 9, send: 5 },
-    Medium: { min: 10, max: 50, send: 35 },
-    High: { min: 51, max: 100, send: 75 },
-    Max: { min: 51, max: 100, send: 85 },
-    Ultra: { min: 101, max: 500, send: 200 },
+    Medium: { min: 10, max: 49, send: 25 },
+    High: { min: 50, max: 99, send: 75 },
+    Max: { min: 100, max: 300, send: 150 },
+    Ultra: { min: 301, max: 9999, send: 350 },
   },
 };
 
 const LOVENSE_SETUP_HINT =
-  "Direct motor mode: Vibrate 1–20 per toy — Stream Master Basic Levels optional. " +
-  "Special patterns run in ~20s bursts; uncheck the box or move slider to 0 to stop. " +
-  "Chaturbate keeps its own Stream Master settings.";
+  "Uses Stream Master Rules on test:Tangent-Club — open the Lovense widget on this tab once so token ranges sync. " +
+  "Special patterns use your Special Commands token amounts. Slider to 0 or uncheck to stop.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake" },
@@ -1838,6 +1832,11 @@ function presetTokenEntry(toyId, presetLabel) {
 }
 
 function presetTokenSend(toyId, presetLabel) {
+  const bridge = window.dualPeerLovense;
+  if (bridge && typeof bridge.getPresetTokenSend === "function") {
+    const synced = bridge.getPresetTokenSend(presetLabel);
+    if (synced > 0) return synced;
+  }
   return presetTokenEntry(toyId, presetLabel).send;
 }
 
@@ -2052,22 +2051,21 @@ function applyLocalToyIntensity(toyId, levelPercent, options) {
   const run = () => {
     if (level > 0) clearToySpecialsForToy(safeToyId, "local");
     const tokens = resolveTokensForToy(safeToyId, level, tokensOverride);
-    let result = null;
-    if (bridge && typeof bridge.applyRemoteControl === "function") {
-      result = bridge.applyRemoteControl({
-        toyId: safeToyId,
-        level,
-        tipAmount: tokens,
-        tipperName: "Local-Test",
-      });
+    if (!bridge || typeof bridge.applyRemoteControl !== "function") {
+      updateToyActivityDisplay(
+        safeToyId,
+        "local",
+        "Lovense not ready — open the widget on this tab (test:Tangent-Club)."
+      );
+      return;
     }
-    updateToyActivityDisplay(
-      safeToyId,
-      "local",
-      result
-        ? formatActivityFromResult(result, level)
-        : `${presetLabelForLevel(level)} · ${tokens} tokens`
-    );
+    const result = bridge.applyRemoteControl({
+      toyId: safeToyId,
+      level,
+      tipAmount: tokens,
+      tipperName: "Local-Test",
+    });
+    updateToyActivityDisplay(safeToyId, "local", formatActivityFromResult(result, level));
   };
 
   if (throttle) {
@@ -2086,7 +2084,7 @@ function applyLocalToyIntensity(toyId, levelPercent, options) {
       updateToyActivityDisplay(
         safeToyId,
         "local",
-        result ? formatActivityFromResult(result, lvl) : undefined
+        formatActivityFromResult(result || { ok: false, hint: "Lovense command failed" }, lvl)
       );
     });
     return;
@@ -2371,7 +2369,7 @@ function buildToyControlBlock(toy, idx, scope, stateMap) {
   btnRow.className = "toy-preset-row";
   TOY_PRESET_LEVELS.forEach((preset) => {
     const entry = tokenMap[preset.label] || LOVENSE_PRESET_TOKENS.default[preset.label];
-    const tokens = entry?.send ?? 5;
+    const tokens = presetTokenSend(toyId, preset.label) || entry?.send || 5;
     const b = document.createElement("button");
     b.type = "button";
     b.className = "toy-preset-btn";
@@ -2990,17 +2988,19 @@ function formatLovenseMotorStatus(detail) {
 function onLovenseReady(detail) {
   syncLovenseFromBridge();
   const ver = (detail && detail.version) || window.dualPeerLovense?.version;
-  setLovenseStatus(
-    `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
-      formatLovenseMotorStatus(detail)
-  );
-  if (els.lovenseToyStatus) {
-    els.lovenseToyStatus.textContent = formatLovenseToys(
-      (detail && detail.toys) || window.dualPeerLovense?.toys
+  refreshLovenseStreamTokens().finally(() => {
+    setLovenseStatus(
+      `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
+        formatLovenseMotorStatus(detail)
     );
-  }
-  broadcastLocalToyInventory();
-  renderLocalToyTestPanel();
+    if (els.lovenseToyStatus) {
+      els.lovenseToyStatus.textContent = formatLovenseToys(
+        (detail && detail.toys) || window.dualPeerLovense?.toys
+      );
+    }
+    broadcastLocalToyInventory();
+    renderLocalToyTestPanel();
+  });
 }
 
 function onLovenseError(detail) {
@@ -3044,6 +3044,17 @@ function bindLovenseEventsOnce() {
     );
     renderLocalToyTestPanel();
   });
+  document.addEventListener("dualpeer-lovense-tokens-sync", () => {
+    renderLocalToyTestPanel();
+  });
+}
+
+function refreshLovenseStreamTokens() {
+  const bridge = window.dualPeerLovense;
+  if (bridge && typeof bridge.refreshStreamSettings === "function") {
+    return Promise.resolve(bridge.refreshStreamSettings()).then(() => renderLocalToyTestPanel());
+  }
+  return Promise.resolve();
 }
 
 function initLovenseIfPresent() {

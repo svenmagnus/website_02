@@ -29,8 +29,10 @@
   const presetHoldIntervals = Object.create(null);
   /** Last normal intensity per toy — used to restore after a special pattern ends. */
   const toyBaseSessions = Object.create(null);
-  /** Cached Stream Master settings from getSettings() — warnings only, not for token override. */
+  /** Cached Stream Master settings from getSettings() — drives token amounts for tips. */
   let cachedStreamSettings = null;
+  /** Parsed from cachedStreamSettings.levels — Low/Medium/High/Max/Ultra → { min, max, send }. */
+  let streamPresetTokenMap = null;
 
   function dispatch(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail }));
@@ -109,6 +111,7 @@
     }
     try {
       cachedStreamSettings = await state.instance.getSettings();
+      syncStreamPresetTokenMap();
       return cachedStreamSettings;
     } catch (e) {
       console.warn("[Lovense] getSettings failed:", e);
@@ -125,6 +128,14 @@
     const tipTokens = Math.round(Number(tokens) || 0);
     if (!tipTokens || tipTokens < 1) return { ok: false, method: "no-tokens" };
 
+    if (!state.ready || !state.instance) {
+      return {
+        ok: false,
+        method: "not-ready",
+        hint: "Extension not ready — open the Lovense widget on this tab (test:Tangent-Club, On).",
+      };
+    }
+
     const name = String(tipperName || "Remote").slice(0, 40);
     const resolvedId = toyId ? resolveToyId(toyId) : null;
 
@@ -134,7 +145,69 @@
     if (receiveTip(tipTokens, name, {}, { exactTokens: true })) {
       return { ok: true, method: "receiveTip", tokens: tipTokens };
     }
-    return { ok: false, method: "tip-failed" };
+    return {
+      ok: false,
+      method: "tip-failed",
+      hint: `Tip ${tipTokens} failed — token must be inside a Basic Level range in Stream Master (vLevel > 0).`,
+    };
+  }
+
+  function tryStreamMasterTip(tipTokens, name, resolvedId) {
+    const fired = firePresetTip(tipTokens, name, resolvedId);
+    if (!fired.ok) return null;
+    if (resolvedId) startTipHold(resolvedId, tipTokens, name);
+    return {
+      ok: true,
+      method: fired.method === "tipMessage" ? "tipMessage-hold" : "receiveTip-hold",
+      toyId: resolvedId,
+      tokens: tipTokens,
+      hint: `${tipTokens} tokens · Stream Master`,
+    };
+  }
+
+  function rowTokenBounds(row) {
+    if (!row || typeof row !== "object") return null;
+    const min = Number(
+      row.min ?? row.minToken ?? row.tokenMin ?? row.from ?? row.start ?? row.low ?? row.minAmount
+    );
+    const max = Number(
+      row.max ?? row.maxToken ?? row.tokenMax ?? row.to ?? row.end ?? row.high ?? row.maxAmount
+    );
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 1 || max < min) return null;
+    const send = Math.min(max, Math.max(min, Math.round((min + max) / 2)));
+    return { min, max, send };
+  }
+
+  function buildPresetTokenMapFromSettings(settings) {
+    const levels = settings?.levels;
+    if (!levels || typeof levels !== "object") return null;
+    const rows = Object.keys(levels)
+      .map((key) => {
+        const bounds = rowTokenBounds(levels[key]);
+        return bounds ? { key, ...bounds } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.min - b.min);
+    if (!rows.length) return null;
+    const labels = ["Low", "Medium", "High", "Max", "Ultra"];
+    const map = {};
+    rows.forEach((r, i) => {
+      const label = labels[i] || `Level${i + 1}`;
+      map[label] = { min: r.min, max: r.max, send: r.send };
+    });
+    return map;
+  }
+
+  function syncStreamPresetTokenMap() {
+    streamPresetTokenMap = buildPresetTokenMapFromSettings(cachedStreamSettings);
+    dispatch("dualpeer-lovense-tokens-sync", { map: streamPresetTokenMap });
+  }
+
+  function getPresetTokenSend(presetLabel) {
+    const label = String(presetLabel || "").trim();
+    const hit = streamPresetTokenMap && streamPresetTokenMap[label];
+    if (hit && hit.send > 0) return hit.send;
+    return 0;
   }
 
   function getStreamMasterWarnings() {
@@ -616,8 +689,13 @@
     stopMotorHold(resolvedId);
 
     let result = null;
+    const preferTips = !isDirectMotorMode() || !!cachedStreamSettings?.levels;
 
-    if (isDirectMotorMode() && hasLovenseSendCommand() && hasToysForCommands()) {
+    if (preferTips && tipTokens >= 1) {
+      result = tryStreamMasterTip(tipTokens, name, resolvedId);
+    }
+
+    if (!result?.ok && isDirectMotorMode() && hasLovenseSendCommand() && hasToysForCommands()) {
       if (sendVibrateCommand(resolvedId, strength, { continuous: true })) {
         startMotorHold(resolvedId, strength);
         result = {
@@ -626,7 +704,7 @@
           toyId: getCommandToyId(resolvedId),
           tokens: tipTokens || null,
           strength,
-          hint: `Motor ${strength}/20 (direct — no Stream Master Basic Levels)`,
+          hint: `Motor ${strength}/20 (direct LAN)`,
         };
       }
     }
@@ -637,27 +715,20 @@
           ok: false,
           method: "motor-failed",
           hint: isDirectMotorMode()
-            ? "Direct motor failed — reload page, check extension widget and toy connection."
-            : "No token amount — enable direct motor or configure Stream Master tokens.",
+            ? "Direct motor failed — open Lovense widget or check Stream Master Basic Levels."
+            : "No token amount — open Lovense widget once to load Stream Master rules.",
         };
       }
 
-      const fired = firePresetTip(tipTokens, name, resolvedId);
-      if (fired.ok) {
-        startTipHold(resolvedId, tipTokens, name);
-        result = {
-          ok: true,
-          method: fired.method === "tipMessage" ? "tipMessage-hold" : "receiveTip-hold",
-          toyId: resolvedId,
-          tokens: tipTokens,
-          strength,
-          hint: `${tipTokens} tokens · Stream Master fallback (hold)`,
-        };
-      } else {
+      result = tryStreamMasterTip(tipTokens, name, resolvedId);
+      if (!result?.ok) {
+        const fired = firePresetTip(tipTokens, name, resolvedId);
         return {
           ok: false,
           method: "tip-failed",
-          hint: `Token ${tipTokens} must fall in Stream Master range for this toy (tip fallback).`,
+          hint:
+            fired.hint ||
+            `Tip ${tipTokens} failed — use a token inside your Basic Level ranges (e.g. Low 1–9 → 5).`,
         };
       }
     }
@@ -880,6 +951,9 @@
         }
         await refreshStreamSettings();
         syncLovenseToyMapFromExtension();
+        if (typeof global.loadLovenseLanScript === "function") {
+          global.loadLovenseLanScript().catch(() => false);
+        }
       } catch (e) {
         console.warn("[Lovense] version/toy status:", e);
       }
@@ -899,6 +973,7 @@
       await refreshStreamSettings();
       dispatch("dualpeer-lovense-settings", {
         warnings: getStreamMasterWarnings(),
+        map: streamPresetTokenMap,
       });
     });
 
@@ -1017,6 +1092,11 @@
     getModelName() {
       return global.__LOVENSE_MODEL_NAME__ || "model1";
     },
+    getPresetTokenSend,
+    getStreamPresetTokenMap() {
+      return streamPresetTokenMap;
+    },
+    refreshStreamSettings,
     init,
     retryInit,
     requestBoot: scheduleBoot,
