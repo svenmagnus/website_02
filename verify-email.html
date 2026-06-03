@@ -1,16 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" data-theme="cb-dark">
   <head>
-    <script>
-      (function () {
-        try {
-          var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
-          if (t === "cb-dark" || t === "cb-light" || t === "original") {
-            document.documentElement.setAttribute("data-theme", t === "original" ? "cb-dark" : t);
-          }
-        } catch (_) {}
-      })();
-    </script>
+    <script src="assets/theme-init.js"></script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>E-Mail bestätigen — Dual-Peer</title>

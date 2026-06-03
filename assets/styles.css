@@ -1,58 +1,4 @@
-/* ── Theme tokens (html[data-theme]) — Light & Dark only ── */
-:root,
-html[data-theme="cb-dark"] {
-  --bg: #0e1012;
-  --surface: #1a1d23;
-  --border: #2a2f38;
-  --text: #f5f5f5;
-  --muted: #9aa3ad;
-  --accent: #f47321;
-  --accent-dim: #c85a12;
-  --partner: #f47321;
-  --success: #46d369;
-  --danger: #ff4d6d;
-  --header-bg: #161a20;
-  --secondary-bg: rgba(244, 115, 33, 0.16);
-  --secondary-border: rgba(244, 115, 33, 0.42);
-  --secondary-text: #ffffff;
-  --chat-remote-bg: rgba(244, 115, 33, 0.1);
-  --chat-remote-border: rgba(244, 115, 33, 0.24);
-  --chat-local-bg: rgba(255, 255, 255, 0.05);
-  --chat-local-border: rgba(255, 255, 255, 0.12);
-  --chat-panel-bg: #12151a;
-  --video-radius: 4px;
-  --radius: 4px;
-  --font: "DM Sans", system-ui, sans-serif;
-  --cb-chat-width: 340px;
-  --cb-stage-height: clamp(360px, 68vh, 85vh);
-  --video-empty-bg: #000000;
-  --logo-violet: #9d8cff;
-}
-
-html[data-theme="cb-light"] {
-  --bg: #f4f4f4;
-  --surface: #ffffff;
-  --border: #dddddd;
-  --text: #222222;
-  --muted: #666666;
-  --accent: #ff4500;
-  --accent-dim: #cc3700;
-  --partner: #ff4500;
-  --success: #2a9d4b;
-  --danger: #d62839;
-  --header-bg: #ffffff;
-  --secondary-bg: rgba(255, 69, 0, 0.1);
-  --secondary-border: rgba(255, 69, 0, 0.35);
-  --secondary-text: #222222;
-  --chat-remote-bg: rgba(255, 69, 0, 0.08);
-  --chat-remote-border: rgba(255, 69, 0, 0.22);
-  --chat-local-bg: rgba(0, 0, 0, 0.04);
-  --chat-local-border: rgba(0, 0, 0, 0.1);
-  --video-radius: 6px;
-  --radius: 6px;
-  --video-empty-bg: #e4e4e4;
-  --logo-violet: #8b7cf7;
-}
+@import url("design-system.css");
 
 *,
 *::before,
@@ -117,19 +63,6 @@ header.main-header {
   height: clamp(3.25rem, 5vw + 2rem, 4rem);
   width: auto;
   max-width: min(320px, 70vw);
-}
-
-html[data-theme="cb-dark"] .logo-link .site-logo--theme-light,
-html:not([data-theme="cb-light"]) .logo-link .site-logo--theme-light {
-  display: none;
-}
-
-html[data-theme="cb-light"] .logo-link .site-logo--theme-dark {
-  display: none !important;
-}
-
-html[data-theme="cb-light"] .logo-link .site-logo--theme-light {
-  display: block;
 }
 
 .header-copy {

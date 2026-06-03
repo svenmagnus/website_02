@@ -1,16 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="cb-dark">
   <head>
-    <script>
-      (function () {
-        try {
-          var t = localStorage.getItem("dualpeer-theme") || "cb-dark";
-          if (t === "cb-dark" || t === "cb-light" || t === "original") {
-            document.documentElement.setAttribute("data-theme", t === "original" ? "cb-dark" : t);
-          }
-        } catch (_) {}
-      })();
-    </script>
+    <script src="assets/theme-init.js"></script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Settings — Dual-Peer</title>
@@ -20,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css" />
+    <link rel="stylesheet" href="assets/styles.css?v=8480" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -113,7 +104,9 @@
 
           <section class="settings-section">
             <h2>Appearance</h2>
-            <p class="settings-hint">Light and dark mode — same as the toggle in the menu (top right).</p>
+            <p class="settings-hint">
+              Dark, light, or Hippie style. The menu toggle switches dark/light only; pick Hippie here.
+            </p>
             <fieldset class="settings-theme-group">
               <legend class="visually-hidden">Theme</legend>
               <label class="settings-radio">
@@ -123,6 +116,10 @@
               <label class="settings-radio">
                 <input type="radio" name="appearanceTheme" value="cb-light" />
                 <span>Light mode</span>
+              </label>
+              <label class="settings-radio">
+                <input type="radio" name="appearanceTheme" value="hippie" />
+                <span>Hippie style</span>
               </label>
             </fieldset>
           </section>

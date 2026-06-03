@@ -1,6 +1,13 @@
 import nodemailer from "nodemailer";
 import { createHash } from "node:crypto";
 import { decryptSecret } from "./smtp-crypto.js";
+import {
+  classicEmailLayout,
+  hippieEmailBox,
+  hippieEmailButton,
+  hippieEmailCodeBox,
+  hippieEmailLayout,
+} from "./mail-design.js";
 
 const SMTP_HOST = process.env.SMTP_HOST || "";
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
@@ -175,21 +182,12 @@ function createTransport(config) {
 }
 
 function emailLayout({ title, bodyHtml, footerNote }) {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
-<body style="margin:0;padding:0;background:#0f0f12;font-family:'Segoe UI',system-ui,sans-serif;color:#e8e8ec;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:24px auto;background:#1a1a22;border-radius:12px;border:1px solid #2a2a36;">
-    <tr><td style="padding:28px 28px 8px;">
-      <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#f97316;">${escapeHtml(SITE_NAME)}</p>
-      <h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#fff;">${escapeHtml(title)}</h1>
-      ${bodyHtml}
-    </td></tr>
-    <tr><td style="padding:8px 28px 28px;font-size:12px;color:#888;">
-      ${escapeHtml(footerNote || "")}
-    </td></tr>
-  </table>
-</body></html>`;
+  return classicEmailLayout({
+    title: escapeHtml(title),
+    bodyHtml,
+    footerNote: escapeHtml(footerNote || ""),
+    siteName: escapeHtml(SITE_NAME),
+  });
 }
 
 /**
@@ -236,16 +234,25 @@ export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, gue
     `(enter on the registration page together with your email address)\n\n` +
     `Best regards,\n${hostName}`;
 
-  const html = emailLayout({
-    title: "you are invited",
+  const discoverBox = hippieEmailBox(
+    `<strong style="font-family:Georgia,'Palatino Linotype',serif;font-size:17px;color:#4A2C2A;">Discover Tangent Club</strong><br><br>` +
+      `Tangent Club is a private 1:1 video lounge — invite-only, with optional Lovense toy control. ` +
+      `No public gallery: you connect only with people you know.`
+  );
+
+  const html = hippieEmailLayout({
+    title: escapeHtml("you are invited"),
+    publicBaseUrl: APP_PUBLIC_URL,
     bodyHtml:
-      `<p style="line-height:1.55;color:#e8e8d0;">Dear <strong style="color:#fff;">${safeGuestName}</strong>,</p>` +
-      `<p style="line-height:1.55;color:#c8c8d0;margin-top:12px;">you are invited by <strong style="color:#fff;">${escapeHtml(hostName)}</strong> to join ${escapeHtml(SITE_NAME)}.</p>` +
-      `<p style="margin:20px 0;"><a href="${escapeHtml(inviteUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Create Account</a></p>` +
-      `<p style="font-size:14px;color:#a0a0b0;line-height:1.5;">Or copy link:<br><span style="word-break:break-all;color:#e8e8ec;">${escapeHtml(inviteUrl)}</span></p>` +
-      `<p style="margin-top:20px;padding:14px;background:#12121a;border-radius:8px;font-size:14px;color:#e8e8ec;">` +
-      `<strong>Invitation Code</strong> (4 digits, 7 days): <code style="font-size:18px;letter-spacing:0.15em;color:#f97316;">${escapeHtml(inviteCode)}</code></p>`,
-    footerNote: "This link and code are intended only for you and will expire in 7 days.",
+      `<p style="margin:0 0 12px;font-size:16px;line-height:1.55;color:#2C1810;">Dear <strong>${safeGuestName}</strong>,</p>` +
+      `<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#6B5348;">` +
+      `you are invited by <strong style="color:#4A2C2A;">${escapeHtml(hostName)}</strong> to join ${escapeHtml(SITE_NAME)}.</p>` +
+      discoverBox +
+      hippieEmailButton(inviteUrl, "Create Account") +
+      `<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:#6B5348;text-align:center;">Or copy this link:<br>` +
+      `<span style="word-break:break-all;color:#4A2C2A;">${escapeHtml(inviteUrl)}</span></p>` +
+      hippieEmailCodeBox("Invitation Code (4 digits, valid 7 days)", escapeHtml(inviteCode)),
+    footerNote: escapeHtml("This link and code are intended only for you and will expire in 7 days."),
   });
 
   const result = await sendMail({

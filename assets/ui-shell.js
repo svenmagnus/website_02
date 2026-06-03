@@ -4,7 +4,7 @@
 (function (global) {
   const THEME_STORAGE_KEY = "dualpeer-theme";
   const PROFILE_NAME_KEY = "dualpeer-profile-name";
-  const ALLOWED_THEMES = ["cb-dark", "cb-light"];
+  const ALLOWED_THEMES = ["cb-dark", "cb-light", "hippie"];
 
   function normalizeTheme(theme) {
     if (theme === "original") return "cb-dark";
@@ -22,6 +22,11 @@
   function syncDarkModeToggle(theme) {
     const toggle = document.getElementById("darkModeToggle");
     if (!(toggle instanceof HTMLInputElement)) return;
+    if (theme === "hippie") {
+      toggle.indeterminate = true;
+      toggle.checked = false;
+      return;
+    }
     toggle.indeterminate = false;
     toggle.checked = theme === "cb-dark";
   }
@@ -218,11 +223,8 @@
 
     if (darkToggle instanceof HTMLInputElement) {
       darkToggle.addEventListener("change", () => {
-        if (darkToggle.checked) {
-          applyTheme("cb-dark");
-        } else {
-          applyTheme("cb-light");
-        }
+        if (darkToggle.indeterminate) darkToggle.indeterminate = false;
+        applyTheme(darkToggle.checked ? "cb-dark" : "cb-light");
       });
     }
 
