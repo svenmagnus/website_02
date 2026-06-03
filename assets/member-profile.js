@@ -340,11 +340,16 @@
 
   function resolveAvatarSrc(path) {
     if (!path) return "";
-    return global.DualPeerAuth?.resolveAssetUrl?.(path) || path;
+    try {
+      return new URL(String(path), location.origin).href;
+    } catch (_) {
+      return global.DualPeerAuth?.resolveAssetUrl?.(path) || String(path);
+    }
   }
 
   function updateProfileAvatarPreview(avatarUrl) {
     const block = document.querySelector(".profile-avatar-block");
+    const wrap = document.querySelector(".profile-avatar-preview-wrap");
     const img = document.getElementById("profileAvatarImg");
     const placeholder = document.getElementById("profileAvatarPlaceholder");
     const removeBtn = document.getElementById("profileAvatarRemove");
@@ -355,17 +360,32 @@
 
     if (block) block.hidden = !isAccountMode();
 
-    if (placeholder) placeholder.textContent = initial;
+    if (placeholder) {
+      placeholder.textContent = initial;
+      placeholder.hidden = false;
+      placeholder.removeAttribute("hidden");
+    }
+
+    if (wrap) wrap.classList.toggle("has-photo", Boolean(src));
 
     if (img instanceof HTMLImageElement) {
+      img.onload = null;
+      img.onerror = null;
       if (src) {
+        img.onerror = () => {
+          if (wrap) wrap.classList.remove("has-photo");
+          img.removeAttribute("src");
+          setProfileAvatarStatus("Photo could not be loaded. Try uploading again.", "err");
+        };
+        img.onload = () => {
+          if (placeholder) placeholder.hidden = true;
+          setProfileAvatarStatus("");
+        };
+        img.removeAttribute("hidden");
         img.src = src;
-        img.hidden = false;
-        if (placeholder) placeholder.hidden = true;
       } else {
-        img.hidden = true;
+        img.setAttribute("hidden", "");
         img.removeAttribute("src");
-        if (placeholder) placeholder.hidden = false;
       }
     }
     if (removeBtn instanceof HTMLButtonElement) {
@@ -898,6 +918,9 @@
     global.addEventListener("dualpeer-profile-update", (e) => {
       if (e.detail?.profile) persistLocal(e.detail.profile);
       onAuthProfileSynced();
+    });
+    global.addEventListener("dualpeer-avatar-ready", () => {
+      updateProfileAvatarPreview();
     });
     global.addEventListener("dualpeer-enter-profile", () => {
       enterProfileWorkspace({ onboarding: true });

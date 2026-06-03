@@ -86,7 +86,14 @@
 
   function refreshProfileAvatars(avatarUrl) {
     const path = avatarUrl !== undefined ? avatarUrl : getAccountAvatarUrl();
-    const src = path && global.DualPeerAuth?.resolveAssetUrl ? global.DualPeerAuth.resolveAssetUrl(path) : "";
+    let src = "";
+    if (path) {
+      try {
+        src = new URL(String(path), location.origin).href;
+      } catch (_) {
+        src = global.DualPeerAuth?.resolveAssetUrl ? global.DualPeerAuth.resolveAssetUrl(path) : String(path);
+      }
+    }
     document.querySelectorAll("[data-profile-avatar-photo]").forEach((img) => {
       if (!(img instanceof HTMLImageElement)) return;
       const wrap = img.closest("[data-account-avatar]");

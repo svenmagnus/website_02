@@ -768,8 +768,13 @@
         if (avatarPath) {
           const photo = document.createElement("img");
           photo.className = "model-card-photo";
-          const base = global.DualPeerAuth?.resolveAssetUrl?.(avatarPath) || avatarPath;
-          photo.src = base;
+          let photoSrc = avatarPath;
+          try {
+            photoSrc = new URL(String(avatarPath), location.origin).href;
+          } catch (_) {
+            photoSrc = global.DualPeerAuth?.resolveAssetUrl?.(avatarPath) || avatarPath;
+          }
+          photo.src = photoSrc;
           photo.alt = "";
           photo.width = 48;
           photo.height = 48;

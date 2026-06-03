@@ -384,6 +384,7 @@
       global.dualPeerUi.setProfileName(profile.displayName);
     }
     updateAccountMenuAuthState();
+    global.dispatchEvent(new CustomEvent("dualpeer-avatar-ready", { detail: { avatarUrl: profile.avatarUrl } }));
     return profile;
   }
 
@@ -423,6 +424,7 @@
         detail: { profile: { ...cached, avatarUrl: data.avatarUrl } },
       })
     );
+    global.dispatchEvent(new CustomEvent("dualpeer-avatar-ready", { detail: { avatarUrl: data.avatarUrl } }));
     return data.avatarUrl;
   }
 
