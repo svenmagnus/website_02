@@ -1763,8 +1763,8 @@ const LOVENSE_PRESET_TOKENS = {
 };
 
 const LOVENSE_SETUP_HINT =
-  "One card per connected toy (up to 4). Direct motor until slider 0 — no Stream Master token ranges needed. " +
-  "Lovense tips: token ranges are global (cannot duplicate 1–9 per toy). Widget on this tab once.";
+  "One card per connected toy. Direct motor until slider 0 — no Stream Master token ranges needed. " +
+  "Cam site test:Tangent-Club in Stream Master and extension. Open Lovense floating menu on this tab once.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake", tokens: 100 },
