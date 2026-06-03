@@ -813,13 +813,13 @@
       if (!state.modelPool.length) {
         if (status) {
           status.className = "status-line";
-          status.textContent = "Invite someone by email — they appear here after registration.";
+          status.textContent = "No members yet — invite someone or add an existing member in Setup.";
         }
         continue;
       }
       if (status) {
         status.className = "status-line ok";
-        status.textContent = `${state.modelPool.length} model(s) in your pool.`;
+        status.textContent = `${state.modelPool.length} member${state.modelPool.length === 1 ? "" : "s"}.`;
       }
       for (const m of state.modelPool) {
         const card = document.createElement("div");
