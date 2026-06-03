@@ -1735,7 +1735,7 @@ const TOY_PRESET_LEVELS = [
 
 /**
  * Fallback tokens when Stream Master settings are not loaded yet.
- * Must sit inside your Basic Level ranges (test:Tangent-Club):
+ * Must sit inside your Basic Level ranges (Tangent-Club):
  *   1–9 → 5 | 10–49 → 25 | 50–99 → 75 | 100–300 → 150 | 301+ → 350
  */
 const LOVENSE_PRESET_TOKENS = {
@@ -1764,7 +1764,7 @@ const LOVENSE_PRESET_TOKENS = {
 
 const LOVENSE_SETUP_HINT =
   "One card per connected toy. Direct motor until slider 0 — no Stream Master token ranges needed. " +
-  "Cam site test:Tangent-Club in Stream Master and extension. Open Lovense floating menu on this tab once.";
+  "Cam site Tangent-Club in Stream Master and extension. Open Lovense floating menu on this tab once.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake", tokens: 100 },
@@ -3106,7 +3106,7 @@ function onLovenseReady(detail) {
   const ver = (detail && detail.version) || window.dualPeerLovense?.version;
   refreshLovenseStreamTokens().finally(() => {
     setLovenseStatus(
-      `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
+      `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "Tangent-Club"}. ` +
         formatLovenseMotorStatus(detail)
     );
     if (els.lovenseToyStatus) {
@@ -3149,7 +3149,7 @@ function bindLovenseEventsOnce() {
     syncLovenseFromBridge();
     const ver = window.dualPeerLovense?.version;
     setLovenseStatus(
-      `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
+      `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "Tangent-Club"}. ` +
         formatLovenseMotorStatus(e.detail)
     );
     renderLocalToyTestPanel({ force: true });
@@ -3200,7 +3200,7 @@ function initLovenseIfPresent() {
   } else {
     const pageUrl = location.origin + location.pathname;
     setLovenseStatus(
-      `Waiting for Cam Extension (test:Tangent-Club) — open the Lovense widget on this tab (${pageUrl}), toggle extension On, then wait for ready.`
+      `Waiting for Cam Extension (Tangent-Club) — open the Lovense widget on this tab (${pageUrl}), toggle extension On, then wait for ready.`
     );
     startLovenseConnectionWatch();
   }
@@ -3717,7 +3717,7 @@ async function applyLovenseControl(payload) {
     return {
       ok: false,
       method: "not-ready",
-      hint: "Extension not ready — open Lovense widget on this tab (test:Tangent-Club, On).",
+      hint: "Extension not ready — open Lovense widget on this tab (Tangent-Club, On).",
     };
   }
   if (isDirectMotorMode() && typeof loadLovenseLanScript === "function") {
@@ -3893,7 +3893,7 @@ function startLovenseConnectionWatch() {
       const hasInstance = !!bridge?.instance;
       setLovenseStatus(
         (hasInstance ? "CamExtension started — " : "") +
-          `waiting for extension on ${pageUrl}. Chrome: Lovense icon → On → site test:Tangent-Club. Open the pink widget on this page.`
+          `waiting for extension on ${pageUrl}. Chrome: Lovense icon → On → site Tangent-Club. Open the pink widget on this page.`
       );
     }
     if (ticks >= 60) {
@@ -3922,7 +3922,7 @@ function lovenseNotReadyMessage() {
     return "CamExtension not initialized yet — wait for Extension ready on the host page.";
   }
   if (!bridge.ready && !lovenseReady) {
-    return "Extension not ready — in Chrome select test:Tangent-Club and verify widget on this page.";
+    return "Extension not ready — in Chrome select Tangent-Club and verify widget on this page.";
   }
   if (typeof instance.receiveTip !== "function") {
     return "receiveTip not available on CamExtension instance.";

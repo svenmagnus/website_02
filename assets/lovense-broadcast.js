@@ -28,7 +28,7 @@
   const PRESET_HOLD_REFRESH_MS = 17000;
   const presetHoldIntervals = Object.create(null);
   const specialTipHoldIntervals = Object.create(null);
-  /** Fallback token amounts (match Stream Master Special Commands on test:Tangent-Club). */
+  /** Fallback token amounts (match Stream Master Special Commands on Tangent-Club). */
   const SPECIAL_DEFAULT_TOKENS = {
     earthquake: 100,
     fireworks: 120,
@@ -257,7 +257,7 @@
     return toys.find((t) => t && String(t.id) === id) || null;
   }
 
-  /** Preset button → motor strength 1–20 (Max 18, Ultra 20 — proven on test:Tangent-Club). */
+  /** Preset button → motor strength 1–20 (Max 18, Ultra 20 — proven on Tangent-Club). */
   const PRESET_MOTOR_STRENGTH = {
     20: 5,
     45: 10,
@@ -1059,7 +1059,7 @@
   function init() {
     if (state.ready) return true;
 
-    const site = global.LOVENSE_SITE_NAME || "test:Tangent-Club";
+    const site = global.LOVENSE_SITE_NAME || "Tangent-Club";
     const model = global.__LOVENSE_MODEL_NAME__ || "model1";
 
     if (typeof global.CamExtension === "undefined") {
@@ -1155,7 +1155,7 @@
     levelToStrength,
     strengthForLevel,
     getSiteName() {
-      return global.LOVENSE_SITE_NAME || "test:Tangent-Club";
+      return global.LOVENSE_SITE_NAME || "Tangent-Club";
     },
     getModelName() {
       return global.__LOVENSE_MODEL_NAME__ || "model1";
