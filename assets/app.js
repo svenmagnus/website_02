@@ -1782,6 +1782,7 @@ let localToyThrottleState = {};
 let partnerRemoteToys = [];
 /** Skip rebuilding Local Test DOM while user drags a slider (Lovense status events fire often). */
 let localToyPanelDragLock = false;
+const localToyActivityHint = Object.create(null);
 
 function toyTypeKey(toy) {
   const raw = String(toy?.type || toy?.name || "").toLowerCase();
@@ -2069,33 +2070,52 @@ function applyLocalToyIntensity(toyId, levelPercent, options) {
 
   const run = () => {
     if (level > 0) clearToySpecialsForToy(safeToyId, "local");
-    const tokens = resolveTokensForToy(safeToyId, level, tokensOverride);
+    const tokens = isDirectMotorMode()
+      ? 0
+      : resolveTokensForToy(safeToyId, level, tokensOverride);
+    const motor = presetMotorStrength(level);
+    setLocalToyActivityHint(
+      safeToyId,
+      isDirectMotorMode()
+        ? `Sending motor ${motor}/20…`
+        : `Sending ${tokens} tokens…`
+    );
     applyLovenseControl({
       toyId: safeToyId,
       level,
       tipAmount: tokens,
       tipperName: "Local-Test",
-    }).then((result) => {
-      updateToyActivityDisplay(safeToyId, "local", formatActivityFromResult(result, level));
-    });
+    })
+      .then((result) => {
+        setLocalToyActivityHint(safeToyId, formatActivityFromResult(result, level));
+      })
+      .catch((err) => {
+        setLocalToyActivityHint(
+          safeToyId,
+          `Error: ${err?.message || "Lovense command failed"}`
+        );
+      });
   };
 
   if (throttle) {
     scheduleThrottledToyAction(level, safeToyId, tokensOverride, localToyThrottleState, (lvl, tok) => {
       if (lvl > 0) clearToySpecialsForToy(safeToyId, "local");
-      const tokens = resolveTokensForToy(safeToyId, lvl, tok);
+      const tokens = isDirectMotorMode() ? 0 : resolveTokensForToy(safeToyId, lvl, tok);
       applyLovenseControl({
         toyId: safeToyId,
         level: lvl,
         tipAmount: tokens,
         tipperName: "Local-Test",
-      }).then((result) => {
-        updateToyActivityDisplay(
-          safeToyId,
-          "local",
-          formatActivityFromResult(result || { ok: false, hint: "Lovense command failed" }, lvl)
-        );
-      });
+      })
+        .then((result) => {
+          setLocalToyActivityHint(
+            safeToyId,
+            formatActivityFromResult(result || { ok: false, hint: "Lovense command failed" }, lvl)
+          );
+        })
+        .catch((err) => {
+          setLocalToyActivityHint(safeToyId, `Error: ${err?.message || "failed"}`);
+        });
     });
     return;
   }
@@ -2206,8 +2226,13 @@ function describeToyActivity(toyId, scope) {
 
   if (st.level > 0) {
     const label = presetLabelForLevel(st.level);
-    const tokens = resolveTokensForToy(toyId, st.level, null);
-    parts.push(`${label} · ${tokens} tokens`);
+    if (isDirectMotorMode()) {
+      const motor = presetMotorStrength(st.level);
+      parts.push(`${label || st.level + "%"} · motor ${motor}/20 (direct)`);
+    } else {
+      const tokens = resolveTokensForToy(toyId, st.level, null);
+      parts.push(`${label} · ${tokens} tokens`);
+    }
   }
 
   const activeSpecials = TOY_SPECIAL_COMMANDS.filter((c) => st.specials[c.id]).map((c) => c.label);
@@ -2243,8 +2268,16 @@ function updateToyActivityDisplay(toyId, scope, hint) {
 
   const activity = block.querySelector(".toy-activity-line");
   if (activity) {
-    activity.textContent = hint || describeToyActivity(toyId, scope);
+    const cached = scope === "local" ? localToyActivityHint[toyId] : "";
+    activity.textContent = hint || cached || describeToyActivity(toyId, scope);
   }
+}
+
+function setLocalToyActivityHint(toyId, text) {
+  if (!toyId) return;
+  if (text) localToyActivityHint[toyId] = text;
+  else delete localToyActivityHint[toyId];
+  updateToyActivityDisplay(toyId, "local", text || undefined);
 }
 
 function getToyControlContext(toyId, scope) {
@@ -2502,7 +2535,6 @@ function patchLocalToyBlockMeta(toy, idx) {
       bat.hidden = true;
     }
   }
-  updateToyActivityDisplay(toyId, "local");
 }
 
 function renderLocalToyTestPanel({ force = false } = {}) {
@@ -2539,7 +2571,7 @@ function renderLocalToyTestPanel({ force = false } = {}) {
   toys.forEach((toy, idx) => {
     list.appendChild(buildToyControlBlock(toy, idx, "local", localToyControlState));
   });
-  toys.forEach((t) => updateToyActivityDisplay(t.id, "local"));
+  toys.forEach((t) => updateToyActivityDisplay(t.id, "local", localToyActivityHint[t.id]));
 }
 
 function updateLovenseSetupHint() {
@@ -3710,6 +3742,22 @@ async function ensureLovenseInitialized() {
 async function applyLovenseControl(payload) {
   await ensureLovenseInitialized();
   const bridge = window.dualPeerLovense;
+  if (!bridge?.ready) {
+    return {
+      ok: false,
+      method: "not-ready",
+      hint: "Extension not ready — open Lovense widget on this tab (test:Tangent-Club, On).",
+    };
+  }
+  if (isDirectMotorMode() && typeof loadLovenseLanScript === "function") {
+    await loadLovenseLanScript().catch(() => false);
+    if (typeof bridge.refreshStreamSettings === "function") {
+      await bridge.refreshStreamSettings().catch(() => null);
+    }
+    if (window.dualPeerLovense?.ready && typeof window.lovense === "undefined") {
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
   if (!bridge || typeof bridge.applyRemoteControl !== "function") {
     return { ok: false, method: "no-bridge", hint: "Lovense bridge not ready." };
   }

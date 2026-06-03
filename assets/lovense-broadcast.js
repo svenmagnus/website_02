@@ -748,13 +748,22 @@
     }
 
     if (!result?.ok) {
-      if (tipTokens < 1) {
+      if (isDirectMotorMode()) {
+        const lan = hasLovenseSendCommand();
+        const toys = hasToysForCommands();
         return {
           ok: false,
           method: "motor-failed",
-          hint: isDirectMotorMode()
-            ? "Direct motor failed — reload page, open Lovense widget, Lovense Connect (PC)."
-            : "No token amount — configure Stream Master or enable direct motor.",
+          hint:
+            `Direct motor failed (${strength}/20). Lovense Connect (PC) running? Widget open on this tab?` +
+            ` LAN sendCommand: ${lan ? "yes" : "no — wait for Extension ready, then retry"}. Toys: ${toys ? "yes" : "no"}.`,
+        };
+      }
+      if (tipTokens < 1) {
+        return {
+          ok: false,
+          method: "no-tokens",
+          hint: "No token amount — configure Stream Master levels.",
         };
       }
 
@@ -767,7 +776,7 @@
           toyId: resolvedId,
           tokens: tipTokens,
           strength,
-          hint: `${tipTokens} tokens · Stream Master fallback (timed)`,
+          hint: `${tipTokens} tokens · Stream Master (timed)`,
         };
       } else {
         return {
@@ -985,11 +994,13 @@
       return { ok: false, method: "no-tokens" };
     }
 
+    const motorTokens = isDirectMotorMode() ? 0 : tokens;
+
     if (targetToyId) {
-      return vibrateToy(targetToyId, level, tokens, tipperName);
+      return vibrateToy(targetToyId, level, motorTokens, tipperName);
     }
 
-    const ok = receiveTip(tokens, tipperName);
+    const ok = receiveTip(motorTokens || tokens, tipperName);
     return { ok, method: ok ? "receiveTip-all" : "receiveTip-failed" };
   }
 
@@ -1006,10 +1017,10 @@
           state.toys = (await state.instance.getToyStatus()) || [];
         }
         await refreshStreamSettings();
-        syncLovenseToyMapFromExtension();
         if (typeof global.loadLovenseLanScript === "function") {
-          global.loadLovenseLanScript().catch(() => false);
+          await global.loadLovenseLanScript().catch(() => false);
         }
+        syncLovenseToyMapFromExtension();
       } catch (e) {
         console.warn("[Lovense] version/toy status:", e);
       }
@@ -1085,12 +1096,7 @@
   function scheduleBoot() {
     if (bootScheduled) return;
     bootScheduled = true;
-    const boot = () => {
-      init();
-      if (typeof global.loadLovenseLanScript === "function") {
-        global.loadLovenseLanScript().catch(() => false);
-      }
-    };
+    const boot = () => init();
 
     if (document.readyState === "complete") {
       setTimeout(boot, 50);
