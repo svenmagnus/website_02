@@ -1780,6 +1780,8 @@ let toyThrottleState = {};
 let localToyThrottleState = {};
 /** Partner toys — Remote Control UI (bidirectional: either side can share). */
 let partnerRemoteToys = [];
+/** Skip rebuilding Local Test DOM while user drags a slider (Lovense status events fire often). */
+let localToyPanelDragLock = false;
 
 function toyTypeKey(toy) {
   const raw = String(toy?.type || toy?.name || "").toLowerCase();
@@ -2470,23 +2472,70 @@ function renderToyControls(toys) {
   });
 }
 
-function renderLocalToyTestPanel() {
+function localToyPanelSignature(toys) {
+  return toys
+    .map((t, i) => {
+      const n = normalizeToyForPeer(t, i);
+      return `${n.id}:${n.status}:${n.battery ?? ""}`;
+    })
+    .join("|");
+}
+
+function patchLocalToyBlockMeta(toy, idx) {
+  const toyId = toy.id || `toy-${idx + 1}`;
+  const root = els.localToyTestList;
+  if (!root) return;
+  const block = root.querySelector(`.toy-block[data-scope="local"][data-toy-id="${toyId}"]`);
+  if (!block) return;
+  const badge = formatToyStatusBadge(toy);
+  const chip = block.querySelector(".toy-status-chip");
+  if (chip) {
+    chip.classList.toggle("is-connected", badge.on);
+    chip.textContent = badge.on ? "Ready" : "Off";
+  }
+  const bat = block.querySelector(".toy-battery");
+  if (bat) {
+    if (badge.battery) {
+      bat.textContent = `Battery ${badge.battery}`;
+      bat.hidden = false;
+    } else {
+      bat.hidden = true;
+    }
+  }
+  updateToyActivityDisplay(toyId, "local");
+}
+
+function renderLocalToyTestPanel({ force = false } = {}) {
   if (!els.localToyTestList) return;
+  if (localToyPanelDragLock && !force) return;
+
   const list = els.localToyTestList;
-  list.innerHTML = "";
 
   if (!isLovenseReady()) {
     const hint = lovenseNotReadyMessage();
     list.innerHTML = `<div class="toy-empty-note">${hint}</div>`;
+    list.dataset.toyPanelSig = "";
     return;
   }
 
   const toys = getLocalLovenseToys().map((t, i) => normalizeToyForPeer(t, i));
   if (!toys.length) {
     list.innerHTML = '<div class="toy-empty-note">No toys connected in the extension.</div>';
+    list.dataset.toyPanelSig = "";
     return;
   }
 
+  const sig = localToyPanelSignature(toys);
+  const prevSig = list.dataset.toyPanelSig || "";
+  const hasBlocks = list.querySelector(".toy-block");
+
+  if (!force && hasBlocks && prevSig === sig) {
+    toys.forEach((toy, idx) => patchLocalToyBlockMeta(toy, idx));
+    return;
+  }
+
+  list.dataset.toyPanelSig = sig;
+  list.innerHTML = "";
   toys.forEach((toy, idx) => {
     list.appendChild(buildToyControlBlock(toy, idx, "local", localToyControlState));
   });
@@ -2583,11 +2632,27 @@ function initDynamicToyControls() {
 function initLocalToyTestPanel() {
   if (!els.localToyTestList) return;
   updateLovenseSetupHint();
-  renderLocalToyTestPanel();
+  renderLocalToyTestPanel({ force: true });
 
-  els.localToyTestList.addEventListener("click", (e) => handleToyPanelClick(e, "local"));
-  els.localToyTestList.addEventListener("input", (e) => handleToyPanelInput(e, "local"));
-  els.localToyTestList.addEventListener("change", (e) => handleToyPanelSpecialChange(e, "local"));
+  const list = els.localToyTestList;
+  list.addEventListener("pointerdown", (e) => {
+    const t = e.target;
+    if (t instanceof HTMLInputElement && t.classList.contains("toy-slider")) {
+      localToyPanelDragLock = true;
+    }
+  });
+  const endDrag = () => {
+    if (!localToyPanelDragLock) return;
+    localToyPanelDragLock = false;
+    renderLocalToyTestPanel();
+  };
+  list.addEventListener("pointerup", endDrag);
+  list.addEventListener("pointercancel", endDrag);
+  list.addEventListener("lostpointercapture", endDrag);
+
+  list.addEventListener("click", (e) => handleToyPanelClick(e, "local"));
+  list.addEventListener("input", (e) => handleToyPanelInput(e, "local"));
+  list.addEventListener("change", (e) => handleToyPanelSpecialChange(e, "local"));
 }
 
 function formatChatTime(ts) {
@@ -3047,7 +3112,7 @@ function onLovenseReady(detail) {
       );
     }
     broadcastLocalToyInventory();
-    renderLocalToyTestPanel();
+    renderLocalToyTestPanel({ force: true });
   });
 }
 
@@ -3074,15 +3139,9 @@ function onLovenseToys(toys) {
 function bindLovenseEventsOnce() {
   if (lovenseEventsBound) return;
   lovenseEventsBound = true;
-  document.addEventListener("dualpeer-lovense-ready", (e) => {
-    onLovenseReady(e.detail);
-    renderLocalToyTestPanel();
-  });
+  document.addEventListener("dualpeer-lovense-ready", (e) => onLovenseReady(e.detail));
   document.addEventListener("dualpeer-lovense-error", (e) => onLovenseError(e.detail));
-  document.addEventListener("dualpeer-lovense-toys", (e) => {
-    onLovenseToys(e.detail);
-    renderLocalToyTestPanel();
-  });
+  document.addEventListener("dualpeer-lovense-toys", (e) => onLovenseToys(e.detail));
   document.addEventListener("dualpeer-lovense-settings", (e) => {
     syncLovenseFromBridge();
     const ver = window.dualPeerLovense?.version;
@@ -3090,7 +3149,7 @@ function bindLovenseEventsOnce() {
       `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "test:Tangent-Club"}. ` +
         formatLovenseMotorStatus(e.detail)
     );
-    renderLocalToyTestPanel();
+    renderLocalToyTestPanel({ force: true });
   });
   document.addEventListener("dualpeer-lovense-tokens-sync", () => {
     renderLocalToyTestPanel();
@@ -3817,7 +3876,6 @@ function startLovenseConnectionWatch() {
         (hasInstance ? "CamExtension started — " : "") +
           `waiting for extension on ${pageUrl}. Chrome: Lovense icon → On → site test:Tangent-Club. Open the pink widget on this page.`
       );
-      renderLocalToyTestPanel();
     }
     if (ticks >= 60) {
       clearInterval(lovenseWatchTimer);

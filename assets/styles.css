@@ -2249,6 +2249,29 @@ html[data-theme="cb-dark"] .chat-messages {
 
 .toy-slider {
   width: 100%;
+  min-height: 28px;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+  accent-color: #ff6b35;
+  -webkit-appearance: none;
+  appearance: auto;
+}
+
+.toy-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ff6b35;
+  border: 2px solid #fff;
+  cursor: grab;
+}
+
+.toy-block input.toy-slider {
+  position: relative;
+  z-index: 2;
 }
 
 .toy-special-row {
