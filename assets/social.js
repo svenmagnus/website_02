@@ -724,6 +724,66 @@
 
   let presenceTimer = null;
 
+  async function addModelToPool(username) {
+    return api("/api/social/model-pool/add", {
+      method: "POST",
+      body: JSON.stringify({ username: String(username || "").trim() }),
+    });
+  }
+
+  function initAddToModelPool() {
+    const btn = document.getElementById("btnAddModelToPool");
+    const input = document.getElementById("setupAddModelUsername");
+    const status = document.getElementById("setupAddModelStatus");
+    if (!btn || !input) return;
+
+    btn.addEventListener("click", async () => {
+      const username = input.value.trim();
+      if (!username) {
+        if (status) {
+          status.hidden = false;
+          status.className = "status-line err";
+          status.textContent = "Enter a username (e.g. Limagno).";
+        }
+        input.focus();
+        return;
+      }
+      btn.disabled = true;
+      if (status) {
+        status.hidden = false;
+        status.className = "status-line";
+        status.textContent = "Adding…";
+      }
+      try {
+        const data = await addModelToPool(username);
+        input.value = "";
+        await bootstrap();
+        if (status) {
+          status.className = "status-line ok";
+          status.textContent = data.alreadyInPool
+            ? `${username} is already in your pool.`
+            : `${data.model?.displayName || username} added — select them under Session with.`;
+        }
+      } catch (err) {
+        if (status) {
+          status.className = "status-line err";
+          status.textContent =
+            err.code === "user_not_found"
+              ? `No user "${username}" found.`
+              : err.message || "Could not add to pool.";
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        btn.click();
+      }
+    });
+  }
+
   async function loadModelPool() {
     if (!isLoggedIn()) {
       state.modelPool = [];
@@ -924,6 +984,7 @@
     listenBroadcast();
     mountMeetingBlocks();
     initMeetingBlocks();
+    initAddToModelPool();
     initHeaderChatSend();
     handleCalendarRedirect();
 
@@ -946,6 +1007,7 @@
     applyHostPeerIdFromMeetings,
     ensureChatThread,
     loadModelPool,
+    addModelToPool,
     checkConnectAvailable,
     endLiveSession,
     getModelPool: () => state.modelPool,

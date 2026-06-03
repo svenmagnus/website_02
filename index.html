@@ -20,7 +20,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8460" />
+    <link rel="stylesheet" href="assets/styles.css?v=8461" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -710,8 +710,22 @@
           <fieldset class="setup-model-pool-field" id="setupModelPoolField" hidden>
             <legend>My model pool</legend>
             <p class="status-line profile-field-hint">
-              Models you invited appear here. <strong>Signed in</strong> = online now.
+              New contacts via <strong>Invite someone</strong> in the account menu. Already registered? Add them by
+              username below — they then appear here and under <strong>Session with</strong>.
             </p>
+            <div class="row setup-add-model-row">
+              <label for="setupAddModelUsername">Add existing member</label>
+              <input
+                type="text"
+                id="setupAddModelUsername"
+                class="admin-input"
+                maxlength="32"
+                placeholder="e.g. Limagno"
+                autocomplete="username"
+              />
+              <button type="button" class="secondary" id="btnAddModelToPool">Add to pool</button>
+            </div>
+            <p class="status-line" id="setupAddModelStatus" hidden></p>
             <div id="setupModelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="setupModelPoolStatus"></p>
           </fieldset>
@@ -1021,11 +1035,11 @@
     <script src="assets/api-config.js?v=8425"></script>
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
-    <script src="assets/ui-shell.js?v=8460"></script>
-    <script src="assets/app.js?v=8460"></script>
-    <script src="assets/auth.js?v=8460"></script>
-    <script src="assets/messages-panel.js?v=8460"></script>
-    <script src="assets/social.js?v=8460"></script>
-    <script src="assets/member-profile.js?v=8460"></script>
+    <script src="assets/ui-shell.js?v=8461"></script>
+    <script src="assets/app.js?v=8461"></script>
+    <script src="assets/auth.js?v=8461"></script>
+    <script src="assets/messages-panel.js?v=8461"></script>
+    <script src="assets/social.js?v=8461"></script>
+    <script src="assets/member-profile.js?v=8461"></script>
   </body>
 </html>

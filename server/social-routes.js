@@ -242,6 +242,65 @@ socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
   res.json({ ok: true, models });
 });
 
+socialRouter.post("/social/model-pool/add", requireAuth, (req, res) => {
+  const db = getDb();
+  const uid = req.authUser.id;
+  let target = null;
+  const userId = String(req.body?.userId || "").trim();
+  if (userId) {
+    target = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  } else {
+    const username = String(req.body?.username || "").trim();
+    if (!username) {
+      return res.status(400).json({
+        ok: false,
+        error: "invalid_username",
+        message: "Enter a username.",
+      });
+    }
+    target = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(username);
+  }
+  if (!target) {
+    return res.status(404).json({
+      ok: false,
+      error: "user_not_found",
+      message: "No user with that username.",
+    });
+  }
+  if (target.id === uid) {
+    return res.status(400).json({ ok: false, error: "cannot_add_self" });
+  }
+
+  const hadEntry = db
+    .prepare("SELECT 1 FROM model_pool WHERE owner_user_id = ? AND model_user_id = ?")
+    .get(uid, target.id);
+  ensureModelPoolEntry(db, uid, target.id);
+  const thread = ensureChatThread(db, uid, target.id);
+  if (!hadEntry) {
+    const ownerLabel = req.authUser.display_name || req.authUser.username;
+    const targetLabel = target.display_name || target.username;
+    insertChatMessage(
+      db,
+      thread.id,
+      uid,
+      `${ownerLabel} added ${targetLabel} to the model pool. Chat here and use Sessions to connect.`,
+      { kind: "system" }
+    );
+  }
+
+  res.json({
+    ok: true,
+    alreadyInPool: Boolean(hadEntry),
+    model: {
+      id: target.id,
+      username: target.username,
+      displayName: target.display_name || target.username,
+      signedIn: isUserOnline(db, target.id),
+      avatarUrl: avatarUrlForUser(target),
+    },
+  });
+});
+
 socialRouter.post("/social/session/connect-check", requireAuth, (req, res) => {
   const db = getDb();
   const uid = req.authUser.id;

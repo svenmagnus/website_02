@@ -1157,6 +1157,7 @@
       <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" autocomplete="new-password" /></td>
       <td class="admin-actions-cell">
         <button type="button" class="primary admin-save-btn">Save</button>
+        <button type="button" class="secondary admin-pool-btn" title="Add to your model pool">Pool</button>
         <button type="button" class="admin-delete-btn">Delete</button>
       </td>
     `;
@@ -1259,6 +1260,32 @@
     });
 
     tbody.addEventListener("click", async (e) => {
+      const poolBtn = e.target?.closest?.(".admin-pool-btn");
+      if (poolBtn) {
+        const tr = poolBtn.closest("tr");
+        const username = tr?.querySelector("td strong")?.textContent?.trim();
+        if (!username || username === getSession()?.user?.username) return;
+        poolBtn.disabled = true;
+        setStatus(`Adding ${username} to your pool…`);
+        try {
+          if (global.DualPeerSocial?.addModelToPool) {
+            const data = await global.DualPeerSocial.addModelToPool(username);
+            setStatus(
+              data.alreadyInPool
+                ? `${username} is already in your pool.`
+                : `${username} added to your pool (Session with).`,
+              "ok"
+            );
+          } else {
+            setStatus("Social module not ready — reload the page.", "err");
+          }
+        } catch (err) {
+          setStatus(err.message || "Could not add to pool.", "err");
+        } finally {
+          poolBtn.disabled = false;
+        }
+        return;
+      }
       const btn = e.target?.closest?.(".admin-save-btn");
       if (!btn) return;
       const tr = btn.closest("tr");
