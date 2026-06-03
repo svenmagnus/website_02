@@ -493,7 +493,7 @@ body.login-locked > footer {
   align-items: center;
   justify-content: center;
   padding: 1.25rem;
-  background: rgba(6, 6, 10, 0.94);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(16px);
 }
 

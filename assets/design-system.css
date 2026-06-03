@@ -4,8 +4,8 @@
  */
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap");
 
-:root,
-html[data-theme="cb-dark"] {
+html[data-theme="cb-dark"],
+html:not([data-theme]) {
   --bg: #0e1012;
   --surface: #1a1d23;
   --border: #2a2f38;
@@ -99,7 +99,7 @@ html[data-theme="hippie"] {
 
 /* Logo visibility per theme */
 html[data-theme="cb-dark"] .logo-link .site-logo--theme-light,
-html:not([data-theme="cb-light"]):not([data-theme="hippie"]) .logo-link .site-logo--theme-light {
+html:not([data-theme]) .logo-link .site-logo--theme-light {
   display: none;
 }
 
@@ -148,4 +148,12 @@ html[data-theme="hippie"] .account-avatar {
 
 html[data-theme="hippie"] .header-role-badge {
   border-radius: 999px;
+}
+
+html[data-theme="hippie"] .login-overlay {
+  background: color-mix(in srgb, var(--hippie-cream) 88%, var(--hippie-brown));
+}
+
+html[data-theme="hippie"] .login-overlay-card {
+  box-shadow: 0 20px 48px rgba(74, 44, 42, 0.12);
 }

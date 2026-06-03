@@ -12,6 +12,9 @@
   }
 
   function getSavedTheme() {
+    if (global.dualPeerTheme && typeof global.dualPeerTheme.read === "function") {
+      return global.dualPeerTheme.read();
+    }
     try {
       return normalizeTheme(localStorage.getItem(THEME_STORAGE_KEY) || "cb-dark");
     } catch (_) {
@@ -41,9 +44,13 @@
 
   function applyTheme(theme, options) {
     const opts = options || {};
-    const t = normalizeTheme(theme);
+    const t =
+      global.dualPeerTheme && typeof global.dualPeerTheme.apply === "function"
+        ? global.dualPeerTheme.apply(theme)
+        : normalizeTheme(theme);
 
     document.documentElement.setAttribute("data-theme", t);
+    document.documentElement.dataset.theme = t;
 
     const main = document.getElementById("appMain");
     if (main) {
