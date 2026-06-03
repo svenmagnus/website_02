@@ -164,6 +164,35 @@ function generateInviteCode() {
   return String(randomInt(1000, 10000));
 }
 
+function generateUniqueInviteCode(db) {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    const code = generateInviteCode();
+    const codeHash = hashInviteCode(code);
+    const clash = db
+      .prepare(
+        `SELECT 1 FROM invites WHERE invite_code_hash = ? AND used_at IS NULL AND expires_at > ? LIMIT 1`
+      )
+      .get(codeHash, nowMs());
+    if (!clash) return code;
+  }
+  return generateInviteCode();
+}
+
+function isManualInviteEmail(email) {
+  return !String(email || "").trim();
+}
+
+function findActiveInviteByCodeOnly(code) {
+  const normalizedCode = String(code || "").trim();
+  if (!/^\d{4}$/.test(normalizedCode)) return null;
+  const codeHash = hashInviteCode(normalizedCode);
+  const db = getDb();
+  const rows = db
+    .prepare(`SELECT * FROM invites WHERE used_at IS NULL AND expires_at > ? ORDER BY created_at DESC`)
+    .all(nowMs());
+  return rows.find((row) => row.invite_code_hash === codeHash) || null;
+}
+
 function isDevInviteCode(code) {
   const c = String(code || "").trim();
   return DEV_INVITE_CODE.length === 4 && c === DEV_INVITE_CODE;
@@ -395,7 +424,16 @@ function resolveInvite({ inviteToken, inviteCode, email }) {
     const byToken = findActiveInviteByToken(inviteToken);
     if (byToken) return byToken;
   }
-  return findActiveInviteByEmailAndCode(email, inviteCode);
+  const normalizedCode = String(inviteCode || "").trim();
+  if (!/^\d{4}$/.test(normalizedCode)) return null;
+
+  const byEmailCode = findActiveInviteByEmailAndCode(email, normalizedCode);
+  if (byEmailCode) return byEmailCode;
+
+  const byCode = findActiveInviteByCodeOnly(normalizedCode);
+  if (byCode && isManualInviteEmail(byCode.email)) return byCode;
+
+  return null;
 }
 
 async function createVerificationToken(userId) {
@@ -442,7 +480,8 @@ authRouter.get("/auth/invite/:token", (req, res) => {
   const host = db.prepare("SELECT display_name, username FROM users WHERE id = ?").get(invite.host_user_id);
   res.json({
     ok: true,
-    email: invite.email,
+    email: invite.email || null,
+    manualInvite: isManualInviteEmail(invite.email),
     expiresAt: invite.expires_at,
     hostName: host?.display_name || host?.username || "Host",
   });
@@ -880,21 +919,23 @@ authRouter.post("/profile/mail/test", requireAuth, requireAdminAccount, async (r
 });
 
 authRouter.post("/invites", requireAuth, async (req, res) => {
-  const email = validateEmail(req.body?.email);
-  const guestName = validateGuestName(req.body?.guestName);
-  if (!email) {
+  const emailRaw = String(req.body?.email || "").trim();
+  const email = emailRaw ? validateEmail(emailRaw) : null;
+  if (emailRaw && !email) {
     return res.status(400).json({ ok: false, error: "invalid_email" });
   }
+  const guestName = validateGuestName(req.body?.guestName);
   if (!guestName) {
     return res.status(400).json({ ok: false, error: "invalid_guest_name" });
   }
 
   const inviteToken = randomBytes(24).toString("base64url");
-  const inviteCode = generateInviteCode();
+  const db = getDb();
+  const inviteCode = generateUniqueInviteCode(db);
   const inviteCodeHash = hashInviteCode(inviteCode);
   const createdAt = nowMs();
   const expiresAt = inviteExpiry();
-  const db = getDb();
+  const storedEmail = email || "";
 
   // Any logged-in user can invite; inviting makes/keeps the account a host.
   db.prepare("UPDATE users SET account_type = 'host' WHERE id = ?").run(req.authUser.id);
@@ -902,41 +943,44 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
   db.prepare(
     `INSERT INTO invites (token, email, host_user_id, invite_code_hash, guest_name, created_at, expires_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(inviteToken, email, req.authUser.id, inviteCodeHash, guestName, createdAt, expiresAt);
+  ).run(inviteToken, storedEmail, req.authUser.id, inviteCodeHash, guestName, createdAt, expiresAt);
 
   const inviteUrl = `${getAppPublicUrl()}/register.html?token=${encodeURIComponent(inviteToken)}`;
   const hostName = req.authUser.display_name || req.authUser.username;
 
   const hostRow = db.prepare("SELECT * FROM users WHERE id = ?").get(req.authUser.id);
 
-  let mailResult = { sent: false, devMode: true };
-  try {
-    mailResult = await withMailTimeout(
-      sendInviteEmail({
-        to: email,
-        inviteUrl,
-        hostName,
-        inviteCode,
-        guestName,
-        userRow: hostRow,
-      })
-    );
-  } catch (err) {
-    console.error("[mail] send failed:", err);
-    const mapped = mapSmtpError(err);
-    return res.status(mapped.status).json({
-      ok: false,
-      error: mapped.error,
-      message: mapped.message,
-    });
+  let mailResult = { sent: false, devMode: !email };
+  if (email) {
+    try {
+      mailResult = await withMailTimeout(
+        sendInviteEmail({
+          to: email,
+          inviteUrl,
+          hostName,
+          inviteCode,
+          guestName,
+          userRow: hostRow,
+        })
+      );
+    } catch (err) {
+      console.error("[mail] send failed:", err);
+      const mapped = mapSmtpError(err);
+      return res.status(mapped.status).json({
+        ok: false,
+        error: mapped.error,
+        message: mapped.message,
+      });
+    }
   }
 
   res.status(201).json({
     ok: true,
-    email,
-    inviteUrl: mailResult.devMode ? inviteUrl : undefined,
-    inviteCode: mailResult.devMode ? inviteCode : undefined,
-    emailSent: mailResult.sent,
+    email: email || null,
+    inviteUrl,
+    inviteCode,
+    manualShare: !email,
+    emailSent: Boolean(email && mailResult.sent),
     smtpConfigured: isSmtpConfiguredForUser(hostRow),
     mailSource: mailResult.source || null,
     expiresAt,

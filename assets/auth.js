@@ -445,10 +445,13 @@
     );
   }
 
-  async function sendInvite(email, guestName, options = {}) {
+  async function sendInvite(guestName, email, options = {}) {
+    const payload = { guestName };
+    const trimmedEmail = String(email || "").trim();
+    if (trimmedEmail) payload.email = trimmedEmail;
     return api("/api/invites", {
       method: "POST",
-      body: JSON.stringify({ email, guestName }),
+      body: JSON.stringify(payload),
       timeoutMs: 20000,
       ...options,
     });
@@ -906,6 +909,58 @@
     }
   }
 
+  function renderInviteShareResult(result, guestName) {
+    const box = document.getElementById("inviteShareResult");
+    if (!box || !result?.inviteUrl) return;
+    const exampleText =
+      `Hi ${guestName || ""}! Join me on Tangent Club for a private video session.\n` +
+      `Register here: ${result.inviteUrl}\n` +
+      `Or open tangent-club.com and enter code: ${result.inviteCode || "????"}`;
+    box.hidden = false;
+    box.replaceChildren();
+    const title = document.createElement("strong");
+    title.textContent = result.emailSent
+      ? "Invite sent — you can also copy link & code:"
+      : "Share this invite (link + 4-digit code):";
+    box.appendChild(title);
+    const linkP = document.createElement("p");
+    linkP.innerHTML = `<span class="invite-share-link">${escapeHtml(result.inviteUrl)}</span>`;
+    box.appendChild(linkP);
+    if (result.inviteCode) {
+      const codeP = document.createElement("p");
+      codeP.innerHTML = `Code: <span class="invite-share-code">${escapeHtml(result.inviteCode)}</span>`;
+      box.appendChild(codeP);
+    }
+    const example = document.createElement("div");
+    example.className = "invite-share-example";
+    example.textContent = exampleText;
+    box.appendChild(example);
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "secondary invite-copy-btn";
+    copyBtn.textContent = "Copy message for Instagram / WhatsApp";
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(exampleText);
+        copyBtn.textContent = "Copied!";
+        setTimeout(() => {
+          copyBtn.textContent = "Copy message for Instagram / WhatsApp";
+        }, 2000);
+      } catch (_) {
+        copyBtn.textContent = "Copy failed — select text manually";
+      }
+    });
+    box.appendChild(copyBtn);
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
   function initInviteModal() {
     const modal = document.getElementById("inviteModal");
     const openBtn = document.getElementById("btnInviteByEmail");
@@ -914,6 +969,7 @@
     const nameInput = document.getElementById("inviteGuestNameInput");
     const emailInput = document.getElementById("inviteEmailInput");
     const status = document.getElementById("inviteModalStatus");
+    const shareBox = document.getElementById("inviteShareResult");
     const INVITE_SEND_TIMEOUT_MS = 15000;
     let inviteSendAbort = null;
 
@@ -928,6 +984,10 @@
         inviteSendAbort = null;
       }
       resetInviteSendUi();
+      if (shareBox) {
+        shareBox.hidden = true;
+        shareBox.replaceChildren();
+      }
       if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
       else if (modal) modal.hidden = true;
     };
@@ -942,8 +1002,11 @@
       if (global.dualPeerUi?.openAuthModal) {
         global.dualPeerUi.openAuthModal("inviteModal");
       } else if (modal) modal.hidden = false;
+      if (shareBox) {
+        shareBox.hidden = true;
+        shareBox.replaceChildren();
+      }
       if (nameInput instanceof HTMLInputElement) nameInput.focus();
-      else if (emailInput instanceof HTMLInputElement) emailInput.focus();
       if (status) status.textContent = "";
     };
 
@@ -974,17 +1037,9 @@
         if (!guestName) {
           if (status) {
             status.className = "status-line err";
-            status.textContent = "Please enter the guest's name.";
+            status.textContent = "Please enter their name.";
           }
           nameInput?.focus();
-          return;
-        }
-        if (!email) {
-          if (status) {
-            status.className = "status-line err";
-            status.textContent = "Please enter a guest email address.";
-          }
-          emailInput?.focus();
           return;
         }
         if (inviteSendAbort) inviteSendAbort.abort();
@@ -993,62 +1048,47 @@
         sendBtn.disabled = true;
         if (status) {
           status.className = "status-line";
-          status.textContent = "Sending…";
-          status.replaceChildren();
-          status.appendChild(document.createTextNode("Sending…"));
+          status.textContent = email ? "Sending…" : "Creating invite…";
+        }
+        if (shareBox) {
+          shareBox.hidden = true;
+          shareBox.replaceChildren();
         }
         try {
-          const result = await sendInvite(email, guestName, {
+          const result = await sendInvite(guestName, email, {
             signal,
             timeoutMs: INVITE_SEND_TIMEOUT_MS,
           });
-          const msg = result.emailSent
-            ? `Invite sent to ${email} (link and code in the email).`
-            : "No SMTP configured — set up Email server (SMTP) in the account menu, or share the link/code below:";
+          let msg = "";
+          if (result.emailSent) {
+            msg = `Invite email sent to ${email}.`;
+          } else if (email) {
+            msg = "Email could not be sent — copy the link and code below.";
+          } else {
+            msg = "Invite created — copy the link and code below (e.g. Instagram DM).";
+          }
           if (status) {
             status.className = "status-line ok";
-            status.replaceChildren();
-            status.appendChild(document.createTextNode(msg));
+            status.textContent = msg;
           }
           const mailSetupBtn = document.getElementById("inviteModalMailSetup");
           if (mailSetupBtn) {
-            mailSetupBtn.hidden = Boolean(result.emailSent);
+            mailSetupBtn.hidden = Boolean(result.emailSent || !email);
           }
-          if (!result.emailSent && status && canManageInvites()) {
-            if (result.inviteUrl) {
-              const link = document.createElement("a");
-              link.href = result.inviteUrl;
-              link.target = "_blank";
-              link.rel = "noopener";
-              link.textContent = result.inviteUrl;
-              status.appendChild(document.createElement("br"));
-              status.appendChild(link);
-            }
-            if (result.inviteCode) {
-              const codeLine = document.createElement("p");
-              codeLine.className = "status-line";
-              codeLine.style.marginTop = "0.5rem";
-              codeLine.innerHTML = `<strong>Invite code:</strong> <code>${result.inviteCode}</code>`;
-              status.appendChild(codeLine);
-            }
-          }
-          if (nameInput instanceof HTMLInputElement) nameInput.value = "";
+          renderInviteShareResult(result, guestName);
           if (emailInput instanceof HTMLInputElement) emailInput.value = "";
         } catch (err) {
           if (err.code === "request_aborted") return;
           if (status) {
             status.className = "status-line err";
-            status.replaceChildren();
             const map = {
-              invalid_guest_name: "Please enter the guest's name.",
+              invalid_guest_name: "Please enter their name.",
               invalid_email: "Please enter a valid email address.",
-              timeout: "Sending timed out. Check SMTP settings or try again.",
+              timeout: "Timed out. Check SMTP settings or try again.",
               smtp_timeout: "SMTP connection timed out. Check port 465 (SSL) or 587.",
               smtp_auth_failed: "SMTP login failed — check mailbox password in Email server settings.",
             };
-            status.appendChild(
-              document.createTextNode(map[err.code] || err.message || "Invite failed")
-            );
+            status.textContent = map[err.code] || err.message || "Invite failed";
           }
         } finally {
           resetInviteSendUi();
@@ -1443,7 +1483,9 @@
       validateInviteToken(token)
         .then((data) => {
           if (inviteInfo) {
-            inviteInfo.textContent = `Invited by ${data.hostName} — please register with your email address.`;
+            inviteInfo.textContent = data.manualInvite
+              ? `Invited by ${data.hostName} — register with your own email address.`
+              : `Invited by ${data.hostName} — please register with your email address.`;
             inviteInfo.className = "status-line ok";
           }
           if (emailEl instanceof HTMLInputElement) {
@@ -1451,8 +1493,9 @@
             emailEl.readOnly = false;
           }
           if (emailHint) {
-            emailHint.textContent =
-              "Pre-filled from your invitation. Feel free to use a different address for your account.";
+            emailHint.textContent = data.manualInvite
+              ? "Choose any email address for your new account."
+              : "Pre-filled from your invitation. Feel free to use a different address for your account.";
           }
         })
         .catch(() => {
@@ -1463,10 +1506,10 @@
         });
     } else if (inviteInfo) {
       inviteInfo.textContent =
-        "Register using the invitation link in your email or with the 4-digit code from the invitation.";
+        "Register using the invitation link or the 4-digit code someone shared with you.";
       inviteInfo.className = "status-line";
       if (emailHint) {
-        emailHint.textContent = "For code invites: use the same email as on the invitation.";
+        emailHint.textContent = "Use your own email address for your new account.";
       }
       if (/^\d{4}$/.test(prefillInviteCode)) {
         const codeInput = document.getElementById("registerInviteCode");
@@ -1574,7 +1617,6 @@
 
     const freeHostBtn = document.getElementById("authModelFreeHost");
     const guestInviteBtn = document.getElementById("authModelGuestInvite");
-    const premiumGuestBtn = document.getElementById("authModelPremiumGuest");
     const inviteCodeRow = document.getElementById("accessInviteCodeRow");
 
     const setAccessModelUi = (mode) => {
@@ -1592,22 +1634,15 @@
     if (freeHostBtn) {
       freeHostBtn.addEventListener("click", () => {
         setAccessModelUi("freeHost");
-        setModelHint("Free Host selected: sign in with your host account, or register a new host account.");
+        setModelHint("Member Login: sign in with your account, or register as a new member.");
         usernameEl?.focus();
       });
     }
     if (guestInviteBtn) {
       guestInviteBtn.addEventListener("click", () => {
         setAccessModelUi("guestInvite");
-        setModelHint("Guest by Invitation selected: enter your 4-digit invite code, then continue to register.");
+        setModelHint("Guest by Invitation: enter your 4-digit code, then continue to register.");
         inviteCodeEl?.focus();
-      });
-    }
-    if (premiumGuestBtn) {
-      premiumGuestBtn.addEventListener("click", () => {
-        setAccessModelUi("premiumUser");
-        setModelHint("Premium User selected: open Model Pool to request available premium models.", "ok");
-        window.location.hash = "premium-modelpool";
       });
     }
 

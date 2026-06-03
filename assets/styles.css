@@ -609,9 +609,57 @@ body.has-auth-modal-open {
 
 .auth-models {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
   margin-bottom: 0.8rem;
+}
+
+.field-optional {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.invite-share-result {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.invite-share-result strong {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.invite-share-link {
+  word-break: break-all;
+  color: var(--accent);
+}
+
+.invite-share-code {
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.invite-share-example {
+  margin-top: 0.55rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.invite-copy-btn {
+  margin-top: 0.45rem;
 }
 
 .auth-model-card {
