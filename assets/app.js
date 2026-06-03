@@ -1763,8 +1763,8 @@ const LOVENSE_PRESET_TOKENS = {
 };
 
 const LOVENSE_SETUP_HINT =
-  "Direct motor: intensity runs until you move the slider to 0 (not Stream Master reaction seconds). " +
-  "Special patterns are ~20s bursts; uncheck or slider 0 to stop. Open the Lovense widget on this tab once.";
+  "Each toy has its own card (Diamo + Lush separately). Direct motor until slider 0 — not Stream Master tip seconds. " +
+  "In Stream Master Basic Levels: one toy per row (not Lush,Diamo together). Widget on this tab once.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake", tokens: 100 },
@@ -1865,6 +1865,18 @@ function percentToTokens(levelPercent) {
   return resolveTokensForToy(null, levelPercent, null);
 }
 
+function formatToyDisplayName(toy, idx) {
+  const type = String(toy?.type || toy?.toyType || "").trim();
+  const nick = String(toy?.nickName || toy?.name || "").trim();
+  if (nick && nick.toLowerCase() !== "toy") return nick;
+  if (type) {
+    if (/lush/i.test(type)) return /lush\s*2|lush2/i.test(type) ? "Lush 2" : "Lush";
+    if (/diamo/i.test(type)) return "Diamo";
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+  return `Toy ${idx + 1}`;
+}
+
 function normalizeToyForPeer(toy, idx) {
   const lovenseId = toy.id || toy.toyId || toy.deviceId || null;
   let battery = toy.battery ?? toy.batteryLevel ?? toy.power ?? null;
@@ -1873,10 +1885,11 @@ function normalizeToyForPeer(toy, idx) {
   } else {
     battery = null;
   }
+  const displayName = formatToyDisplayName(toy, idx);
   return {
     id: lovenseId ? String(lovenseId) : `toy-${idx + 1}`,
-    name: (toy.name || toy.nickName || toy.type || `Toy ${idx + 1}`).trim(),
-    type: toy.type || toy.toyType || "toy",
+    name: displayName,
+    type: toy.type || toy.toyType || displayName,
     status: toy.status || "unknown",
     battery,
   };
