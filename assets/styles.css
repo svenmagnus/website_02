@@ -914,6 +914,25 @@ button.auth-model-card {
   margin-top: 1.5rem;
 }
 
+.manual-table {
+  width: 100%;
+  margin: 0.75rem 0 0.25rem;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.manual-table th,
+.manual-table td {
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+  border: 1px solid var(--border);
+}
+
+.manual-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .auth-logo {
   margin-bottom: 1.25rem;
 }

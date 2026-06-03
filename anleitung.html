@@ -133,6 +133,67 @@
             assign the same token band twice, e.g. 1–9 on two rows for two toys). That restriction does not apply to
             direct motor on Tangent Club.
           </p>
+
+          <h3 class="manual-subheading">5. Stream Master rules (one-time)</h3>
+          <p class="status-line">
+            In Stream Master, open cam site <code>test:Tangent-Club</code> → <strong>Rules</strong>.
+          </p>
+          <ol>
+            <li>
+              Set <strong>Basic Levels</strong> to <strong>OFF</strong> — Tangent Club uses
+              <strong>direct motor</strong> for sliders and presets (Low / Medium / High / Max / Ultra), not Stream Master
+              token ranges.
+            </li>
+            <li>
+              Under <strong>Special Commands</strong>, enable each command below with the exact token value (each command
+              needs its own unique number):
+              <table class="manual-table">
+                <thead>
+                  <tr>
+                    <th>Command</th>
+                    <th>Tokens</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Earthquake</td>
+                    <td>100</td>
+                    <td>ON</td>
+                  </tr>
+                  <tr>
+                    <td>Fireworks</td>
+                    <td>120</td>
+                    <td>ON</td>
+                  </tr>
+                  <tr>
+                    <td>Wave</td>
+                    <td>160</td>
+                    <td>ON</td>
+                  </tr>
+                  <tr>
+                    <td>Pulse</td>
+                    <td>200</td>
+                    <td>ON</td>
+                  </tr>
+                </tbody>
+              </table>
+            </li>
+            <li>Click <strong>Save</strong> (pink button, top right).</li>
+          </ol>
+          <p class="status-line">
+            <strong>What the token values mean:</strong> they are not real tips and do not control Low / Medium / High /
+            sliders (direct motor). They are only <strong>IDs</strong> so Lovense triggers the correct pattern command —
+            internally the site sends a “tip” with exactly that amount.
+          </p>
+          <p class="status-line">
+            A pattern runs while its checkbox is checked on tangent-club.com; the page refreshes about every
+            <strong>17 seconds</strong> until you uncheck it or move the slider to <strong>0</strong>.
+          </p>
+          <p class="status-line profile-field-hint">
+            <strong>Send Test Tip</strong> in the Chrome extension tests Stream Master rules — not Tangent Club sliders
+            or presets.
+          </p>
         </section>
 
         <section class="manual-section">
