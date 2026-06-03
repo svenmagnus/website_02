@@ -1762,8 +1762,8 @@ const LOVENSE_PRESET_TOKENS = {
 };
 
 const LOVENSE_SETUP_HINT =
-  "Uses Stream Master Rules on test:Tangent-Club — open the Lovense widget on this tab once so token ranges sync. " +
-  "Special patterns use your Special Commands token amounts. Slider to 0 or uncheck to stop.";
+  "Direct motor: intensity runs until you move the slider to 0 (not Stream Master reaction seconds). " +
+  "Special patterns are ~20s bursts; uncheck or slider 0 to stop. Open the Lovense widget on this tab once.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake" },
@@ -2380,7 +2380,7 @@ function buildToyControlBlock(toy, idx, scope, stateMap) {
     b.dataset.tokens = String(tokens);
     const motor = presetMotorStrength(preset.value);
     b.title = isDirectMotorMode()
-      ? `Motor ${motor}/20 · direct (no Stream Master tokens)`
+      ? `Motor ${motor}/20 · holds until slider 0`
       : entry
         ? `${tokens} tokens · Stream Master range ${entry.min}–${entry.max}`
         : `${tokens} tokens`;
@@ -2973,7 +2973,7 @@ function formatLovenseMotorStatus(detail) {
     (detail && detail.directMotor) ||
     isDirectMotorMode();
   if (direct) {
-    return "Motor: direct Vibrate/Preset (Stream Master Basic Levels optional — fine for multistream).";
+    return "Motor: direct — vibrates until slider 0 (Stream Master reaction times ignored for levels).";
   }
   const warnings =
     (detail && detail.streamWarnings) ||

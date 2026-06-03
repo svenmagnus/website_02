@@ -31,11 +31,11 @@
       // Match Lovense Developer Dashboard (test phase: test: + site name)
       window.LOVENSE_SITE_NAME = "test:Tangent-Club";
       window.__LOVENSE_MODEL_NAME__ = "model1";
-      // false = use your Stream Master Rules / Special Commands (recommended after Lovense updates).
-      // true = direct LAN motor (optional fallback if tips fail).
-      window.DUALPEER_DIRECT_MOTOR = false;
+      // true = vibrate until slider 0 (direct motor, no Stream Master reaction time).
+      // false = Stream Master token tips (fixed seconds per Basic Level).
+      window.DUALPEER_DIRECT_MOTOR = true;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8467"></script>
+    <script src="assets/lovense-broadcast.js?v=8468"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -1074,7 +1074,7 @@
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/technique-presets.js?v=8425"></script>
     <script src="assets/ui-shell.js?v=8464"></script>
-    <script src="assets/app.js?v=8467"></script>
+    <script src="assets/app.js?v=8468"></script>
     <script src="assets/auth.js?v=8464"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8464"></script>

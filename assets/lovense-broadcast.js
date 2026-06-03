@@ -689,37 +689,36 @@
     stopMotorHold(resolvedId);
 
     let result = null;
-    const preferTips = !isDirectMotorMode() || !!cachedStreamSettings?.levels;
 
-    if (preferTips && tipTokens >= 1) {
-      result = tryStreamMasterTip(tipTokens, name, resolvedId);
-    }
-
-    if (!result?.ok && isDirectMotorMode() && hasLovenseSendCommand() && hasToysForCommands()) {
-      if (sendVibrateCommand(resolvedId, strength, { continuous: true })) {
-        startMotorHold(resolvedId, strength);
-        result = {
-          ok: true,
-          method: "sendCommand",
-          toyId: getCommandToyId(resolvedId),
-          tokens: tipTokens || null,
-          strength,
-          hint: `Motor ${strength}/20 (direct LAN)`,
-        };
+    if (isDirectMotorMode()) {
+      if (hasLovenseSendCommand() && hasToysForCommands()) {
+        if (sendVibrateCommand(resolvedId, strength, { continuous: true })) {
+          startMotorHold(resolvedId, strength);
+          result = {
+            ok: true,
+            method: "sendCommand",
+            toyId: getCommandToyId(resolvedId),
+            tokens: tipTokens || null,
+            strength,
+            hint: `Motor ${strength}/20 — runs until slider 0 (direct, not Stream Master time)`,
+          };
+        }
       }
-    }
-
-    if (!result?.ok) {
-      if (tipTokens < 1) {
+      if (!result?.ok && tipTokens >= 1) {
+        result = tryStreamMasterTip(tipTokens, name, resolvedId);
+        if (result?.ok) {
+          result.hint = `${tipTokens} tokens (timed — direct motor unavailable; open widget / Lovense Connect)`;
+        }
+      }
+      if (!result?.ok) {
         return {
           ok: false,
           method: "motor-failed",
-          hint: isDirectMotorMode()
-            ? "Direct motor failed — open Lovense widget or check Stream Master Basic Levels."
-            : "No token amount — open Lovense widget once to load Stream Master rules.",
+          hint:
+            "Direct motor failed — Lovense Connect + widget on this tab. Stream Master Basic Levels not used for hold.",
         };
       }
-
+    } else if (tipTokens >= 1) {
       result = tryStreamMasterTip(tipTokens, name, resolvedId);
       if (!result?.ok) {
         const fired = firePresetTip(tipTokens, name, resolvedId);
@@ -728,9 +727,15 @@
           method: "tip-failed",
           hint:
             fired.hint ||
-            `Tip ${tipTokens} failed — use a token inside your Basic Level ranges (e.g. Low 1–9 → 5).`,
+            `Tip ${tipTokens} failed — token must be inside Basic Level ranges in Stream Master.`,
         };
       }
+    } else {
+      return {
+        ok: false,
+        method: "no-tokens",
+        hint: "No token amount — set DUALPEER_DIRECT_MOTOR = true for hold-until-zero.",
+      };
     }
 
     if (result?.ok) {
@@ -1029,7 +1034,12 @@
   function scheduleBoot() {
     if (bootScheduled) return;
     bootScheduled = true;
-    const boot = () => init();
+    const boot = () => {
+      init();
+      if (typeof global.loadLovenseLanScript === "function") {
+        global.loadLovenseLanScript().catch(() => false);
+      }
+    };
 
     if (document.readyState === "complete") {
       setTimeout(boot, 50);
