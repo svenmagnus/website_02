@@ -2457,6 +2457,12 @@ footer {
   text-decoration: none;
 }
 
+.site-footer-copyright {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
 .site-footer-note {
   margin: 0;
 }
