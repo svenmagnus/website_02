@@ -54,6 +54,9 @@
         remoteName: raw.remoteName || base.remoteName,
         remoteText: raw.remoteText || base.remoteText,
         fontSize: Number(raw.fontSize) || base.fontSize,
+        partnerColorsUnlocked: Boolean(raw.partnerColorsUnlocked),
+        partnerColorsPending: Boolean(raw.partnerColorsPending),
+        partnerColorsApprovalPending: Boolean(raw.partnerColorsApprovalPending),
       };
     } catch (_) {
       return defaultSettings();
@@ -103,6 +106,7 @@
 
     const msg = document.createElement("div");
     msg.className = `chat-message chat-message--${role} chat-message--compact`;
+    msg.classList.add(isSelf ? "local" : "remote");
     if (msgKind === "system") msg.classList.add("chat-message--system");
     if (msgKind === "technique") msg.classList.add("chat-message--technique");
 
@@ -130,6 +134,91 @@
     return msg;
   }
 
+  function updatePartnerColorsUi(settings) {
+    const s = settings || loadSettings();
+    const group = document.getElementById("chatPartnerColorsGroup");
+    const hint = document.getElementById("chatPartnerColorsHint");
+    const requestBtn = document.getElementById("btnChatPartnerColorsRequest");
+    const approveBtn = document.getElementById("btnChatPartnerColorsApprove");
+    const nameInput = document.getElementById("chatRemoteNameColor");
+    const textInput = document.getElementById("chatRemoteTextColor");
+    const unlocked = s.partnerColorsUnlocked;
+
+    if (nameInput instanceof HTMLInputElement) nameInput.disabled = !unlocked;
+    if (textInput instanceof HTMLInputElement) textInput.disabled = !unlocked;
+    group?.classList.toggle("is-locked", !unlocked);
+
+    if (hint) {
+      hint.className = "chat-settings-partner-hint";
+      if (s.partnerColorsApprovalPending) {
+        hint.textContent = "Your partner wants to customize how they see your messages. Approve?";
+        hint.classList.add("pending");
+      } else if (s.partnerColorsPending) {
+        hint.textContent = "Waiting for partner approval…";
+        hint.classList.add("pending");
+      } else if (unlocked) {
+        hint.textContent = "Approved — these colors apply to your partner on your screen only.";
+        hint.classList.add("ok");
+      } else {
+        hint.textContent = "Customize how you see your partner. Requires their approval first.";
+      }
+    }
+
+    if (requestBtn instanceof HTMLButtonElement) {
+      requestBtn.hidden = unlocked || s.partnerColorsPending;
+      requestBtn.disabled = Boolean(s.partnerColorsPending);
+    }
+    if (approveBtn instanceof HTMLButtonElement) {
+      approveBtn.hidden = !s.partnerColorsApprovalPending;
+    }
+  }
+
+  function requestPartnerColorsApproval() {
+    const s = loadSettings();
+    if (s.partnerColorsUnlocked) return;
+    saveSettings({ ...s, partnerColorsPending: true });
+    updatePartnerColorsUi(loadSettings());
+    global.dispatchEvent(new CustomEvent("dualpeer-chat-partner-colors-request"));
+  }
+
+  function grantPartnerColorsApproval() {
+    saveSettings({
+      ...loadSettings(),
+      partnerColorsApprovalPending: false,
+    });
+    updatePartnerColorsUi(loadSettings());
+    global.dispatchEvent(new CustomEvent("dualpeer-chat-partner-colors-grant"));
+  }
+
+  function onPartnerColorsRequest(fromName) {
+    saveSettings({
+      ...loadSettings(),
+      partnerColorsApprovalPending: true,
+    });
+    updatePartnerColorsUi(loadSettings());
+    const panel = document.getElementById("chatSettings");
+    if (panel instanceof HTMLDetailsElement) panel.open = true;
+    if (global.playTechniqueBell) global.playTechniqueBell();
+    void fromName;
+  }
+
+  function onPartnerColorsGrant() {
+    saveSettings({
+      ...loadSettings(),
+      partnerColorsUnlocked: true,
+      partnerColorsPending: false,
+    });
+    updatePartnerColorsUi(loadSettings());
+  }
+
+  function onPartnerColorsDenied() {
+    saveSettings({
+      ...loadSettings(),
+      partnerColorsPending: false,
+    });
+    updatePartnerColorsUi(loadSettings());
+  }
+
   function fillSettingsForm(settings) {
     const map = {
       chatLocalNameColor: settings.localName,
@@ -145,20 +234,25 @@
     });
     const label = document.getElementById("chatFontSizeVal");
     if (label) label.textContent = `${settings.fontSize}px`;
+    updatePartnerColorsUi(settings);
   }
 
   function readSettingsForm() {
+    const s = loadSettings();
     const pick = (id) => {
       const el = document.getElementById(id);
       return el instanceof HTMLInputElement ? el.value : "";
     };
-    return saveSettings({
+    const next = {
+      fontSize: Number(pick("chatFontSize")) || defaultSettings().fontSize,
       localName: pick("chatLocalNameColor"),
       localText: pick("chatLocalTextColor"),
-      remoteName: pick("chatRemoteNameColor"),
-      remoteText: pick("chatRemoteTextColor"),
-      fontSize: Number(pick("chatFontSize")) || defaultSettings().fontSize,
-    });
+    };
+    if (s.partnerColorsUnlocked) {
+      next.remoteName = pick("chatRemoteNameColor");
+      next.remoteText = pick("chatRemoteTextColor");
+    }
+    return saveSettings(next);
   }
 
   function initChatSettingsUI() {
@@ -189,9 +283,20 @@
       } catch (_) {
         /* ignore */
       }
-      const defaults = defaultSettings();
+      const defaults = { ...defaultSettings(), partnerColorsUnlocked: false };
       applySettings(defaults);
       fillSettingsForm(defaults);
+    });
+
+    document.getElementById("btnChatPartnerColorsRequest")?.addEventListener("click", () => {
+      requestPartnerColorsApproval();
+    });
+    document.getElementById("btnChatPartnerColorsApprove")?.addEventListener("click", () => {
+      grantPartnerColorsApproval();
+    });
+
+    global.addEventListener("dualpeer-chat-partner-colors-denied", () => {
+      onPartnerColorsDenied();
     });
   }
 
@@ -202,6 +307,10 @@
     defaultSettings,
     buildMessageElement,
     initChatSettingsUI,
+    onPartnerColorsRequest,
+    onPartnerColorsGrant,
+    onPartnerColorsDenied,
+    updatePartnerColorsUi,
   };
 
   if (document.readyState === "loading") {

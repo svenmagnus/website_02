@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8587" />
+    <link rel="stylesheet" href="assets/styles.css?v=8589" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -1045,16 +1045,27 @@
                     <input type="color" id="chatLocalTextColor" value="#bae6fd" />
                   </label>
                 </fieldset>
-                <fieldset class="chat-settings-group">
+                <fieldset class="chat-settings-group" id="chatPartnerColorsGroup">
                   <legend>Partner</legend>
+                  <p class="chat-settings-partner-hint" id="chatPartnerColorsHint">
+                    Customize how you see your partner. Requires their approval first.
+                  </p>
                   <label class="chat-settings-color">
                     Name
-                    <input type="color" id="chatRemoteNameColor" value="#fb923c" />
+                    <input type="color" id="chatRemoteNameColor" value="#fb923c" disabled />
                   </label>
                   <label class="chat-settings-color">
                     Text
-                    <input type="color" id="chatRemoteTextColor" value="#fde68a" />
+                    <input type="color" id="chatRemoteTextColor" value="#fde68a" disabled />
                   </label>
+                  <div class="chat-settings-partner-actions">
+                    <button type="button" class="secondary" id="btnChatPartnerColorsRequest">
+                      Ask partner
+                    </button>
+                    <button type="button" class="primary" id="btnChatPartnerColorsApprove" hidden>
+                      Approve
+                    </button>
+                  </div>
                 </fieldset>
               </div>
               <div class="chat-settings-row chat-settings-size-row">
@@ -1203,8 +1214,8 @@
     <script src="assets/play-prefs.js?v=8570"></script>
     <script src="assets/technique-presets.js?v=8572"></script>
     <script src="assets/ui-shell.js?v=8483"></script>
-    <script src="assets/chat-settings.js?v=8587"></script>
-    <script src="assets/app.js?v=8588"></script>
+    <script src="assets/chat-settings.js?v=8589"></script>
+    <script src="assets/app.js?v=8589"></script>
     <script src="assets/auth.js?v=8583"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8588"></script>

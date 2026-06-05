@@ -2304,11 +2304,13 @@ html[data-theme="cb-dark"] .chat-messages {
   margin-right: 0.35rem;
 }
 
-.chat-message.local .chat-sender {
+.chat-message.local .chat-sender,
+.chat-message.chat-message--local .chat-sender {
   color: var(--chat-local-name-color, var(--accent));
 }
 
-.chat-message.local .chat-text {
+.chat-message.local .chat-text,
+.chat-message.chat-message--local .chat-text {
   color: var(--chat-local-text-color, var(--text));
 }
 
@@ -2338,7 +2340,8 @@ html[data-theme="cb-dark"] .chat-messages {
   font-weight: 600;
 }
 
-.chat-message--technique.local .chat-text {
+.chat-message--technique.local .chat-text,
+.chat-message--technique.chat-message--local .chat-text {
   color: var(--chat-local-text-color, var(--text));
 }
 
@@ -2451,6 +2454,41 @@ html[data-theme="cb-dark"] .chat-messages {
 .chat-settings-size input[type="range"] {
   flex: 1;
   min-width: 5rem;
+}
+
+.chat-settings-group.is-locked {
+  opacity: 0.72;
+}
+
+.chat-settings-group.is-locked input[type="color"] {
+  pointer-events: none;
+}
+
+.chat-settings-partner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.chat-settings-partner-actions button {
+  font-size: 0.72rem;
+  padding: 0.22rem 0.45rem;
+}
+
+.chat-settings-partner-hint {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin: 0.25rem 0 0;
+  line-height: 1.35;
+}
+
+.chat-settings-partner-hint.ok {
+  color: var(--ok, #22c55e);
+}
+
+.chat-settings-partner-hint.pending {
+  color: var(--accent);
 }
 
 .chat-settings-reset {

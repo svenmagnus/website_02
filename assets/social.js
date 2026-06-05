@@ -501,6 +501,7 @@
     const kind =
       m.kind === "system" ? "system" : m.kind === "technique" ? (isLocal ? "local" : "remote") : isLocal ? "local" : "remote";
     msg.className = `chat-message chat-message--${kind} chat-message--compact`;
+    msg.classList.add(isLocal ? "local" : "remote");
     if (kind === "system") msg.classList.add("chat-message--system");
     if (m.kind === "technique") msg.classList.add("chat-message--technique");
     const line = document.createElement("div");

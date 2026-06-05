@@ -2999,6 +2999,18 @@ function handleIncomingDataMessage(raw) {
     }
     return;
   }
+  if (data.type === "chat_partner_colors_request") {
+    global.DualPeerChatUi?.onPartnerColorsRequest?.(data.fromName);
+    return;
+  }
+  if (data.type === "chat_partner_colors_grant") {
+    global.DualPeerChatUi?.onPartnerColorsGrant?.();
+    return;
+  }
+  if (data.type === "chat_partner_colors_denied") {
+    global.DualPeerChatUi?.onPartnerColorsDenied?.();
+    return;
+  }
   if (data.type === "session_end") {
     endSessionChat();
     return;
@@ -3803,6 +3815,21 @@ function initMemberProfileBridge() {
   });
   window.addEventListener("dualpeer-profile-share-request", () => {
     shareMemberProfileOverDataChannel();
+  });
+  window.addEventListener("dualpeer-chat-partner-colors-request", () => {
+    if (!dataConn?.open) return;
+    sendDataChannelMessage({
+      type: "chat_partner_colors_request",
+      fromName: getChatDisplayName(),
+      ts: Date.now(),
+    });
+  });
+  window.addEventListener("dualpeer-chat-partner-colors-grant", () => {
+    if (!dataConn?.open) return;
+    sendDataChannelMessage({
+      type: "chat_partner_colors_grant",
+      ts: Date.now(),
+    });
   });
 }
 
