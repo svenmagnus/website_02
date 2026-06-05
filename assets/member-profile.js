@@ -364,9 +364,9 @@
       location: locationEl instanceof HTMLInputElement ? locationEl.value : "",
       bio: bioEl instanceof HTMLTextAreaElement ? bioEl.value : "",
       lovenseToys: toysEl instanceof HTMLTextAreaElement ? toysEl.value : "",
-      techniques: filterTechniquesForDynamics(
+      techniques: filterTechniquesForPlayPrefs(
         getCheckedTechniqueIds(),
-        readPlayPrefsFromForm().dynamics,
+        readPlayPrefsFromForm(),
         current.customTechniques
       ),
       customTechniques: current.customTechniques,
@@ -589,26 +589,26 @@
     renderGroup("profileDynamicsList", PP.DYNAMICS, "profileDynamics", prefs.dynamics);
     renderGroup("profileKinksList", PP.KINKS, "profileKinks", prefs.kinks);
     renderGroup("profileIntensityList", PP.INTENSITY, "profileIntensity", prefs.intensity);
-    attachDynamicsChangeListener();
+    attachPlayPrefsChangeListener();
   }
 
-  let dynamicsListenerBound = false;
+  let prefsListenerBound = false;
 
-  function enabledPresetIds(dynamics) {
-    return global.DualPeerTechniques?.presetIdsForDynamics?.(dynamics) || new Set();
+  function enabledPresetIds(playPrefs) {
+    return global.DualPeerTechniques?.presetIdsForPlayPrefs?.(playPrefs) || new Set();
   }
 
-  function filterTechniquesForDynamics(techniqueIds, dynamics, customTechniques) {
-    const allowed = enabledPresetIds(dynamics);
+  function filterTechniquesForPlayPrefs(techniqueIds, playPrefs, customTechniques) {
+    const allowed = enabledPresetIds(playPrefs);
     const customIds = new Set((customTechniques || []).map((c) => c.id));
     const builtIn = builtInTechniqueIds();
     return techniqueIds.filter((id) => customIds.has(id) || !builtIn.has(id) || allowed.has(id));
   }
 
-  function onDynamicsPrefChange() {
-    const dynamics = dynamicsForPlaybook();
+  function onPlayPrefsChange() {
+    const playPrefs = playPrefsForPlaybook();
     const customIds = new Set(loadProfile().customTechniques.map((c) => c.id));
-    const allowed = enabledPresetIds(dynamics);
+    const allowed = enabledPresetIds(playPrefs);
     const checked = getCheckedTechniqueIds().filter(
       (id) => customIds.has(id) || allowed.has(id)
     );
@@ -616,22 +616,31 @@
     setTechniqueChecks(checked);
   }
 
-  function attachDynamicsChangeListener() {
-    if (dynamicsListenerBound) return;
-    const root = document.getElementById("profileDynamicsList");
-    if (!root) return;
-    root.addEventListener("change", (e) => {
-      if (e.target instanceof HTMLInputElement && e.target.name === "profileDynamics") {
-        onDynamicsPrefChange();
+  function attachPlayPrefsChangeListener() {
+    if (prefsListenerBound) return;
+    const form = document.getElementById("profileForm");
+    if (!form) return;
+    form.addEventListener("change", (e) => {
+      if (!(e.target instanceof HTMLInputElement)) return;
+      const { name } = e.target;
+      if (
+        name === "profileDynamics" ||
+        name === "profileKinks" ||
+        name === "profileIntensity"
+      ) {
+        onPlayPrefsChange();
       }
     });
-    dynamicsListenerBound = true;
+    prefsListenerBound = true;
   }
 
-  function dynamicsForPlaybook() {
-    const hasInputs = document.querySelectorAll('input[name="profileDynamics"]').length > 0;
-    if (hasInputs) return readPlayPrefsFromForm().dynamics;
-    return loadProfile().playPrefs.dynamics;
+  function playPrefsForPlaybook() {
+    const hasInputs =
+      document.querySelectorAll(
+        'input[name="profileDynamics"], input[name="profileKinks"], input[name="profileIntensity"]'
+      ).length > 0;
+    if (hasInputs) return readPlayPrefsFromForm();
+    return loadProfile().playPrefs;
   }
 
   function renderTechniqueChecklist() {
@@ -641,31 +650,29 @@
     if (presetRoot) {
       presetRoot.innerHTML = "";
       const sections =
-        global.DualPeerTechniques?.presetSectionsForDynamics?.(dynamicsForPlaybook()) || [];
+        global.DualPeerTechniques?.presetSectionsForPlayPrefs?.(playPrefsForPlaybook()) || [];
+      if (!sections.length) {
+        const empty = document.createElement("p");
+        empty.className = "technique-empty-note";
+        empty.textContent =
+          "Select roles, practices, or intensity above to add Playbook actions.";
+        presetRoot.appendChild(empty);
+      }
       sections.forEach((section) => {
         const wrap = document.createElement("div");
-        wrap.className = "profile-preset-section" + (section.enabled ? "" : " is-disabled");
+        wrap.className = "profile-preset-section";
 
         const title = document.createElement("p");
         title.className = "profile-preset-section-title";
         title.textContent = section.title;
         wrap.appendChild(title);
 
-        if (!section.enabled) {
-          const hint = document.createElement("p");
-          hint.className = "profile-preset-section-hint";
-          hint.textContent =
-            section.key === "dom"
-              ? "Check Dominant (Dom) or Switch above to enable."
-              : "Check Submissive (Sub) or Switch above to enable.";
-          wrap.appendChild(hint);
-        }
-
         const grid = document.createElement("div");
         grid.className = "profile-technique-grid";
         section.items.forEach((t) => {
-          const checked = section.enabled && p.techniques.includes(t.id);
-          grid.appendChild(buildTechniqueCheckbox(t.id, t.label, checked, false, !section.enabled));
+          grid.appendChild(
+            buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), false)
+          );
         });
         wrap.appendChild(grid);
         presetRoot.appendChild(wrap);

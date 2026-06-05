@@ -1948,14 +1948,6 @@ video {
   margin-bottom: 0.5rem;
 }
 
-.profile-preset-section.is-disabled {
-  opacity: 0.48;
-}
-
-.profile-preset-section.is-disabled .profile-technique-grid {
-  pointer-events: none;
-}
-
 .profile-preset-section-title {
   margin: 0.35rem 0 0.25rem;
   font-size: 0.8rem;
@@ -1963,16 +1955,6 @@ video {
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-
-.profile-preset-section-hint {
-  margin: 0 0 0.35rem;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.technique-check.is-disabled {
-  cursor: not-allowed;
 }
 
 .profile-techniques-field {
