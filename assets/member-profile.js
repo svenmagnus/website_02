@@ -163,6 +163,13 @@
       enabledCustomMenus,
       playPrefs: normalizePlayPrefs(raw.playPrefs),
       updatedAt: raw.updatedAt || Date.now(),
+      chatColors:
+        raw.chatColors && typeof raw.chatColors === "object"
+          ? {
+              name: String(raw.chatColors.name || "").trim(),
+              text: String(raw.chatColors.text || "").trim(),
+            }
+          : null,
     };
   }
 

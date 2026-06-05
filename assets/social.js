@@ -361,6 +361,13 @@
     if (clearChat) clearLiveChat({ deleteServer: true }).catch(() => {});
   }
 
+  function applyPartnerChatColors(partner) {
+    const colors = partner?.chatColors;
+    if (colors && global.DualPeerChatUi?.setPartnerSharedColors) {
+      global.DualPeerChatUi.setPartnerSharedColors(colors);
+    }
+  }
+
   async function selectPartnerById(partnerId) {
     const id = String(partnerId || "").trim();
     if (!id) return;
@@ -368,6 +375,7 @@
     if (thread?.id) {
       state.partner = thread.partner;
       state.threadId = thread.id;
+      applyPartnerChatColors(thread.partner);
       await loadThreadMessages(thread.id);
       return;
     }
@@ -801,6 +809,7 @@
       if (activeThread) {
         state.partner = activeThread.partner;
         state.threadId = activeThread.id;
+        applyPartnerChatColors(activeThread.partner);
         if (loadChat) {
           await loadThreadMessages(activeThread.id);
         }
@@ -963,6 +972,7 @@
     if (!unchanged && global.MemberProfile?.setPartnerProfile) {
       global.MemberProfile.setPartnerProfile(profile);
     }
+    if (profile.chatColors) applyPartnerChatColors({ chatColors: profile.chatColors });
     return profile;
   }
 

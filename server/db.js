@@ -129,6 +129,10 @@ function runMigrations(database) {
   if (!userColsAfter.includes("is_model")) {
     database.exec(`ALTER TABLE users ADD COLUMN is_model INTEGER NOT NULL DEFAULT 0`);
   }
+  userColsAfter = tableColumns(database, "users");
+  if (!userColsAfter.includes("chat_colors_json")) {
+    database.exec(`ALTER TABLE users ADD COLUMN chat_colors_json TEXT`);
+  }
   database.exec(`
     CREATE TABLE IF NOT EXISTS chat_threads (
       id TEXT PRIMARY KEY,

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db.js";
 import { getAppPublicUrl } from "./mail.js";
+import { chatColorsFromRow } from "./chat-colors.js";
 import { avatarUrlForUser } from "./profile-avatar.js";
 import {
   buildGoogleCalendarUrl,
@@ -63,6 +64,7 @@ function userPublicRow(row) {
     displayName: row.display_name || row.username,
     accountType: row.account_type === "host" ? "host" : "guest",
     avatarUrl: avatarUrlForUser(row),
+    chatColors: chatColorsFromRow(row),
   };
 }
 
@@ -109,6 +111,7 @@ function partnerPlaybookRow(row) {
       kinks: Array.isArray(playPrefs.kinks) ? playPrefs.kinks : [],
       intensity: Array.isArray(playPrefs.intensity) ? playPrefs.intensity : [],
     },
+    chatColors: chatColorsFromRow(row),
   };
 }
 

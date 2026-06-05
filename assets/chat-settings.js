@@ -103,6 +103,17 @@
   function shareMyDisplayColors() {
     global.dispatchEvent(new CustomEvent("dualpeer-chat-display-colors-share"));
     global.dispatchEvent(new CustomEvent("dualpeer-profile-share-request"));
+    syncMyChatColorsToServer();
+  }
+
+  let serverSyncTimer = null;
+  function syncMyChatColorsToServer() {
+    if (!global.DualPeerAuth?.isLoggedIn?.() || !global.DualPeerAuth?.updateProfile) return;
+    const colors = getMyDisplayColors();
+    clearTimeout(serverSyncTimer);
+    serverSyncTimer = setTimeout(() => {
+      global.DualPeerAuth.updateProfile({ chatColors: colors }).catch(() => {});
+    }, 350);
   }
 
   function setPartnerSharedColors(colors) {
@@ -123,8 +134,8 @@
 
   function applyRemoteColorsToLine(senderEl, textEl) {
     const colors = resolveRemoteColors();
-    if (senderEl) senderEl.style.color = colors.name;
-    if (textEl) textEl.style.color = colors.text;
+    if (senderEl) senderEl.style.setProperty("color", colors.name, "important");
+    if (textEl) textEl.style.setProperty("color", colors.text, "important");
   }
 
   function buildMessageElement({ isLocal, senderName, body, kind, createdAt, uid, message }) {
@@ -230,6 +241,7 @@
   function initChatSettingsUI() {
     applySettings(loadSettings());
     fillSettingsForm(loadSettings());
+    syncMyChatColorsToServer();
 
     const panel = document.getElementById("chatSettings");
     if (!panel) return;

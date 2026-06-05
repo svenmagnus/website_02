@@ -2864,6 +2864,15 @@ function shareChatDisplayColorsOverDataChannel() {
   });
 }
 
+function scheduleChatColorResync() {
+  [400, 1200, 3000].forEach((ms) => {
+    setTimeout(() => {
+      shareMemberProfileOverDataChannel();
+      shareChatDisplayColorsOverDataChannel();
+    }, ms);
+  });
+}
+
 function shareMemberProfileOverDataChannel() {
   if (!global.MemberProfile?.shareProfileOverDataChannel) return;
   MemberProfile.shareProfileOverDataChannel((payload) => sendDataChannelMessage(payload));
@@ -3031,6 +3040,7 @@ function handleIncomingDataMessage(raw) {
   if (data.type === "profile" || data.type === "profile_request") {
     if (data.type === "profile_request") {
       shareMemberProfileOverDataChannel();
+      shareChatDisplayColorsOverDataChannel();
       return;
     }
     if (global.MemberProfile?.handleIncomingProfile) MemberProfile.handleIncomingProfile(data);
@@ -3604,6 +3614,7 @@ function setupDataConnection(conn) {
     shareMemberProfileOverDataChannel();
     shareChatDisplayColorsOverDataChannel();
     sendDataChannelMessage({ type: "profile_request", ts: Date.now() });
+    scheduleChatColorResync();
   });
   conn.on("error", (err) => {
     setDataActivityStatus(
@@ -3619,6 +3630,7 @@ function setupDataConnection(conn) {
     shareMemberProfileOverDataChannel();
     shareChatDisplayColorsOverDataChannel();
     sendDataChannelMessage({ type: "profile_request", ts: Date.now() });
+    scheduleChatColorResync();
   }
 }
 
