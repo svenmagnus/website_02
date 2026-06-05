@@ -2471,55 +2471,6 @@ html[data-theme="cb-dark"] .chat-messages {
   line-height: 1.35;
 }
 
-.chat-settings-partner-preview {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.5rem;
-  margin-top: 0.35rem;
-}
-
-.chat-settings-swatch-label {
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-.chat-settings-swatch {
-  display: inline-block;
-  width: 1.75rem;
-  height: 1.25rem;
-  border-radius: 0.2rem;
-  border: 1px solid var(--border);
-  vertical-align: middle;
-}
-
-.chat-settings-partner-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
-}
-
-.chat-settings-partner-actions button {
-  font-size: 0.72rem;
-  padding: 0.22rem 0.45rem;
-}
-
-.chat-settings-partner-hint {
-  font-size: 0.68rem;
-  color: var(--muted);
-  margin: 0.25rem 0 0;
-  line-height: 1.35;
-}
-
-.chat-settings-partner-hint.ok {
-  color: var(--ok, #22c55e);
-}
-
-.chat-settings-partner-hint.pending {
-  color: var(--accent);
-}
-
 .chat-settings-reset {
   font-size: 0.72rem;
   padding: 0.25rem 0.5rem;

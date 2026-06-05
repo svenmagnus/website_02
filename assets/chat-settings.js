@@ -120,7 +120,6 @@
     const normalized = normalizeSharedColors(colors);
     if (!normalized) return;
     saveSettings({ partnerSharedColors: normalized });
-    updatePartnerPreview(loadSettings());
     global.dispatchEvent(new CustomEvent("dualpeer-chat-colors-updated"));
   }
 
@@ -186,28 +185,6 @@
     return msg;
   }
 
-  function updatePartnerPreview(settings) {
-    const s = settings || loadSettings();
-    const hint = document.getElementById("chatPartnerColorsHint");
-    const nameSwatch = document.getElementById("chatPartnerSharedNameSwatch");
-    const textSwatch = document.getElementById("chatPartnerSharedTextSwatch");
-    const colors = s.partnerSharedColors || resolveRemoteColors();
-
-    if (hint) {
-      hint.textContent = s.partnerSharedColors
-        ? "Your partner chose these colors under You — used for their messages here."
-        : "Waiting for partner colors (they set these under You on their screen).";
-    }
-    if (nameSwatch instanceof HTMLElement) {
-      nameSwatch.style.background = colors.name;
-      nameSwatch.title = colors.name;
-    }
-    if (textSwatch instanceof HTMLElement) {
-      textSwatch.style.background = colors.text;
-      textSwatch.title = colors.text;
-    }
-  }
-
   function fillSettingsForm(settings) {
     const map = {
       chatLocalNameColor: settings.localName,
@@ -221,7 +198,6 @@
     });
     const label = document.getElementById("chatFontSizeVal");
     if (label) label.textContent = `${settings.fontSize}px`;
-    updatePartnerPreview(settings);
   }
 
   function readSettingsForm() {
