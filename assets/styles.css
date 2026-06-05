@@ -2030,6 +2030,68 @@ video {
   margin: 0.65rem 0 0.35rem;
 }
 
+.profile-own-menus-field {
+  border: 1px dashed color-mix(in srgb, var(--border) 80%, var(--accent));
+  border-radius: 8px;
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 0.65rem 0.6rem;
+}
+
+.profile-own-menus-field legend {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 0.25rem;
+}
+
+.profile-custom-menus-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+}
+
+.profile-custom-menu-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+}
+
+.profile-custom-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.profile-custom-menu-head strong {
+  font-size: 0.85rem;
+}
+
+.profile-custom-menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.45rem;
+}
+
+.profile-custom-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  padding: 0.2rem 0;
+}
+
+.profile-custom-menu-add {
+  margin-top: 0.15rem;
+}
+
 .profile-technique-add {
   margin-top: 0.5rem;
   margin-bottom: 0.35rem;

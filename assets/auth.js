@@ -105,6 +105,8 @@
       location: user.location || "",
       techniques: user.techniques || [],
       customTechniques: user.customTechniques || [],
+      customMenus: user.customMenus || [],
+      enabledCustomMenus: user.enabledCustomMenus || [],
       playPrefs: user.playPrefs || { dynamics: [], kinks: [], intensity: [] },
       username: user.username,
       accountType: user.accountType === "host" ? "host" : "guest",
@@ -154,6 +156,12 @@
       customTechniques: Array.isArray(profile.customTechniques)
         ? profile.customTechniques
         : session.user?.customTechniques || [],
+      customMenus: Array.isArray(profile.customMenus)
+        ? profile.customMenus
+        : session.user?.customMenus || [],
+      enabledCustomMenus: Array.isArray(profile.enabledCustomMenus)
+        ? profile.enabledCustomMenus
+        : session.user?.enabledCustomMenus || [],
       playPrefs: profile.playPrefs || session.user?.playPrefs || { dynamics: [], kinks: [], intensity: [] },
       accountType: profile.accountType,
       isAdmin: profile.isAdmin,

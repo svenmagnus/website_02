@@ -230,6 +230,8 @@
       bio: profile.bio || "",
       techniques: Array.isArray(profile.techniques) ? profile.techniques : [],
       customTechniques: Array.isArray(profile.customTechniques) ? profile.customTechniques : [],
+      customMenus: Array.isArray(profile.customMenus) ? profile.customMenus : [],
+      enabledCustomMenus: Array.isArray(profile.enabledCustomMenus) ? profile.enabledCustomMenus : [],
       playPrefs: profile.playPrefs || null,
     });
   }

@@ -213,6 +213,12 @@ function runMigrations(database) {
   }
   if (!userColsPresence.includes("play_prefs_json")) {
     database.exec(`ALTER TABLE users ADD COLUMN play_prefs_json TEXT NOT NULL DEFAULT '{}'`);
+    userColsPresence = tableColumns(database, "users");
+  }
+  if (!userColsPresence.includes("custom_menus_json")) {
+    database.exec(
+      `ALTER TABLE users ADD COLUMN custom_menus_json TEXT NOT NULL DEFAULT '{"menus":[],"enabled":[]}'`
+    );
   }
 
   database.exec(`

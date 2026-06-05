@@ -46,6 +46,8 @@
       lovenseToys: "",
       techniques: [],
       customTechniques: [],
+      customMenus: [],
+      enabledCustomMenus: [],
       playPrefs: normalizePlayPrefs(null),
       updatedAt: Date.now(),
     };
@@ -58,6 +60,56 @@
       .replace(/^_|_$/g, "")
       .slice(0, 32);
     return `custom_${slug || "technique"}_${Date.now().toString(36).slice(-5)}`;
+  }
+
+  function makeCustomMenuId(title) {
+    const slug = String(title || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "")
+      .slice(0, 24);
+    return `menu_${slug || "menu"}_${Date.now().toString(36).slice(-5)}`;
+  }
+
+  function normalizeCustomMenus(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const menu of raw) {
+      const title = String(menu?.title || "").trim().slice(0, 32);
+      let id = String(menu?.id || "").trim();
+      if (!title) continue;
+      if (!id) id = makeCustomMenuId(title);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push({ id, title, items: normalizeCustomTechniques(menu?.items) });
+    }
+    return out;
+  }
+
+  function normalizeEnabledCustomMenus(raw, menuIds) {
+    const valid = new Set(menuIds || []);
+    if (!Array.isArray(raw)) return [];
+    return [...new Set(raw.map((id) => String(id)).filter((id) => valid.has(id)))];
+  }
+
+  function customMenuItemIds(profile, menuIds) {
+    const enabled = new Set(menuIds || profile.enabledCustomMenus || []);
+    const ids = [];
+    (profile.customMenus || []).forEach((menu) => {
+      if (!enabled.has(menu.id)) return;
+      (menu.items || []).forEach((item) => {
+        if (item?.id) ids.push(item.id);
+      });
+    });
+    return ids;
+  }
+
+  function allCustomTechniqueIds(profile) {
+    const p = profile || loadProfile();
+    const ids = new Set((p.customTechniques || []).map((c) => c.id));
+    customMenuItemIds(p, p.enabledCustomMenus).forEach((id) => ids.add(id));
+    return ids;
   }
 
   function normalizeCustomTechniques(raw) {
@@ -81,8 +133,17 @@
     if (!raw || typeof raw !== "object") return base;
 
     const customTechniques = normalizeCustomTechniques(raw.customTechniques);
+    const customMenus = normalizeCustomMenus(raw.customMenus);
+    const enabledCustomMenus = normalizeEnabledCustomMenus(
+      raw.enabledCustomMenus,
+      customMenus.map((m) => m.id)
+    );
     const builtInIds = builtInTechniqueIds();
-    const customIds = new Set(customTechniques.map((c) => c.id));
+    const customIds = allCustomTechniqueIds({
+      customTechniques,
+      customMenus,
+      enabledCustomMenus,
+    });
     const techniques = Array.isArray(raw.techniques)
       ? [...new Set(raw.techniques.filter((id) => builtInIds.has(id) || customIds.has(id)))]
       : [];
@@ -98,6 +159,8 @@
       lovenseToys: String(raw.lovenseToys || "").trim().slice(0, 500),
       techniques,
       customTechniques,
+      customMenus,
+      enabledCustomMenus,
       playPrefs: normalizePlayPrefs(raw.playPrefs),
       updatedAt: raw.updatedAt || Date.now(),
     };
@@ -119,6 +182,8 @@
       lovenseToys: raw.lovenseToys,
       techniques: raw.techniques,
       customTechniques: raw.customTechniques,
+      customMenus: raw.customMenus,
+      enabledCustomMenus: raw.enabledCustomMenus,
       playPrefs: raw.playPrefs,
     });
   }
@@ -167,6 +232,8 @@
         lovenseToys: next.lovenseToys,
         techniques: next.techniques,
         customTechniques: next.customTechniques,
+        customMenus: next.customMenus,
+        enabledCustomMenus: next.enabledCustomMenus,
         playPrefs: next.playPrefs,
       }).catch(() => {
         /* keep local copy; user can retry save */
@@ -194,6 +261,10 @@
     if (builtIn) return builtIn.label;
     const custom = (p.customTechniques || []).find((c) => c.id === id);
     if (custom) return custom.label;
+    for (const menu of p.customMenus || []) {
+      const item = (menu.items || []).find((c) => c.id === id);
+      if (item) return item.label;
+    }
     return String(id || "").replace(/_/g, " ");
   }
 
@@ -211,6 +282,12 @@
       bio: p.bio,
       techniques: [...p.techniques],
       customTechniques: p.customTechniques.map((c) => ({ ...c })),
+      customMenus: p.customMenus.map((m) => ({
+        id: m.id,
+        title: m.title,
+        items: (m.items || []).map((c) => ({ ...c })),
+      })),
+      enabledCustomMenus: [...p.enabledCustomMenus],
       playPrefs: {
         dynamics: [...(p.playPrefs?.dynamics || [])],
         kinks: [...(p.playPrefs?.kinks || [])],
@@ -225,6 +302,12 @@
       ...partnerProfile,
       techniques: [...partnerProfile.techniques],
       customTechniques: (partnerProfile.customTechniques || []).map((c) => ({ ...c })),
+      customMenus: (partnerProfile.customMenus || []).map((m) => ({
+        id: m.id,
+        title: m.title,
+        items: (m.items || []).map((c) => ({ ...c })),
+      })),
+      enabledCustomMenus: [...(partnerProfile.enabledCustomMenus || [])],
     };
   }
 
@@ -369,12 +452,14 @@
       location: locationEl instanceof HTMLInputElement ? locationEl.value : "",
       bio: bioEl instanceof HTMLTextAreaElement ? bioEl.value : "",
       lovenseToys: toysEl instanceof HTMLTextAreaElement ? toysEl.value : "",
-      techniques: filterTechniquesForPlayPrefs(
-        getCheckedTechniqueIds(),
-        readPlayPrefsFromForm(),
-        current.customTechniques
-      ),
+      techniques: filterTechniquesForPlayPrefs(getCheckedTechniqueIds(), readPlayPrefsFromForm(), {
+        customTechniques: current.customTechniques,
+        customMenus: current.customMenus,
+        enabledCustomMenus: getCheckedOwnMenuIds(),
+      }),
       customTechniques: current.customTechniques,
+      customMenus: current.customMenus,
+      enabledCustomMenus: getCheckedOwnMenuIds(),
       playPrefs: readPlayPrefsFromForm(),
     });
   }
@@ -603,16 +688,31 @@
     return global.DualPeerTechniques?.presetIdsForPlayPrefs?.(playPrefs) || new Set();
   }
 
-  function filterTechniquesForPlayPrefs(techniqueIds, playPrefs, customTechniques) {
+  function filterTechniquesForPlayPrefs(techniqueIds, playPrefs, profileLike) {
     const allowed = enabledPresetIds(playPrefs);
-    const customIds = new Set((customTechniques || []).map((c) => c.id));
+    const customIds = allCustomTechniqueIds(profileLike);
     const builtIn = builtInTechniqueIds();
     return techniqueIds.filter((id) => customIds.has(id) || !builtIn.has(id) || allowed.has(id));
   }
 
-  function onPlayPrefsChange() {
+  function getCheckedOwnMenuIds() {
+    const hasInputs = document.querySelector('input[name="profileOwnMenu"]');
+    if (!hasInputs) return loadProfile().enabledCustomMenus || [];
+    const ids = [];
+    document.querySelectorAll('input[name="profileOwnMenu"]:checked').forEach((el) => {
+      if (el instanceof HTMLInputElement && el.value) ids.push(el.value);
+    });
+    return ids;
+  }
+
+  function onPlaybookVisibilityChange() {
     const playPrefs = playPrefsForPlaybook();
-    const customIds = new Set(loadProfile().customTechniques.map((c) => c.id));
+    const profile = loadProfile();
+    const enabledMenus = getCheckedOwnMenuIds();
+    const customIds = allCustomTechniqueIds({
+      ...profile,
+      enabledCustomMenus: enabledMenus,
+    });
     const allowed = enabledPresetIds(playPrefs);
     const checked = getCheckedTechniqueIds().filter(
       (id) => customIds.has(id) || allowed.has(id)
@@ -631,9 +731,10 @@
       if (
         name === "profileDynamics" ||
         name === "profileKinks" ||
-        name === "profileIntensity"
+        name === "profileIntensity" ||
+        name === "profileOwnMenu"
       ) {
-        onPlayPrefsChange();
+        onPlaybookVisibilityChange();
       }
     });
     prefsListenerBound = true;
@@ -648,19 +749,59 @@
     return loadProfile().playPrefs;
   }
 
+  function renderOwnMenusChecklist() {
+    const root = document.getElementById("profileOwnMenusList");
+    if (!root) return;
+    const p = loadProfile();
+    root.innerHTML = "";
+    if (!p.customMenus.length) {
+      const empty = document.createElement("p");
+      empty.className = "technique-empty-note";
+      empty.textContent = "No own menus yet — create one under Create own menus.";
+      root.appendChild(empty);
+      return;
+    }
+    p.customMenus.forEach((menu) => {
+      root.appendChild(
+        buildPrefCheckbox(
+          "profileOwnMenu",
+          menu.id,
+          menu.title,
+          p.enabledCustomMenus.includes(menu.id)
+        )
+      );
+    });
+  }
+
+  function enabledCustomMenuSections(profile, enabledMenuIds) {
+    const enabled = new Set(enabledMenuIds || profile.enabledCustomMenus || []);
+    return (profile.customMenus || [])
+      .filter((menu) => enabled.has(menu.id) && menu.items?.length)
+      .map((menu) => ({
+        key: menu.id,
+        title: menu.title,
+        items: menu.items,
+        isCustomMenu: true,
+      }));
+  }
+
   function renderTechniqueChecklist() {
     const presetRoot = document.getElementById("profileTechniqueList");
     const customRoot = document.getElementById("profileCustomTechniqueList");
     const p = loadProfile();
+    renderOwnMenusChecklist();
+    const enabledMenus = getCheckedOwnMenuIds();
     if (presetRoot) {
       presetRoot.innerHTML = "";
-      const sections =
-        global.DualPeerTechniques?.presetSectionsForPlayPrefs?.(playPrefsForPlaybook()) || [];
+      const sections = [
+        ...(global.DualPeerTechniques?.presetSectionsForPlayPrefs?.(playPrefsForPlaybook()) || []),
+        ...enabledCustomMenuSections(p, enabledMenus),
+      ];
       if (!sections.length) {
         const empty = document.createElement("p");
         empty.className = "technique-empty-note";
         empty.textContent =
-          "Select roles, practices, or intensity above to add Playbook actions.";
+          "Select roles, practices, or intensity above — or check an own menu — to add Playbook actions.";
         presetRoot.appendChild(empty);
       }
       sections.forEach((section) => {
@@ -676,7 +817,12 @@
         grid.className = "profile-technique-grid";
         section.items.forEach((t) => {
           grid.appendChild(
-            buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), false)
+            buildTechniqueCheckbox(
+              t.id,
+              t.label,
+              p.techniques.includes(t.id),
+              Boolean(section.isCustomMenu)
+            )
           );
         });
         wrap.appendChild(grid);
@@ -753,6 +899,151 @@
     profile.techniques = profile.techniques.filter((tid) => tid !== id);
     saveProfile(profile);
     renderTechniqueChecklist();
+    renderCustomMenusEditor();
+  }
+
+  function addCustomMenu(title) {
+    const trimmed = String(title || "").trim().slice(0, 32);
+    if (!trimmed) return { ok: false, error: "Enter a menu name." };
+    const profile = loadProfile();
+    const duplicate = profile.customMenus.some(
+      (m) => m.title.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (duplicate) return { ok: false, error: "This menu already exists." };
+    const id = makeCustomMenuId(trimmed);
+    profile.customMenus.push({ id, title: trimmed, items: [] });
+    if (!profile.enabledCustomMenus.includes(id)) profile.enabledCustomMenus.push(id);
+    saveProfile(profile);
+    renderTechniqueChecklist();
+    renderCustomMenusEditor();
+    return { ok: true };
+  }
+
+  function removeCustomMenu(menuId) {
+    const profile = loadProfile();
+    const menu = profile.customMenus.find((m) => m.id === menuId);
+    if (!menu) return;
+    const itemIds = new Set((menu.items || []).map((i) => i.id));
+    profile.customMenus = profile.customMenus.filter((m) => m.id !== menuId);
+    profile.enabledCustomMenus = profile.enabledCustomMenus.filter((id) => id !== menuId);
+    profile.techniques = profile.techniques.filter((id) => !itemIds.has(id));
+    saveProfile(profile);
+    renderTechniqueChecklist();
+    renderCustomMenusEditor();
+  }
+
+  function addCustomMenuItem(menuId, label) {
+    const trimmed = String(label || "").trim().slice(0, 48);
+    if (!trimmed) return { ok: false, error: "Enter an action name." };
+    const profile = loadProfile();
+    const menu = profile.customMenus.find((m) => m.id === menuId);
+    if (!menu) return { ok: false, error: "Menu not found." };
+    const duplicate = (menu.items || []).some(
+      (item) => item.label.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (duplicate) return { ok: false, error: "This action already exists in the menu." };
+    const id = makeCustomTechniqueId(trimmed);
+    menu.items.push({ id, label: trimmed });
+    if (!profile.techniques.includes(id)) profile.techniques.push(id);
+    saveProfile(profile);
+    renderTechniqueChecklist();
+    renderCustomMenusEditor();
+    return { ok: true };
+  }
+
+  function removeCustomMenuItem(menuId, itemId) {
+    const profile = loadProfile();
+    const menu = profile.customMenus.find((m) => m.id === menuId);
+    if (!menu) return;
+    menu.items = (menu.items || []).filter((item) => item.id !== itemId);
+    profile.techniques = profile.techniques.filter((id) => id !== itemId);
+    saveProfile(profile);
+    renderTechniqueChecklist();
+    renderCustomMenusEditor();
+  }
+
+  function renderCustomMenusEditor() {
+    const root = document.getElementById("profileCustomMenusEditor");
+    if (!root) return;
+    const p = loadProfile();
+    root.innerHTML = "";
+    if (!p.customMenus.length) {
+      const empty = document.createElement("p");
+      empty.className = "technique-empty-note";
+      empty.textContent = "No menus yet — enter a name above and click Create menu.";
+      root.appendChild(empty);
+      return;
+    }
+    p.customMenus.forEach((menu) => {
+      const card = document.createElement("div");
+      card.className = "profile-custom-menu-card";
+
+      const head = document.createElement("div");
+      head.className = "profile-custom-menu-head";
+      const title = document.createElement("strong");
+      title.textContent = menu.title;
+      const deleteMenuBtn = document.createElement("button");
+      deleteMenuBtn.type = "button";
+      deleteMenuBtn.className = "technique-remove-btn";
+      deleteMenuBtn.textContent = "Delete menu";
+      deleteMenuBtn.addEventListener("click", () => removeCustomMenu(menu.id));
+      head.appendChild(title);
+      head.appendChild(deleteMenuBtn);
+      card.appendChild(head);
+
+      const itemsWrap = document.createElement("div");
+      itemsWrap.className = "profile-custom-menu-items";
+      if (!menu.items?.length) {
+        const empty = document.createElement("p");
+        empty.className = "technique-empty-note";
+        empty.textContent = "No actions in this menu yet.";
+        itemsWrap.appendChild(empty);
+      } else {
+        menu.items.forEach((item) => {
+          const row = document.createElement("div");
+          row.className = "profile-custom-menu-item";
+          const label = document.createElement("span");
+          label.textContent = item.label;
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.className = "technique-remove-btn";
+          removeBtn.textContent = "Remove";
+          removeBtn.addEventListener("click", () => removeCustomMenuItem(menu.id, item.id));
+          row.appendChild(label);
+          row.appendChild(removeBtn);
+          itemsWrap.appendChild(row);
+        });
+      }
+      card.appendChild(itemsWrap);
+
+      const addRow = document.createElement("div");
+      addRow.className = "profile-technique-add row profile-custom-menu-add";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = 48;
+      input.placeholder = "Add action to this menu …";
+      input.autocomplete = "off";
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "secondary";
+      addBtn.textContent = "Add action";
+      const runAdd = () => {
+        const result = addCustomMenuItem(menu.id, input.value);
+        if (result.ok) input.value = "";
+      };
+      addBtn.addEventListener("click", runAdd);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          runAdd();
+        }
+      });
+      addRow.appendChild(input);
+      addRow.appendChild(addBtn);
+      card.appendChild(addRow);
+
+      root.appendChild(card);
+    });
   }
 
   function renderPartnerTechniqueButtons() {
@@ -938,6 +1229,7 @@
     renderPlayPrefsChecklists(p);
     fillProfileForm(p);
     renderTechniqueChecklist();
+    renderCustomMenusEditor();
     initProfileAvatar();
     refreshAccountMini();
     initWelcomeBannerDismiss();
@@ -976,6 +1268,39 @@
       });
     }
 
+    const menuBtn = document.getElementById("btnAddCustomMenu");
+    const menuInput = document.getElementById("profileCustomMenuInput");
+    const runAddMenu = () => {
+      const result = addCustomMenu(menuInput?.value || "");
+      const msg = document.getElementById("profileSaveStatus");
+      if (!result.ok) {
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = result.error || "Could not create menu.";
+          msg.className = "status-line err";
+        }
+        return;
+      }
+      if (menuInput instanceof HTMLInputElement) menuInput.value = "";
+      if (msg) {
+        msg.hidden = false;
+        msg.textContent = "Menu created — add actions below and check it under Own menus.";
+        msg.className = "status-line ok";
+        setTimeout(() => {
+          msg.hidden = true;
+        }, 2400);
+      }
+    };
+    if (menuBtn) menuBtn.addEventListener("click", runAddMenu);
+    if (menuInput) {
+      menuInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          runAddMenu();
+        }
+      });
+    }
+
     const form = document.getElementById("profileForm");
     if (form) {
       form.addEventListener("submit", async (e) => {
@@ -1000,12 +1325,15 @@
               lovenseToys: draft.lovenseToys,
               techniques: draft.techniques,
               customTechniques: draft.customTechniques,
+              customMenus: draft.customMenus,
+              enabledCustomMenus: draft.enabledCustomMenus,
               playPrefs: draft.playPrefs,
             });
             const saved = persistLocal(profileFromAuth(updated) || draft);
             renderPlayPrefsChecklists(saved);
             fillProfileForm(saved);
             renderTechniqueChecklist();
+            renderCustomMenusEditor();
             refreshWelcomeBanner();
             if (msg) {
               msg.textContent = "Profile saved.";
@@ -1023,6 +1351,7 @@
           renderPlayPrefsChecklists(saved);
           fillProfileForm(saved);
           renderTechniqueChecklist();
+          renderCustomMenusEditor();
           if (msg) {
             msg.hidden = false;
             msg.textContent = "Profile saved on this device.";
@@ -1044,6 +1373,7 @@
     renderPlayPrefsChecklists(p);
     fillProfileForm(p);
     renderTechniqueChecklist();
+    renderCustomMenusEditor();
     updateProfileTabHint();
     refreshWelcomeBanner();
     dispatchProfileUpdate();

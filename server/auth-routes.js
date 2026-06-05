@@ -218,6 +218,15 @@ function rowToProfile(row) {
   } catch (_) {
     /* ignore */
   }
+  let customMenus = [];
+  let enabledCustomMenus = [];
+  try {
+    const parsed = JSON.parse(row.custom_menus_json || "{}");
+    if (Array.isArray(parsed?.menus)) customMenus = parsed.menus;
+    if (Array.isArray(parsed?.enabled)) enabledCustomMenus = parsed.enabled;
+  } catch (_) {
+    /* ignore */
+  }
   return {
     id: row.id,
     username: row.username,
@@ -228,6 +237,8 @@ function rowToProfile(row) {
     bio: row.bio || "",
     techniques: Array.isArray(techniques) ? techniques : [],
     customTechniques: Array.isArray(customTechniques) ? customTechniques : [],
+    customMenus: Array.isArray(customMenus) ? customMenus : [],
+    enabledCustomMenus: Array.isArray(enabledCustomMenus) ? enabledCustomMenus : [],
     playPrefs: {
       dynamics: Array.isArray(playPrefs.dynamics) ? playPrefs.dynamics : [],
       kinks: Array.isArray(playPrefs.kinks) ? playPrefs.kinks : [],
@@ -831,9 +842,15 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
           intensity: Array.isArray(req.body.playPrefs.intensity) ? req.body.playPrefs.intensity : [],
         }
       : current.playPrefs;
+  const customMenus =
+    req.body?.customMenus != null ? req.body.customMenus : current.customMenus;
+  const enabledCustomMenus =
+    req.body?.enabledCustomMenus != null
+      ? req.body.enabledCustomMenus
+      : current.enabledCustomMenus;
 
   db.prepare(
-    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?
+    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, custom_menus_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?
      WHERE id = ?`
   ).run(
     displayName,
@@ -841,6 +858,10 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     bio,
     JSON.stringify(Array.isArray(techniques) ? techniques : []),
     JSON.stringify(Array.isArray(customTechniques) ? customTechniques : []),
+    JSON.stringify({
+      menus: Array.isArray(customMenus) ? customMenus : [],
+      enabled: Array.isArray(enabledCustomMenus) ? enabledCustomMenus : [],
+    }),
     JSON.stringify(playPrefs),
     lovenseToys,
     nationality,

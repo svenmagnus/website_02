@@ -87,12 +87,23 @@ function partnerPlaybookRow(row) {
   } catch (_) {
     /* ignore */
   }
+  let customMenus = [];
+  let enabledCustomMenus = [];
+  try {
+    const parsed = JSON.parse(row.custom_menus_json || "{}");
+    if (Array.isArray(parsed?.menus)) customMenus = parsed.menus;
+    if (Array.isArray(parsed?.enabled)) enabledCustomMenus = parsed.enabled;
+  } catch (_) {
+    /* ignore */
+  }
   return {
     displayName: row.display_name || row.username,
     gender: row.gender || "",
     bio: row.bio || "",
     techniques: Array.isArray(techniques) ? techniques : [],
     customTechniques: Array.isArray(customTechniques) ? customTechniques : [],
+    customMenus: Array.isArray(customMenus) ? customMenus : [],
+    enabledCustomMenus: Array.isArray(enabledCustomMenus) ? enabledCustomMenus : [],
     playPrefs: {
       dynamics: Array.isArray(playPrefs.dynamics) ? playPrefs.dynamics : [],
       kinks: Array.isArray(playPrefs.kinks) ? playPrefs.kinks : [],
