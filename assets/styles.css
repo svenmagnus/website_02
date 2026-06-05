@@ -2100,12 +2100,30 @@ html[data-theme="cb-dark"] .chat-card {
   margin-bottom: 0.65rem;
 }
 
+.chat-card-head-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
 .chat-card-head h2 {
   margin: 0;
   font-size: 0.88rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.chat-clear-btn {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  padding: 0.28rem 0.55rem;
+}
+
+.chat-clear-status {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
 }
 
 .chat-overlay-close {

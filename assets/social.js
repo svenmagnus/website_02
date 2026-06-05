@@ -240,9 +240,10 @@
     } else {
       renderActiveMembersPanel();
     }
+    clearLiveChat({ deleteServer: true }).catch(() => {});
   }
 
-  function clearActiveMembers({ clearStorage = true } = {}) {
+  function clearActiveMembers({ clearStorage = true, clearChat = true } = {}) {
     state.activeMembers = [];
     state.sessionPartnerId = null;
     if (clearStorage) clearActiveMembersStorage();
@@ -253,6 +254,7 @@
       if (sel instanceof HTMLSelectElement) sel.value = "";
     });
     couplingPartner = false;
+    if (clearChat) clearLiveChat({ deleteServer: true }).catch(() => {});
   }
 
   async function selectPartnerById(partnerId) {
@@ -429,9 +431,25 @@
     if (!skipBroadcast) broadcastChatClear();
   }
 
-  async function clearChatAfterSession() {
+  function setChatClearStatus(msg, cls = "ok") {
+    const el = document.getElementById("chatClearStatus");
+    if (!el) return;
+    if (!msg) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.className = `status-line chat-clear-status ${cls}`;
+    el.textContent = msg;
+    window.setTimeout(() => {
+      if (el.textContent === msg) setChatClearStatus("");
+    }, 2500);
+  }
+
+  async function clearLiveChat({ deleteServer = true } = {}) {
     const threadId = state.threadId;
-    if (threadId && isLoggedIn()) {
+    if (deleteServer && threadId && isLoggedIn()) {
       try {
         await api(`/api/social/chat/threads/${encodeURIComponent(threadId)}/messages`, {
           method: "DELETE",
@@ -441,6 +459,10 @@
       }
     }
     clearLocalChatMessages();
+  }
+
+  async function clearChatAfterSession() {
+    await clearLiveChat({ deleteServer: true });
   }
 
   /** Wipe in-memory social UI (chat, members, meetings) — e.g. on logout or account switch. */
@@ -1308,9 +1330,8 @@
     }
   }
 
-  async function refreshMembersWorkspace({ clearChat = true } = {}) {
-    clearActiveMembers({ clearStorage: true });
-    if (clearChat) clearLocalChatMessages();
+  async function refreshMembersWorkspace() {
+    clearActiveMembers({ clearStorage: true, clearChat: true });
     state.threadId = null;
     state.partner = null;
     await bootstrap({ loadChat: false });
@@ -1318,7 +1339,7 @@
     if (st) {
       st.hidden = false;
       st.className = "status-line ok";
-      st.textContent = "Refreshed — pick members from Member Pool (right).";
+      st.textContent = "Members cleared — pick from Member Pool (right).";
     }
   }
 
@@ -1490,23 +1511,24 @@
 
   function initMembersToolbar() {
     document.getElementById("btnClearActiveMembers")?.addEventListener("click", () => {
-      clearActiveMembers({ clearStorage: true });
+      clearActiveMembers({ clearStorage: true, clearChat: true });
       const st = document.getElementById("setupActiveMembersStatus");
       if (st) {
         st.hidden = false;
         st.className = "status-line ok";
-        st.textContent = "Members cleared — pick from Member Pool (right).";
+        st.textContent = "Members and chat cleared — pick from Member Pool (right).";
       }
     });
-    document.getElementById("btnRefreshMembers")?.addEventListener("click", () => {
-      refreshMembersWorkspace({ clearChat: true }).catch((err) => {
-        const st = document.getElementById("setupActiveMembersStatus");
-        if (st) {
-          st.hidden = false;
-          st.className = "status-line err";
-          st.textContent = err?.message || "Refresh failed.";
-        }
-      });
+  }
+
+  function initLiveChatToolbar() {
+    document.getElementById("btnClearLiveChat")?.addEventListener("click", async () => {
+      try {
+        await clearLiveChat({ deleteServer: true });
+        setChatClearStatus("Chat cleared.");
+      } catch (err) {
+        setChatClearStatus(err?.message || "Could not clear chat.", "err");
+      }
     });
   }
 
@@ -1516,6 +1538,7 @@
     initMeetingBlocks();
     initAddToModelPool();
     initMembersToolbar();
+    initLiveChatToolbar();
     initHeaderChatSend();
     handleCalendarRedirect();
 
@@ -1533,6 +1556,7 @@
     bootstrap,
     sendPersistentMessage,
     clearChatAfterSession,
+    clearLiveChat,
     resetSocialClientState,
     publishHostPeerId,
     getActiveLiveMeetingId,
