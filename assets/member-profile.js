@@ -757,7 +757,7 @@
     const partner = getPartnerProfile();
     if (!partner) {
       root.innerHTML =
-        '<p class="technique-empty-note">Connect with your partner to see what they\'ve added to their current session.</p>';
+        '<p class="technique-empty-note">Join your partner\'s instant session to see their Playbook here.</p>';
       return;
     }
     const allowed = getEnabledTechniques(partner);

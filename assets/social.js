@@ -26,6 +26,7 @@
     calendar: { configured: false, connected: false, email: "" },
     renderFingerprint: null,
     activeUserId: null,
+    sessionJoinedMeetingId: null,
   };
 
   let chatBroadcastChannel = null;
@@ -481,6 +482,7 @@
     state.renderFingerprint = messagesFingerprint([]);
     state.loaded = false;
     state._pendingMeetingId = null;
+    state.sessionJoinedMeetingId = null;
 
     renderMessages({ skipBroadcast: true });
     renderModelPoolPanels();
@@ -600,8 +602,24 @@
       updateCalendarUi();
       updateHeaderChatBadge();
       applyHostPeerIdFromMeetings();
+      syncJoinedSessionState();
     } catch (err) {
       console.warn("[social] bootstrap failed:", err);
+    }
+  }
+
+  function syncJoinedSessionState() {
+    if (!state.sessionJoinedMeetingId) return;
+    const meeting = state.meetings.find((m) => m.id === state.sessionJoinedMeetingId);
+    if (!meeting || meeting.status !== "live" || meeting.mode !== "instant") {
+      state.sessionJoinedMeetingId = null;
+      global.MemberProfile?.setPartnerProfile?.(null);
+      updateMeetingPanels();
+      return;
+    }
+    const partnerId = meeting.host?.id;
+    if (partnerId) {
+      loadPartnerPlaybook(partnerId).catch(() => {});
     }
   }
 
@@ -612,6 +630,7 @@
     setContactPool(data.contacts || []);
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
+    syncJoinedSessionState();
     await loadModelPool();
     renderActiveMembersPanel();
     updateSessionActionHighlight();
@@ -682,6 +701,72 @@
     );
   }
 
+  async function loadPartnerPlaybook(partnerUserId) {
+    const id = String(partnerUserId || "").trim();
+    if (!id) return null;
+    const data = await api(`/api/social/partners/${encodeURIComponent(id)}/playbook`);
+    const profile = data.profile;
+    if (profile && global.MemberProfile?.setPartnerProfile) {
+      global.MemberProfile.setPartnerProfile(profile);
+    }
+    return profile;
+  }
+
+  async function joinInstantMeeting(meeting) {
+    if (!meeting?.id) throw new Error("Session not found.");
+    const partner = meeting.host;
+    if (!partner?.id) throw new Error("Session partner missing.");
+    coupleSessionWithPartner(partner.id, { addToMembers: true });
+    if (meeting.threadId) {
+      await loadThreadMessages(meeting.threadId);
+    } else {
+      await selectPartnerById(partner.id);
+    }
+    state.sessionJoinedMeetingId = meeting.id;
+    await loadPartnerPlaybook(partner.id);
+    applyHostPeerIdFromMeetings(meeting.hostPeerId);
+    updateSessionActionHighlight();
+    updateMeetingPanels();
+    global.dispatchEvent(
+      new CustomEvent("dualpeer-session-joined", { detail: { meeting } })
+    );
+    if (global.MemberProfile?.setRemoteTab) {
+      global.MemberProfile.setRemoteTab("techniques");
+    }
+    if (global.MemberProfile?.setPanelTab) {
+      global.MemberProfile.setPanelTab("setup", { userAction: true });
+    }
+    setMeetingStatusOnAll(
+      meeting.hostPeerId
+        ? "Joined — Play Mode is ready. Click Share Cam to connect video."
+        : "Joined — Play Mode is ready. Share Cam when your partner goes live.",
+      "ok"
+    );
+    return meeting;
+  }
+
+  async function onPartnerDisconnected() {
+    if (!state.sessionJoinedMeetingId) {
+      global.MemberProfile?.setPartnerProfile?.(null);
+      return;
+    }
+    const meeting = state.meetings.find((m) => m.id === state.sessionJoinedMeetingId);
+    const partnerId = meeting?.host?.id || getSelectedPartnerUserId();
+    if (partnerId) {
+      try {
+        await loadPartnerPlaybook(partnerId);
+        return;
+      } catch (_) {
+        /* fall through */
+      }
+    }
+    global.MemberProfile?.setPartnerProfile?.(null);
+  }
+
+  function isSessionJoined() {
+    return Boolean(state.sessionJoinedMeetingId);
+  }
+
   function updateSessionActionHighlight() {
     const startBtn = document.getElementById("btnStartHost");
     const joinBtn = document.getElementById("btnConnect");
@@ -701,7 +786,7 @@
       joinBtn.classList.add("primary", "session-action-glow");
       startBtn.classList.add("secondary");
       if (!joinBtn.disabled) {
-        joinBtn.title = "Partner is live — click to join their session";
+        joinBtn.title = "Partner is live — click Share Cam to connect video";
       }
       if (!startBtn.disabled) {
         startBtn.title = "Start your own camera (partner is already live)";
@@ -724,7 +809,7 @@
       startBtn.title = "Start your camera and share a Session ID";
     }
     if (!joinBtn.disabled) {
-      joinBtn.title = "Join your partner's live session";
+      joinBtn.title = "Share your camera with your partner's session";
     }
   }
 
@@ -748,7 +833,7 @@
       peerIn.dispatchEvent(new Event("input", { bubbles: true }));
       const guestStatus = document.getElementById("statusGuest");
       if (guestStatus && !global.appSessionRole?.()) {
-        guestStatus.textContent = "Session ID ready — click Join Session.";
+        guestStatus.textContent = "Session ID ready — click Share Cam.";
         guestStatus.className = "status-line ok";
       }
     }
@@ -866,9 +951,11 @@
             })
           : "—";
         const statusLabel =
-          m.status === "live" && !String(m.hostPeerId || "").trim()
-            ? "live · ready to resume"
-            : m.status;
+          m.mode === "instant" && m.status === "live"
+            ? "Instant Live"
+            : m.status === "live" && !String(m.hostPeerId || "").trim()
+              ? "live · ready to resume"
+              : m.status;
         body.innerHTML =
           `<strong>${m.mode === "instant" ? "Instant" : "Scheduled"}</strong> · ${statusLabel}` +
           (partner ? ` · ${escapeHtml(partner.displayName)}` : "") +
@@ -886,6 +973,34 @@
           body.appendChild(cal);
         }
         row.appendChild(body);
+        const actions = document.createElement("div");
+        actions.className = "meeting-list-item-actions";
+        const inCall = global.appSessionRole?.();
+        const showJoin =
+          !m.isHost && m.mode === "instant" && m.status === "live" && !inCall;
+        if (showJoin) {
+          if (state.sessionJoinedMeetingId === m.id) {
+            const joined = document.createElement("span");
+            joined.className = "meeting-joined-badge";
+            joined.textContent = "Joined";
+            actions.appendChild(joined);
+          } else {
+            const joinBtn = document.createElement("button");
+            joinBtn.type = "button";
+            joinBtn.className = "meeting-join-btn primary";
+            joinBtn.textContent = "Join";
+            joinBtn.title = "Join session and open Play Mode";
+            joinBtn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              try {
+                await joinInstantMeeting(m);
+              } catch (err) {
+                setMeetingStatusOnAll(err.message || "Could not join session.", "err");
+              }
+            });
+            actions.appendChild(joinBtn);
+          }
+        }
         const delBtn = document.createElement("button");
         delBtn.type = "button";
         delBtn.className = "meeting-delete-btn";
@@ -896,12 +1011,17 @@
           if (!window.confirm("Remove this session for you and your partner?")) return;
           try {
             await deleteMeeting(m.id);
+            if (state.sessionJoinedMeetingId === m.id) {
+              state.sessionJoinedMeetingId = null;
+              global.MemberProfile?.setPartnerProfile?.(null);
+            }
             setMeetingStatusOnAll("Session removed for both sides.", "ok");
           } catch (err) {
             setMeetingStatusOnAll(err.message || "Could not remove session.", "err");
           }
         });
-        row.appendChild(delBtn);
+        actions.appendChild(delBtn);
+        row.appendChild(actions);
         list.appendChild(row);
       }
     });
@@ -1140,7 +1260,7 @@
                 block,
                 global.DualPeerAuth?.isAccountHost?.()
                   ? "Instant session — click Start Camera to share your Session ID."
-                  : "Instant session — wait for Session ID in Messages or below.",
+                  : "Instant session — click Join next to Instant Live, then Share Cam when ready.",
                 "ok"
               );
               if (global.DualPeerAuth?.isAccountHost?.()) {
@@ -1563,6 +1683,10 @@
     resolveLiveMeetingId,
     applyHostPeerIdFromMeetings,
     updateSessionActionHighlight,
+    joinInstantMeeting,
+    loadPartnerPlaybook,
+    onPartnerDisconnected,
+    isSessionJoined,
     ensureChatThread,
     loadModelPool,
     addModelToPool,

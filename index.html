@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8572" />
+    <link rel="stylesheet" href="assets/styles.css?v=8573" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -144,7 +144,7 @@
         <h2 id="premiumLoginModalTitle">Sign in to your account</h2>
         <p class="login-overlay-hint">
           Same username and password as on the start screen. All members are models — invite others or join their
-          session with Start Camera / Join Session.
+          session with Join, then Start Camera / Share Cam.
         </p>
         <p class="status-line ok" id="loginVerifiedBanner" hidden></p>
         <form id="memberLoginForm">
@@ -417,7 +417,7 @@
             <video id="localVideo" autoplay playsinline muted></video>
             <div id="localPulse" class="toy-pulse" aria-hidden="true"></div>
             <div id="localPlaceholder" class="video-placeholder is-visible" aria-hidden="false">
-              Use <strong>Start Camera</strong> or <strong>Join Session</strong> in Setup.
+              Use <strong>Join</strong>, then <strong>Start Camera</strong> or <strong>Share Cam</strong> in Setup.
             </div>
             <div class="video-media-overlay" data-panel="local" aria-label="Your video controls">
               <button
@@ -722,8 +722,8 @@
                 <strong>New session</strong> → <strong>Start instant session</strong>.
               </li>
               <li>
-                <strong>Start Camera</strong> (you go live) or <strong>Join Session</strong> (partner already live —
-                button glows orange).
+                Partner clicks <strong>Join</strong> next to Instant Live, then <strong>Start Camera</strong> or
+                <strong>Share Cam</strong> (glows orange when partner is live).
               </li>
             </ol>
             <div class="row lovense-setup-actions">
@@ -752,8 +752,8 @@
             <strong>Webcam &amp; microphone</strong> for normal streaming without OBS → (3) Pick camera/mic →
             <strong>Start Camera</strong>. For OBS scenes: broadcast <strong>OBS (WHIP)</strong>.
             <span class="setup-flow-hint-member"
-              >Invite models from the account menu. Either side can <strong>Start Camera</strong> or
-              <strong>Join Session</strong>.</span
+              >Invite models from the account menu. Partner joins via <strong>Join</strong>, then either side can
+              <strong>Start Camera</strong> or <strong>Share Cam</strong>.</span
             >
           </p>
           <div class="row premium-setup-row" id="premiumSetupRow">
@@ -796,15 +796,15 @@
             <div id="setupMeetingMount"></div>
           </fieldset>
           <p class="status-line setup-session-actions-hint">
-            Order: <strong>Members</strong> → <strong>New session</strong> (instant) →
-            <strong>Start Camera</strong> or <strong>Join Session</strong> (glows when partner is live).
+            Order: <strong>Members</strong> → <strong>New session</strong> (instant) → partner clicks
+            <strong>Join</strong> → <strong>Start Camera</strong> or <strong>Share Cam</strong> (glows when partner is live).
           </p>
           <div class="row setup-session-actions">
             <button type="button" class="secondary" id="btnStartHost" disabled title="Start your camera and share a Session ID">
               Start Camera
             </button>
-            <button type="button" class="secondary" id="btnConnect" disabled title="Join your partner's live session">
-              Join Session
+            <button type="button" class="secondary" id="btnConnect" disabled title="Share your camera with your partner's session">
+              Share Cam
             </button>
             <button type="button" id="btnHangup">Disconnect</button>
           </div>
@@ -882,7 +882,7 @@
             <ol class="peer-id-help-list">
               <li>Create a session (menu above), then click <strong>Start Camera</strong>.</li>
               <li>Your <strong>Session ID</strong> appears below — it is also sent in <strong>Messages</strong>.</li>
-              <li>Your partner uses <strong>Join Session</strong> (ID is filled in automatically when possible).</li>
+              <li>Your partner clicks <strong>Join</strong>, then <strong>Share Cam</strong> (Session ID fills in automatically when possible).</li>
             </ol>
           </div>
           <div class="row">
@@ -1123,10 +1123,10 @@
     <script src="assets/play-prefs.js?v=8570"></script>
     <script src="assets/technique-presets.js?v=8572"></script>
     <script src="assets/ui-shell.js?v=8483"></script>
-    <script src="assets/app.js?v=8531"></script>
+    <script src="assets/app.js?v=8573"></script>
     <script src="assets/auth.js?v=8570"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8564"></script>
-    <script src="assets/member-profile.js?v=8572"></script>
+    <script src="assets/social.js?v=8573"></script>
+    <script src="assets/member-profile.js?v=8573"></script>
   </body>
 </html>

@@ -3073,6 +3073,28 @@ footer {
   min-width: 0;
 }
 
+.meeting-list-item-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.meeting-join-btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.meeting-joined-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ok, #3d9a5c);
+  white-space: nowrap;
+}
+
 .meeting-delete-btn {
   flex-shrink: 0;
   border: 1px solid var(--danger);

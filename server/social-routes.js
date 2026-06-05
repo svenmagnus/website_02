@@ -66,6 +66,46 @@ function userPublicRow(row) {
   };
 }
 
+function partnerPlaybookRow(row) {
+  if (!row) return null;
+  let techniques = [];
+  let customTechniques = [];
+  try {
+    techniques = JSON.parse(row.techniques_json || "[]");
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    customTechniques = JSON.parse(row.custom_techniques_json || "[]");
+  } catch (_) {
+    /* ignore */
+  }
+  return {
+    displayName: row.display_name || row.username,
+    gender: row.gender || "",
+    bio: row.bio || "",
+    techniques: Array.isArray(techniques) ? techniques : [],
+    customTechniques: Array.isArray(customTechniques) ? customTechniques : [],
+  };
+}
+
+function usersShareThreadOrMeeting(db, uid, partnerId) {
+  const [lowId, highId] = canonicalPair(uid, partnerId);
+  const thread = db
+    .prepare("SELECT id FROM chat_threads WHERE user_low_id = ? AND user_high_id = ?")
+    .get(lowId, highId);
+  if (thread) return true;
+  const meeting = db
+    .prepare(
+      `SELECT id FROM meetings
+       WHERE status IN ('live', 'scheduled')
+         AND ((host_user_id = ? AND guest_user_id = ?) OR (host_user_id = ? AND guest_user_id = ?))
+       LIMIT 1`
+    )
+    .get(uid, partnerId, partnerId, uid);
+  return !!meeting;
+}
+
 function isHostAccount(user) {
   return user?.account_type === "host";
 }
@@ -420,6 +460,24 @@ socialRouter.post("/social/session/pause", requireAuth, (req, res) => {
   const db = getDb();
   pauseLiveSessionsForUser(db, req.authUser.id);
   res.json({ ok: true });
+});
+
+socialRouter.get("/social/partners/:userId/playbook", requireAuth, (req, res) => {
+  const db = getDb();
+  const uid = req.authUser.id;
+  const partnerId = String(req.params.userId || "").trim();
+  if (!partnerId) {
+    return res.status(400).json({ ok: false, error: "partner_required" });
+  }
+  if (partnerId === uid) {
+    return res.status(400).json({ ok: false, error: "invalid_partner" });
+  }
+  if (!usersShareThreadOrMeeting(db, uid, partnerId)) {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(partnerId);
+  if (!row) return res.status(404).json({ ok: false, error: "partner_not_found" });
+  res.json({ ok: true, profile: partnerPlaybookRow(row) });
 });
 
 /** Remove finished sessions on logout; keep future scheduled meetings. */

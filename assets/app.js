@@ -3427,7 +3427,11 @@ function setupDataConnection(conn) {
       dataConn = null;
     }
     partnerRemoteToys = [];
-    if (global.MemberProfile?.setPartnerProfile) MemberProfile.setPartnerProfile(null);
+    if (global.DualPeerSocial?.onPartnerDisconnected) {
+      global.DualPeerSocial.onPartnerDisconnected();
+    } else if (global.MemberProfile?.setPartnerProfile) {
+      MemberProfile.setPartnerProfile(null);
+    }
     renderToyControls([]);
     updateConnectionUi();
     setPeerStatus("Partner disconnected.", "err");
@@ -3653,7 +3657,7 @@ function applyAccountStreamingUi() {
   }
   if (els.btnConnect) {
     els.btnConnect.disabled = false;
-    els.btnConnect.title = "Join your partner's live session";
+    els.btnConnect.title = "Share your camera with your partner's session";
   }
   global.DualPeerSocial?.updateSessionActionHighlight?.();
 }
