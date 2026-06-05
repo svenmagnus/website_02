@@ -2795,59 +2795,6 @@ function appendChatTechniqueMessage(sender, label, isLocal, ts) {
   appendChatMessage(isLocal ? "You" : sender, text, isLocal, ts, { variant: "technique" });
 }
 
-let techniqueBellCtx = null;
-let techniqueBellLastAt = 0;
-
-function unlockTechniqueBellAudio() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!techniqueBellCtx) techniqueBellCtx = new Ctx();
-    if (techniqueBellCtx.state === "suspended") {
-      techniqueBellCtx.resume().catch(() => {});
-    }
-  } catch (_) {
-    /* ignore */
-  }
-}
-
-async function playTechniqueBell() {
-  const nowMs = Date.now();
-  if (nowMs - techniqueBellLastAt < 700) return;
-  techniqueBellLastAt = nowMs;
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!techniqueBellCtx) techniqueBellCtx = new Ctx();
-    const ctx = techniqueBellCtx;
-    if (ctx.state === "suspended") await ctx.resume();
-    if (ctx.state !== "running") return;
-
-    const now = ctx.currentTime;
-    const playTone = (freq, start, duration, peakGain = 0.22) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(freq, start);
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(peakGain, start + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(start);
-      osc.stop(start + duration + 0.04);
-    };
-
-    // Two-tone request chime (high → low), clearly audible
-    playTone(988, now, 0.16, 0.24);
-    playTone(740, now + 0.19, 0.32, 0.26);
-  } catch (_) {
-    /* ignore audio errors */
-  }
-}
-
-global.playTechniqueBell = playTechniqueBell;
-
 function getChatDisplayName() {
   if (global.MemberProfile?.getChatSenderName) return MemberProfile.getChatSenderName();
   return sessionRole === "host" ? "You" : sessionRole === "guest" ? "Partner" : "You";

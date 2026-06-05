@@ -2104,6 +2104,38 @@ video {
   border-top: 2px solid var(--accent);
 }
 
+.play-mode-sound-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+}
+
+.play-mode-sound-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.play-mode-sound-select {
+  flex: 1 1 8rem;
+  min-width: 7rem;
+  max-width: 14rem;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.28rem 0.4rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.play-mode-sound-preview {
+  font-size: 0.72rem;
+  padding: 0.25rem 0.5rem;
+}
+
 .technique-request-list {
   margin-bottom: 0.85rem;
 }
