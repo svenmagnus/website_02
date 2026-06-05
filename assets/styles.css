@@ -3451,12 +3451,8 @@ main.layout-cb[data-chat-dock="bottom"] {
 }
 
 main.layout-cb[data-chat-dock="bottom-center"] {
-  --cb-side-panel-h: min(38vh, 440px);
-  --cb-chat-panel-h: min(calc(var(--cb-side-panel-h) * 0.5), 220px);
-  --cb-chat-messages-h: min(calc(var(--cb-side-panel-h) * 0.38), 165px);
   grid-template-columns: minmax(220px, 1fr) minmax(280px, 400px) minmax(220px, 1fr);
   grid-template-rows: auto 6px auto auto;
-  align-items: start;
 }
 
 main.layout-cb[data-chat-dock="bottom-center"] > .stage-shell,
@@ -3471,13 +3467,11 @@ main.layout-cb[data-chat-dock="bottom-center"] .cb-under-video {
 main.layout-cb[data-chat-dock="bottom-center"] .connection-card {
   grid-column: 1;
   grid-row: 3;
-  align-self: start;
 }
 
 main.layout-cb[data-chat-dock="bottom-center"] .remote-card {
   grid-column: 3;
   grid-row: 3;
-  align-self: start;
 }
 
 /* Partner large: chat flush with video bottom (Chaturbate-style) */
@@ -3695,9 +3689,9 @@ main.layout-cb[data-chat-dock="bottom"] .chat-card {
   grid-column: 1;
   grid-row: 3;
   width: 100%;
-  height: auto;
-  min-height: 0;
-  max-height: min(19vh, 220px);
+  height: min(38vh, 440px);
+  min-height: 240px;
+  max-height: min(38vh, 440px);
 }
 
 main.layout-cb[data-chat-dock="bottom-center"] .chat-card {
@@ -3706,10 +3700,9 @@ main.layout-cb[data-chat-dock="bottom-center"] .chat-card {
   width: 100%;
   max-width: none;
   justify-self: stretch;
-  align-self: start;
-  height: auto;
-  min-height: 0 !important;
-  max-height: var(--cb-chat-panel-h);
+  height: min(38vh, 440px);
+  min-height: 240px;
+  max-height: min(38vh, 440px);
 }
 
 main.layout-cb[data-chat-dock="bottom"] .cb-under-video {
@@ -3717,9 +3710,8 @@ main.layout-cb[data-chat-dock="bottom"] .cb-under-video {
 }
 
 main.layout-cb[data-chat-dock="bottom"] .chat-card .chat-messages {
-  flex: 0 1 auto;
-  min-height: 3.25rem;
-  max-height: min(14vh, 165px);
+  flex: 1 1 auto;
+  min-height: 0;
   height: auto;
   overflow-y: auto;
 }
@@ -3729,9 +3721,8 @@ main.layout-cb[data-chat-dock="bottom"] .local-test-card {
 }
 
 main.layout-cb[data-chat-dock="bottom-center"] .chat-card .chat-messages {
-  flex: 0 1 auto;
-  min-height: 3.25rem;
-  max-height: var(--cb-chat-messages-h);
+  flex: 1 1 auto;
+  min-height: 0;
   height: auto;
   overflow-y: auto;
 }
