@@ -2108,6 +2108,23 @@ video {
   margin-bottom: 0.85rem;
 }
 
+.technique-request-section {
+  margin-bottom: 0.65rem;
+}
+
+.technique-request-section:last-child {
+  margin-bottom: 0;
+}
+
+.technique-request-section-title {
+  margin: 0.35rem 0 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .technique-request-grid {
   display: flex;
   flex-wrap: wrap;

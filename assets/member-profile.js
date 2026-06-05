@@ -274,6 +274,50 @@
     return p.techniques.map((id) => ({ id, label: resolveTechniqueLabel(id, p) }));
   }
 
+  function partnerPlaybookSections(profile) {
+    const p = normalizeProfile(profile);
+    const enabled = new Set(p.techniques || []);
+    const sections = [];
+
+    const presetSections =
+      global.DualPeerTechniques?.presetSectionsForPlayPrefs?.(p.playPrefs) || [];
+    presetSections.forEach((section) => {
+      const items = section.items
+        .filter((t) => enabled.has(t.id))
+        .map((t) => ({ id: t.id, label: t.label }));
+      if (items.length) sections.push({ title: section.title, items });
+    });
+
+    enabledCustomMenuSections(p, p.enabledCustomMenus).forEach((section) => {
+      const items = section.items
+        .filter((t) => enabled.has(t.id))
+        .map((t) => ({ id: t.id, label: t.label }));
+      if (items.length) sections.push({ title: section.title, items });
+    });
+
+    const menuItemIds = new Set();
+    (p.customMenus || []).forEach((menu) => {
+      (menu.items || []).forEach((item) => menuItemIds.add(item.id));
+    });
+    const standaloneCustom = (p.customTechniques || [])
+      .filter((c) => enabled.has(c.id) && !menuItemIds.has(c.id))
+      .map((c) => ({ id: c.id, label: c.label }));
+    if (standaloneCustom.length) {
+      sections.push({ title: "Custom actions", items: standaloneCustom });
+    }
+
+    const assigned = new Set();
+    sections.forEach((s) => s.items.forEach((i) => assigned.add(i.id)));
+    const orphans = [...enabled]
+      .filter((id) => !assigned.has(id))
+      .map((id) => ({ id, label: resolveTechniqueLabel(id, p) }));
+    if (orphans.length) {
+      sections.push({ title: "Other", items: orphans });
+    }
+
+    return sections;
+  }
+
   function getPublicProfile() {
     const p = loadProfile();
     return {
@@ -1083,8 +1127,8 @@
         '<p class="technique-empty-note">Join your partner\'s instant session to see their Playbook here.</p>';
       return;
     }
-    const allowed = getEnabledTechniques(partner);
-    if (!allowed.length) {
+    const sections = partnerPlaybookSections(partner);
+    if (!sections.length) {
       root.innerHTML = `<p class="technique-empty-note">${partner.displayName} has not added anything to their Playbook for this session yet.</p>`;
       return;
     }
@@ -1092,20 +1136,31 @@
     intro.className = "status-line technique-request-intro";
     intro.textContent = `${partner.displayName}'s Playbook:`;
     root.appendChild(intro);
-    const grid = document.createElement("div");
-    grid.className = "technique-request-grid";
-    allowed.forEach((t) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "technique-request-btn";
-      btn.textContent = t.label;
-      btn.dataset.techniqueId = t.id;
-      btn.addEventListener("click", () => {
-        global.MemberProfile.requestTechnique(t.id, t.label);
+    sections.forEach((section) => {
+      const wrap = document.createElement("div");
+      wrap.className = "technique-request-section";
+
+      const title = document.createElement("p");
+      title.className = "technique-request-section-title";
+      title.textContent = section.title;
+      wrap.appendChild(title);
+
+      const grid = document.createElement("div");
+      grid.className = "technique-request-grid";
+      section.items.forEach((t) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "technique-request-btn";
+        btn.textContent = t.label;
+        btn.dataset.techniqueId = t.id;
+        btn.addEventListener("click", () => {
+          global.MemberProfile.requestTechnique(t.id, t.label);
+        });
+        grid.appendChild(btn);
       });
-      grid.appendChild(btn);
+      wrap.appendChild(grid);
+      root.appendChild(wrap);
     });
-    root.appendChild(grid);
   }
 
   function getChatSenderName() {
