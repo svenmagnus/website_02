@@ -99,6 +99,27 @@
     }
   }
 
+  function applyActiveMembersFromServer(list) {
+    state.activeMembers = (list || []).map(normalizeContact).filter(Boolean);
+    saveActiveMembersToStorage(state.activeMembers);
+    if (!state.sessionPartnerId || !state.activeMembers.some((m) => m.id === state.sessionPartnerId)) {
+      state.sessionPartnerId = state.activeMembers[0]?.id || null;
+      saveSessionPartnerIdToStorage(state.sessionPartnerId);
+    }
+    renderActiveMembersPanel();
+  }
+
+  async function syncSessionMemberAdd(memberUserId) {
+    const id = String(memberUserId || "").trim();
+    if (!id || !isLoggedIn()) return false;
+    const data = await api("/api/social/session-members", {
+      method: "POST",
+      body: JSON.stringify({ memberUserId: id }),
+    });
+    applyActiveMembersFromServer(data.activeMembers);
+    return true;
+  }
+
   function clearActiveMembersStorage(userId) {
     const uid = userId || getSessionUserId();
     if (!uid) return;
@@ -161,14 +182,19 @@
       return;
     }
 
-    if (addToMembers) {
-      const contact =
-        state.contactPool.find((c) => c.id === id) ||
-        state.activeMembers.find((m) => m.id === id) ||
-        state.threads.find((t) => t.partner?.id === id)?.partner;
-      if (contact && !state.activeMembers.some((m) => m.id === id)) {
-        state.activeMembers = [...state.activeMembers, normalizeContact(contact)];
-        saveActiveMembersToStorage(state.activeMembers);
+    if (addToMembers && !state.activeMembers.some((m) => m.id === id)) {
+      if (isLoggedIn()) {
+        syncSessionMemberAdd(id).catch((err) => {
+          console.warn("[social] session member sync failed:", err);
+        });
+      } else {
+        const contact =
+          state.contactPool.find((c) => c.id === id) ||
+          state.threads.find((t) => t.partner?.id === id)?.partner;
+        if (contact) {
+          state.activeMembers = [...state.activeMembers, normalizeContact(contact)];
+          saveActiveMembersToStorage(state.activeMembers);
+        }
       }
     }
 
@@ -220,31 +246,56 @@
     renderContactPoolPanel();
   }
 
-  function addActiveMember(raw) {
+  async function addActiveMember(raw) {
     const contact = normalizeContact(raw);
     if (!contact) return false;
-    if (!state.activeMembers.some((m) => m.id === contact.id)) {
-      state.activeMembers = [...state.activeMembers, contact];
-      saveActiveMembersToStorage(state.activeMembers);
+    try {
+      if (isLoggedIn()) {
+        await syncSessionMemberAdd(contact.id);
+      } else if (!state.activeMembers.some((m) => m.id === contact.id)) {
+        state.activeMembers = [...state.activeMembers, contact];
+        saveActiveMembersToStorage(state.activeMembers);
+        renderActiveMembersPanel();
+      }
+      coupleSessionWithPartner(contact.id, { addToMembers: false });
+      return true;
+    } catch (err) {
+      console.warn("[social] add active member failed:", err);
+      return false;
     }
-    coupleSessionWithPartner(contact.id, { addToMembers: false });
-    return true;
   }
 
-  function removeActiveMember(memberId) {
+  async function removeActiveMember(memberId) {
     const id = String(memberId || "").trim();
     if (!id) return;
-    state.activeMembers = state.activeMembers.filter((m) => m.id !== id);
-    saveActiveMembersToStorage(state.activeMembers);
-    if (state.sessionPartnerId === id) {
-      coupleSessionWithPartner(state.activeMembers[0]?.id || null, { addToMembers: false });
-    } else {
-      renderActiveMembersPanel();
+    try {
+      if (isLoggedIn()) {
+        const data = await api(`/api/social/session-members/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        applyActiveMembersFromServer(data.activeMembers);
+      } else {
+        state.activeMembers = state.activeMembers.filter((m) => m.id !== id);
+        saveActiveMembersToStorage(state.activeMembers);
+        renderActiveMembersPanel();
+      }
+      if (state.sessionPartnerId === id) {
+        coupleSessionWithPartner(state.activeMembers[0]?.id || null, { addToMembers: false });
+      }
+      clearLiveChat({ deleteServer: true }).catch(() => {});
+    } catch (err) {
+      console.warn("[social] remove active member failed:", err);
     }
-    clearLiveChat({ deleteServer: true }).catch(() => {});
   }
 
-  function clearActiveMembers({ clearStorage = true, clearChat = true } = {}) {
+  async function clearActiveMembers({ clearStorage = true, clearChat = true } = {}) {
+    try {
+      if (isLoggedIn()) {
+        await api("/api/social/session-members", { method: "DELETE" });
+      }
+    } catch (err) {
+      console.warn("[social] clear session members failed:", err);
+    }
     state.activeMembers = [];
     state.sessionPartnerId = null;
     if (clearStorage) clearActiveMembersStorage();
@@ -562,7 +613,11 @@
       const threads = data.threads || [];
       state.threads = threads;
       setContactPool(data.contacts || []);
-      state.activeMembers = loadActiveMembersFromStorage().map(normalizeContact).filter(Boolean);
+      const serverMembers = (data.activeMembers || []).map(normalizeContact).filter(Boolean);
+      state.activeMembers = serverMembers.length
+        ? serverMembers
+        : loadActiveMembersFromStorage().map(normalizeContact).filter(Boolean);
+      saveActiveMembersToStorage(state.activeMembers);
       const storedPartnerId = loadSessionPartnerIdFromStorage();
       state.sessionPartnerId =
         storedPartnerId && state.activeMembers.some((m) => m.id === storedPartnerId)
@@ -627,6 +682,9 @@
     if (!isLoggedIn()) return;
     const data = await api("/api/social/bootstrap");
     state.meetings = data.meetings || [];
+    if (Array.isArray(data.activeMembers)) {
+      applyActiveMembersFromServer(data.activeMembers);
+    }
     setContactPool(data.contacts || []);
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
@@ -1406,14 +1464,15 @@
         buildMemberCard(m, {
           variant: "pool",
           onActivate: (contact) => {
-            if (addActiveMember(contact)) {
+            addActiveMember(contact).then((ok) => {
+              if (!ok) return;
               const st = document.getElementById("setupActiveMembersStatus");
               if (st) {
                 st.hidden = false;
                 st.className = "status-line ok";
-                st.textContent = `${contact.displayName} added to Members.`;
+                st.textContent = `${contact.displayName} added to Members — they will see you there too.`;
               }
-            }
+            });
           },
         })
       );

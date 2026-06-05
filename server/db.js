@@ -227,6 +227,16 @@ function runMigrations(database) {
       UNIQUE (owner_user_id, model_user_id)
     );
     CREATE INDEX IF NOT EXISTS idx_model_pool_owner ON model_pool(owner_user_id);
+
+    CREATE TABLE IF NOT EXISTS session_members (
+      user_id TEXT NOT NULL,
+      member_user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, member_user_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (member_user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_members_user ON session_members(user_id);
   `);
 
   backfillModelPool(database);

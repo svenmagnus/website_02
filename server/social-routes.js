@@ -187,6 +187,37 @@ export function ensureModelPoolEntry(db, ownerUserId, modelUserId) {
   return db.prepare("SELECT * FROM model_pool WHERE id = ?").get(id);
 }
 
+export function ensureSessionMemberPair(db, userA, userB) {
+  if (!userA || !userB || userA === userB) return;
+  const at = nowMs();
+  db.prepare(
+    `INSERT OR IGNORE INTO session_members (user_id, member_user_id, created_at) VALUES (?, ?, ?)`
+  ).run(userA, userB, at);
+  db.prepare(
+    `INSERT OR IGNORE INTO session_members (user_id, member_user_id, created_at) VALUES (?, ?, ?)`
+  ).run(userB, userA, at);
+}
+
+function listSessionMembers(db, uid) {
+  const rows = db
+    .prepare(
+      `SELECT u.id, u.username, u.display_name, u.last_seen_at, u.avatar_path, u.avatar_updated_at, sm.created_at
+       FROM session_members sm
+       JOIN users u ON u.id = sm.member_user_id
+       WHERE sm.user_id = ?
+       ORDER BY sm.created_at ASC`
+    )
+    .all(uid);
+  return rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name || row.username,
+    online: isUserOnline(db, row.id),
+    signedIn: isUserOnline(db, row.id),
+    avatarUrl: avatarUrlForUser(row),
+  }));
+}
+
 function touchPresence(db, userId) {
   db.prepare("UPDATE users SET last_seen_at = ? WHERE id = ?").run(nowMs(), userId);
 }
@@ -462,6 +493,51 @@ socialRouter.post("/social/session/pause", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+socialRouter.get("/social/session-members", requireAuth, (req, res) => {
+  const db = getDb();
+  res.json({ ok: true, activeMembers: listSessionMembers(db, req.authUser.id) });
+});
+
+socialRouter.post("/social/session-members", requireAuth, (req, res) => {
+  const db = getDb();
+  const uid = req.authUser.id;
+  const memberUserId = String(req.body?.memberUserId || "").trim();
+  if (!memberUserId) {
+    return res.status(400).json({ ok: false, error: "member_required" });
+  }
+  if (memberUserId === uid) {
+    return res.status(400).json({ ok: false, error: "cannot_add_self" });
+  }
+  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(memberUserId);
+  if (!target) {
+    return res.status(404).json({ ok: false, error: "member_not_found" });
+  }
+  ensureSessionMemberPair(db, uid, memberUserId);
+  ensureModelPoolEntry(db, uid, memberUserId);
+  ensureModelPoolEntry(db, memberUserId, uid);
+  ensureChatThread(db, uid, memberUserId);
+  res.json({ ok: true, activeMembers: listSessionMembers(db, uid) });
+});
+
+socialRouter.delete("/social/session-members", requireAuth, (req, res) => {
+  const db = getDb();
+  db.prepare("DELETE FROM session_members WHERE user_id = ?").run(req.authUser.id);
+  res.json({ ok: true, activeMembers: [] });
+});
+
+socialRouter.delete("/social/session-members/:memberUserId", requireAuth, (req, res) => {
+  const db = getDb();
+  const memberUserId = String(req.params.memberUserId || "").trim();
+  if (!memberUserId) {
+    return res.status(400).json({ ok: false, error: "member_required" });
+  }
+  db.prepare("DELETE FROM session_members WHERE user_id = ? AND member_user_id = ?").run(
+    req.authUser.id,
+    memberUserId
+  );
+  res.json({ ok: true, activeMembers: listSessionMembers(db, req.authUser.id) });
+});
+
 socialRouter.get("/social/partners/:userId/playbook", requireAuth, (req, res) => {
   const db = getDb();
   const uid = req.authUser.id;
@@ -635,6 +711,8 @@ socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
     }
   }
 
+  const activeMembers = listSessionMembers(db, uid);
+
   res.json({
     ok: true,
     threads: threadList,
@@ -643,6 +721,7 @@ socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
       : null,
     meetings,
     contacts,
+    activeMembers,
     primaryThreadId: threadList[0]?.id || null,
     calendar: calendarStatusForUser(req.authUser),
   });
