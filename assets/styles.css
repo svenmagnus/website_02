@@ -1925,6 +1925,10 @@ video {
   color: var(--text);
 }
 
+.profile-playbook-prefs-hint {
+  margin: 0 0 0.65rem;
+}
+
 .profile-prefs-field {
   border: 1px solid var(--border);
   border-radius: 10px;

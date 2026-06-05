@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8582" />
+    <link rel="stylesheet" href="assets/styles.css?v=8584" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -630,6 +630,9 @@
                 <label for="profileBio">About you</label>
                 <textarea id="profileBio" rows="4" maxlength="500" placeholder="A few words about you …"></textarea>
               </div>
+              <p class="status-line profile-field-hint profile-playbook-prefs-hint">
+                Check a menu to show it in My Playbook below. Uncheck to hide it again.
+              </p>
               <fieldset class="profile-prefs-field">
                 <legend>Dynamics &amp; roles</legend>
                 <div id="profileDynamicsList" class="profile-prefs-grid"></div>
@@ -644,9 +647,6 @@
               </fieldset>
               <fieldset class="profile-prefs-field">
                 <legend>Own menus</legend>
-                <p class="status-line profile-field-hint" style="margin: 0 0 0.4rem">
-                  Check a menu to show it in My Playbook below. Uncheck to hide it again.
-                </p>
                 <div id="profileOwnMenusList" class="profile-prefs-grid"></div>
               </fieldset>
               <fieldset class="profile-techniques-field">
