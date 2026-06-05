@@ -445,10 +445,25 @@
     return card;
   }
 
+  function maybePlayBellForNewTechniques(prev, next) {
+    if (!global.playTechniqueBell || !prev?.length) return;
+    const uid = getSessionUserId();
+    const seen = new Set(prev.filter((m) => m.kind === "technique").map((m) => m.id));
+    const fresh = next.filter(
+      (m) =>
+        m.kind === "technique" &&
+        m.senderUserId &&
+        m.senderUserId !== uid &&
+        !seen.has(m.id)
+    );
+    if (fresh.length) global.playTechniqueBell();
+  }
+
   function setMessages(next, { skipBroadcast = false } = {}) {
     const merged = sortMessages(next || []);
     const fp = messagesFingerprint(merged);
     if (fp === state.renderFingerprint) return false;
+    maybePlayBellForNewTechniques(state.messages, merged);
     state.messages = merged;
     state.renderFingerprint = fp;
     syncThreadLastMessageAt(merged);

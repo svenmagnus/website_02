@@ -2796,30 +2796,57 @@ function appendChatTechniqueMessage(sender, label, isLocal, ts) {
 }
 
 let techniqueBellCtx = null;
-function playTechniqueBell() {
+let techniqueBellLastAt = 0;
+
+function unlockTechniqueBellAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!techniqueBellCtx) techniqueBellCtx = new Ctx();
+    if (techniqueBellCtx.state === "suspended") {
+      techniqueBellCtx.resume().catch(() => {});
+    }
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+async function playTechniqueBell() {
+  const nowMs = Date.now();
+  if (nowMs - techniqueBellLastAt < 700) return;
+  techniqueBellLastAt = nowMs;
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     if (!techniqueBellCtx) techniqueBellCtx = new Ctx();
     const ctx = techniqueBellCtx;
-    if (ctx.state === "suspended") ctx.resume();
+    if (ctx.state === "suspended") await ctx.resume();
+    if (ctx.state !== "running") return;
+
     const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(840, now);
-    osc.frequency.exponentialRampToValueAtTime(660, now + 0.2);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.028, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.24);
+    const playTone = (freq, start, duration, peakGain = 0.22) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(peakGain, start + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + duration + 0.04);
+    };
+
+    // Two-tone request chime (high → low), clearly audible
+    playTone(988, now, 0.16, 0.24);
+    playTone(740, now + 0.19, 0.32, 0.26);
   } catch (_) {
     /* ignore audio errors */
   }
 }
+
+global.playTechniqueBell = playTechniqueBell;
 
 function getChatDisplayName() {
   if (global.MemberProfile?.getChatSenderName) return MemberProfile.getChatSenderName();
@@ -3755,6 +3782,9 @@ function sendTechniqueRequest(techniqueId, label, fromName) {
 }
 
 function initMemberProfileBridge() {
+  ["pointerdown", "keydown", "click"].forEach((type) => {
+    document.addEventListener(type, unlockTechniqueBellAudio, { passive: true });
+  });
   window.addEventListener("dualpeer-technique-request", (e) => {
     const { techniqueId, label, fromName } = e.detail || {};
     sendTechniqueRequest(techniqueId, label, fromName);
