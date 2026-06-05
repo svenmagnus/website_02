@@ -41,6 +41,69 @@
     osc.stop(start + duration + 0.05);
   }
 
+  function playNoiseBurst(ctx, { start, duration, peak, filterFreq, filterEndFreq, q = 2.5 }) {
+    const sampleCount = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < sampleCount; i++) data[i] = Math.random() * 2 - 1;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = q;
+    filter.frequency.setValueAtTime(filterFreq, start);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(filterEndFreq, 40), start + duration);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(peak, start);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(start);
+    source.stop(start + duration + 0.03);
+  }
+
+  function playVocal(ctx, { start, duration, baseFreq, vibratoHz = 5.5, peak = 0.16, pitchDrop = null }) {
+    const osc = ctx.createOscillator();
+    const vibrato = ctx.createOscillator();
+    const vibratoGain = ctx.createGain();
+    vibrato.type = "sine";
+    vibrato.frequency.value = vibratoHz;
+    vibratoGain.gain.value = baseFreq * 0.045;
+    vibrato.connect(vibratoGain);
+    vibratoGain.connect(osc.frequency);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(baseFreq, start);
+    if (pitchDrop != null) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(pitchDrop, 40), start + duration * 0.55);
+    }
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(peak, start + 0.045);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + duration + 0.05);
+    vibrato.start(start);
+    vibrato.stop(start + duration + 0.05);
+
+    const formant = ctx.createOscillator();
+    const formantGain = ctx.createGain();
+    formant.type = "sine";
+    formant.frequency.setValueAtTime(baseFreq * 2.35, start);
+    if (pitchDrop != null) {
+      formant.frequency.exponentialRampToValueAtTime(Math.max(pitchDrop * 2.1, 80), start + duration * 0.5);
+    }
+    formantGain.gain.setValueAtTime(0.0001, start);
+    formantGain.gain.exponentialRampToValueAtTime(peak * 0.42, start + 0.035);
+    formantGain.gain.exponentialRampToValueAtTime(0.0001, start + duration * 0.85);
+    formant.connect(formantGain);
+    formantGain.connect(ctx.destination);
+    formant.start(start);
+    formant.stop(start + duration + 0.05);
+  }
+
   const SOUND_PRESETS = [
     {
       id: "chime",
@@ -118,6 +181,31 @@
         [523, 659, 784, 988].forEach((freq, i) => {
           playTone(ctx, { freq, start: now + i * 0.07, duration: 0.22, type: "triangle", peak: 0.16 });
         });
+      },
+    },
+    {
+      id: "whip",
+      label: "Peitsche",
+      play(ctx, now) {
+        playNoiseBurst(ctx, { start: now, duration: 0.07, peak: 0.38, filterFreq: 4200, filterEndFreq: 280, q: 3.2 });
+        playTone(ctx, { freq: 2200, start: now, duration: 0.04, type: "triangle", peak: 0.12, endFreq: 180 });
+        playNoiseBurst(ctx, { start: now + 0.025, duration: 0.05, peak: 0.22, filterFreq: 1800, filterEndFreq: 120, q: 1.8 });
+      },
+    },
+    {
+      id: "moan",
+      label: "Stöhnen",
+      play(ctx, now) {
+        playVocal(ctx, { start: now, duration: 0.72, baseFreq: 165, vibratoHz: 5.2, peak: 0.17 });
+        playVocal(ctx, { start: now + 0.08, duration: 0.58, baseFreq: 198, vibratoHz: 4.8, peak: 0.11 });
+      },
+    },
+    {
+      id: "ouch",
+      label: "Autsch",
+      play(ctx, now) {
+        playVocal(ctx, { start: now, duration: 0.28, baseFreq: 420, vibratoHz: 7, peak: 0.2, pitchDrop: 210 });
+        playNoiseBurst(ctx, { start: now, duration: 0.04, peak: 0.08, filterFreq: 2400, filterEndFreq: 600, q: 2 });
       },
     },
   ];
