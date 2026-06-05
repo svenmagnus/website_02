@@ -478,35 +478,29 @@
   }
 
   function buildMessageEl(m, uid) {
+    if (global.DualPeerChatUi?.buildMessageElement) {
+      return global.DualPeerChatUi.buildMessageElement({ uid, message: m });
+    }
     const isLocal = m.senderUserId === uid;
     const msg = document.createElement("div");
     const kind =
       m.kind === "system" ? "system" : m.kind === "technique" ? (isLocal ? "local" : "remote") : isLocal ? "local" : "remote";
-    msg.className = `chat-message chat-message--${kind}`;
+    msg.className = `chat-message chat-message--${kind} chat-message--compact`;
     if (kind === "system") msg.classList.add("chat-message--system");
     if (m.kind === "technique") msg.classList.add("chat-message--technique");
-
-    const meta = document.createElement("span");
-    meta.className = "chat-meta";
-    meta.textContent = `${isLocal ? "You" : m.senderName} • ${formatChatTime(m.createdAt)}`;
-
+    const line = document.createElement("div");
+    line.className = "chat-line";
+    if (m.kind !== "system") {
+      const meta = document.createElement("span");
+      meta.className = "chat-sender";
+      meta.textContent = isLocal ? "You" : m.senderName;
+      line.appendChild(meta);
+    }
     const textNode = document.createElement("span");
     textNode.className = "chat-text";
-    if (m.kind === "technique") {
-      const action = String(m.body || "").trim();
-      if (/requests:/i.test(action) || action.startsWith("You request:")) {
-        textNode.textContent = action;
-      } else {
-        textNode.textContent = isLocal
-          ? `You request: ${action}`
-          : `${m.senderName || "Partner"} requests: ${action}`;
-      }
-    } else {
-      textNode.textContent = m.body;
-    }
-
-    msg.appendChild(meta);
-    msg.appendChild(textNode);
+    textNode.textContent = m.body;
+    line.appendChild(textNode);
+    msg.appendChild(line);
     return msg;
   }
 

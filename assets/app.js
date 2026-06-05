@@ -2763,22 +2763,21 @@ function appendChatMessage(sender, text, isLocal, ts, { variant } = {}) {
     setDataActivityStatus("Chat container not found (#chat-messages).", "err");
     return;
   }
-  const msg = document.createElement("div");
-  let className = "chat-message" + (isLocal ? " local" : " remote");
-  if (variant === "technique") className += " chat-message--technique";
-  msg.className = className;
   const safeText = String(text || "").trim();
-
-  const meta = document.createElement("span");
-  meta.className = "chat-meta";
-  meta.textContent = `${sender} • ${formatChatTime(ts)}`;
-
-  const textNode = document.createElement("span");
-  textNode.className = "chat-text";
-  textNode.textContent = safeText;
-
-  msg.appendChild(meta);
-  msg.appendChild(textNode);
+  const msg =
+    global.DualPeerChatUi?.buildMessageElement?.({
+      isLocal,
+      senderName: sender,
+      body: safeText,
+      kind: variant === "technique" ? "technique" : "text",
+      createdAt: ts,
+    }) ||
+    (() => {
+      const fallback = document.createElement("div");
+      fallback.className = "chat-message chat-message--compact" + (isLocal ? " local" : " remote");
+      fallback.textContent = safeText;
+      return fallback;
+    })();
   els.chatMessages.appendChild(msg);
   els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
 }
