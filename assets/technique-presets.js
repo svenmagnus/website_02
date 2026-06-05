@@ -52,14 +52,19 @@
     const set = new Set(Array.isArray(dynamics) ? dynamics : []);
     const showDom = set.has("dom") || set.has("switch");
     const showSub = set.has("sub") || set.has("switch");
-    const sections = [];
-    if (showDom || (!showDom && !showSub)) {
-      sections.push({ key: "dom", title: "Dom", items: DOM });
-    }
-    if (showSub || (!showDom && !showSub)) {
-      sections.push({ key: "sub", title: "Sub", items: SUB });
-    }
-    return sections;
+    return [
+      { key: "dom", title: "Dom", items: DOM, enabled: showDom },
+      { key: "sub", title: "Sub", items: SUB, enabled: showSub },
+    ];
+  }
+
+  function presetIdsForDynamics(dynamics) {
+    const ids = new Set();
+    presetSectionsForDynamics(dynamics).forEach((section) => {
+      if (!section.enabled) return;
+      section.items.forEach((item) => ids.add(item.id));
+    });
+    return ids;
   }
 
   function presetsForGender(gender) {
@@ -77,6 +82,7 @@
     LEGACY,
     allPresets,
     presetSectionsForDynamics,
+    presetIdsForDynamics,
     presetsForGender,
     allBuiltinIds,
   };

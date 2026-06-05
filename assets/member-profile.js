@@ -364,7 +364,11 @@
       location: locationEl instanceof HTMLInputElement ? locationEl.value : "",
       bio: bioEl instanceof HTMLTextAreaElement ? bioEl.value : "",
       lovenseToys: toysEl instanceof HTMLTextAreaElement ? toysEl.value : "",
-      techniques: getCheckedTechniqueIds(),
+      techniques: filterTechniquesForDynamics(
+        getCheckedTechniqueIds(),
+        readPlayPrefsFromForm().dynamics,
+        current.customTechniques
+      ),
       customTechniques: current.customTechniques,
       playPrefs: readPlayPrefsFromForm(),
     });
@@ -590,8 +594,24 @@
 
   let dynamicsListenerBound = false;
 
+  function enabledPresetIds(dynamics) {
+    return global.DualPeerTechniques?.presetIdsForDynamics?.(dynamics) || new Set();
+  }
+
+  function filterTechniquesForDynamics(techniqueIds, dynamics, customTechniques) {
+    const allowed = enabledPresetIds(dynamics);
+    const customIds = new Set((customTechniques || []).map((c) => c.id));
+    const builtIn = builtInTechniqueIds();
+    return techniqueIds.filter((id) => customIds.has(id) || !builtIn.has(id) || allowed.has(id));
+  }
+
   function onDynamicsPrefChange() {
-    const checked = getCheckedTechniqueIds();
+    const dynamics = dynamicsForPlaybook();
+    const customIds = new Set(loadProfile().customTechniques.map((c) => c.id));
+    const allowed = enabledPresetIds(dynamics);
+    const checked = getCheckedTechniqueIds().filter(
+      (id) => customIds.has(id) || allowed.has(id)
+    );
     renderTechniqueChecklist();
     setTechniqueChecks(checked);
   }
@@ -623,16 +643,32 @@
       const sections =
         global.DualPeerTechniques?.presetSectionsForDynamics?.(dynamicsForPlaybook()) || [];
       sections.forEach((section) => {
+        const wrap = document.createElement("div");
+        wrap.className = "profile-preset-section" + (section.enabled ? "" : " is-disabled");
+
         const title = document.createElement("p");
         title.className = "profile-preset-section-title";
         title.textContent = section.title;
-        presetRoot.appendChild(title);
+        wrap.appendChild(title);
+
+        if (!section.enabled) {
+          const hint = document.createElement("p");
+          hint.className = "profile-preset-section-hint";
+          hint.textContent =
+            section.key === "dom"
+              ? "Check Dominant (Dom) or Switch above to enable."
+              : "Check Submissive (Sub) or Switch above to enable.";
+          wrap.appendChild(hint);
+        }
+
         const grid = document.createElement("div");
         grid.className = "profile-technique-grid";
         section.items.forEach((t) => {
-          grid.appendChild(buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), false));
+          const checked = section.enabled && p.techniques.includes(t.id);
+          grid.appendChild(buildTechniqueCheckbox(t.id, t.label, checked, false, !section.enabled));
         });
-        presetRoot.appendChild(grid);
+        wrap.appendChild(grid);
+        presetRoot.appendChild(wrap);
       });
     }
     if (customRoot) {
@@ -651,14 +687,18 @@
     }
   }
 
-  function buildTechniqueCheckbox(id, label, checked, isCustom) {
+  function buildTechniqueCheckbox(id, label, checked, isCustom, disabled = false) {
     const labelEl = document.createElement("label");
-    labelEl.className = "technique-check" + (isCustom ? " technique-check-custom" : "");
+    labelEl.className =
+      "technique-check" +
+      (isCustom ? " technique-check-custom" : "") +
+      (disabled ? " is-disabled" : "");
     const input = document.createElement("input");
     input.type = "checkbox";
     input.name = "profileTechnique";
     input.value = id;
-    input.checked = checked;
+    input.checked = disabled ? false : checked;
+    if (disabled) input.disabled = true;
     const span = document.createElement("span");
     span.textContent = label;
     labelEl.appendChild(input);
