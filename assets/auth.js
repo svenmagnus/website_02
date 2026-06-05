@@ -1835,6 +1835,7 @@
     canAccessMailSettings,
     getSession,
     getCachedProfile,
+    cacheProfile,
     login,
     register,
     resendVerification,

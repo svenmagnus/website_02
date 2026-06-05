@@ -706,10 +706,22 @@
     return ids;
   }
 
+  function persistProfileDraft(patch) {
+    const next = normalizeProfile({ ...loadProfile(), ...patch });
+    persistLocal(next);
+    if (isAccountMode() && global.DualPeerAuth?.cacheProfile) {
+      global.DualPeerAuth.cacheProfile({
+        ...(global.DualPeerAuth.getCachedProfile() || {}),
+        ...next,
+      });
+    }
+    return next;
+  }
+
   function onPlaybookVisibilityChange() {
     const playPrefs = playPrefsForPlaybook();
-    const profile = loadProfile();
     const enabledMenus = getCheckedOwnMenuIds();
+    const profile = loadProfile();
     const customIds = allCustomTechniqueIds({
       ...profile,
       enabledCustomMenus: enabledMenus,
@@ -718,7 +730,14 @@
     const checked = getCheckedTechniqueIds().filter(
       (id) => customIds.has(id) || allowed.has(id)
     );
-    renderTechniqueChecklist();
+    persistProfileDraft({
+      enabledCustomMenus: enabledMenus,
+      techniques: filterTechniquesForPlayPrefs(checked, playPrefs, {
+        ...profile,
+        enabledCustomMenus: enabledMenus,
+      }),
+    });
+    renderTechniqueChecklist({ refreshOwnMenus: false });
     setTechniqueChecks(checked);
   }
 
@@ -750,10 +769,13 @@
     return loadProfile().playPrefs;
   }
 
-  function renderOwnMenusChecklist() {
+  function renderOwnMenusChecklist(selectedIds = null) {
     const root = document.getElementById("profileOwnMenusList");
     if (!root) return;
     const p = loadProfile();
+    const selected = new Set(
+      selectedIds != null ? selectedIds : p.enabledCustomMenus || []
+    );
     root.innerHTML = "";
     if (!p.customMenus.length) {
       const empty = document.createElement("p");
@@ -768,7 +790,7 @@
           "profileOwnMenu",
           menu.id,
           menu.title,
-          p.enabledCustomMenus.includes(menu.id)
+          selected.has(menu.id)
         )
       );
     });
@@ -786,11 +808,13 @@
       }));
   }
 
-  function renderTechniqueChecklist() {
+  function renderTechniqueChecklist({ refreshOwnMenus = true } = {}) {
     const presetRoot = document.getElementById("profileTechniqueList");
     const customRoot = document.getElementById("profileCustomTechniqueList");
     const p = loadProfile();
-    renderOwnMenusChecklist();
+    if (refreshOwnMenus) {
+      renderOwnMenusChecklist(getCheckedOwnMenuIds());
+    }
     const enabledMenus = getCheckedOwnMenuIds();
     if (presetRoot) {
       presetRoot.innerHTML = "";
@@ -915,7 +939,8 @@
     profile.customMenus.push({ id, title: trimmed, items: [] });
     if (!profile.enabledCustomMenus.includes(id)) profile.enabledCustomMenus.push(id);
     saveProfile(profile);
-    renderTechniqueChecklist();
+    renderOwnMenusChecklist(profile.enabledCustomMenus);
+    renderTechniqueChecklist({ refreshOwnMenus: false });
     renderCustomMenusEditor();
     return { ok: true };
   }
@@ -929,7 +954,8 @@
     profile.enabledCustomMenus = profile.enabledCustomMenus.filter((id) => id !== menuId);
     profile.techniques = profile.techniques.filter((id) => !itemIds.has(id));
     saveProfile(profile);
-    renderTechniqueChecklist();
+    renderOwnMenusChecklist(profile.enabledCustomMenus);
+    renderTechniqueChecklist({ refreshOwnMenus: false });
     renderCustomMenusEditor();
   }
 
