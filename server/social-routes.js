@@ -156,6 +156,48 @@ function isUserOnline(db, userId) {
   return Boolean(row?.last_seen_at && row.last_seen_at > nowMs() - PRESENCE_ONLINE_MS);
 }
 
+function listContactsForUser(db, uid) {
+  const ids = new Set();
+  const threads = db
+    .prepare("SELECT user_low_id, user_high_id FROM chat_threads WHERE user_low_id = ? OR user_high_id = ?")
+    .all(uid, uid);
+  for (const t of threads) {
+    ids.add(t.user_low_id === uid ? t.user_high_id : t.user_low_id);
+  }
+  const meetings = db
+    .prepare(
+      "SELECT host_user_id, guest_user_id FROM meetings WHERE host_user_id = ? OR guest_user_id = ?"
+    )
+    .all(uid, uid);
+  for (const m of meetings) {
+    if (m.host_user_id !== uid) ids.add(m.host_user_id);
+    if (m.guest_user_id && m.guest_user_id !== uid) ids.add(m.guest_user_id);
+  }
+  const poolRows = db
+    .prepare("SELECT model_user_id FROM model_pool WHERE owner_user_id = ?")
+    .all(uid);
+  for (const p of poolRows) ids.add(p.model_user_id);
+
+  const contacts = [];
+  for (const id of ids) {
+    const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+    if (!row) continue;
+    contacts.push({
+      ...userPublicRow(row),
+      signedIn: isUserOnline(db, row.id),
+      online: isUserOnline(db, row.id),
+    });
+  }
+  contacts.sort((a, b) =>
+    String(a.displayName || a.username || "").localeCompare(
+      String(b.displayName || b.username || ""),
+      undefined,
+      { sensitivity: "base" }
+    )
+  );
+  return contacts;
+}
+
 function getActiveProviderSession(db, providerUserId) {
   return (
     db
@@ -213,6 +255,12 @@ socialRouter.post("/social/presence", requireAuth, (req, res) => {
   const db = getDb();
   touchPresence(db, req.authUser.id);
   res.json({ ok: true, online: true });
+});
+
+socialRouter.post("/social/presence/offline", requireAuth, (req, res) => {
+  const db = getDb();
+  db.prepare("UPDATE users SET last_seen_at = NULL WHERE id = ?").run(req.authUser.id);
+  res.json({ ok: true, online: false });
 });
 
 socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
@@ -454,6 +502,18 @@ socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
       isHost: m.host_user_id === uid,
     }));
 
+  const contacts = listContactsForUser(db, uid);
+  if (inviteHostRow) {
+    const hostContact = userPublicRow(inviteHostRow);
+    if (hostContact && !contacts.some((c) => c.id === hostContact.id)) {
+      contacts.unshift({
+        ...hostContact,
+        signedIn: isUserOnline(db, hostContact.id),
+        online: isUserOnline(db, hostContact.id),
+      });
+    }
+  }
+
   res.json({
     ok: true,
     threads: threadList,
@@ -461,6 +521,7 @@ socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
       ? userPublicRow(inviteHost)
       : null,
     meetings,
+    contacts,
     primaryThreadId: threadList[0]?.id || null,
     calendar: calendarStatusForUser(req.authUser),
   });

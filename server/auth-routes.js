@@ -774,6 +774,7 @@ authRouter.post("/auth/login", async (req, res) => {
 authRouter.post("/auth/logout", requireAuth, (req, res) => {
   const db = getDb();
   db.prepare("DELETE FROM sessions WHERE token = ?").run(req.authToken);
+  db.prepare("UPDATE users SET last_seen_at = NULL WHERE id = ?").run(req.authUser.id);
   res.json({ ok: true });
 });
 

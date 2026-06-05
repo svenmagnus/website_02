@@ -368,7 +368,10 @@
 
   async function logout() {
     try {
-      if (isLoggedIn()) await api("/api/auth/logout", { method: "POST" });
+      if (isLoggedIn()) {
+        await api("/api/social/presence/offline", { method: "POST" }).catch(() => {});
+        await api("/api/auth/logout", { method: "POST" });
+      }
     } catch (_) {
       /* ignore */
     }

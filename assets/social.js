@@ -7,6 +7,8 @@
   const MEETINGS_POLL_MS = 3500;
   let meetingsPollTimer = null;
   let meetingsBroadcastChannel = null;
+  const ACTIVE_MEMBERS_KEY = "dualpeer-active-members-v1";
+
   const state = {
     threadId: null,
     threads: [],
@@ -14,6 +16,8 @@
     inviteHost: null,
     meetings: [],
     modelPool: [],
+    contactPool: [],
+    activeMembers: [],
     messages: [],
     loaded: false,
     calendar: { configured: false, connected: false, email: "" },
@@ -66,6 +70,184 @@
       if (m?.id) byId.set(m.id, m);
     }
     return sortMessages([...byId.values()]);
+  }
+
+  function loadActiveMembersFromStorage() {
+    const uid = getSessionUserId();
+    if (!uid) return [];
+    try {
+      const all = JSON.parse(localStorage.getItem(ACTIVE_MEMBERS_KEY) || "{}");
+      return Array.isArray(all[uid]) ? all[uid] : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveActiveMembersToStorage(list) {
+    const uid = getSessionUserId();
+    if (!uid) return;
+    try {
+      const all = JSON.parse(localStorage.getItem(ACTIVE_MEMBERS_KEY) || "{}");
+      all[uid] = list;
+      localStorage.setItem(ACTIVE_MEMBERS_KEY, JSON.stringify(all));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function clearActiveMembersStorage(userId) {
+    const uid = userId || getSessionUserId();
+    if (!uid) return;
+    try {
+      const all = JSON.parse(localStorage.getItem(ACTIVE_MEMBERS_KEY) || "{}");
+      delete all[uid];
+      localStorage.setItem(ACTIVE_MEMBERS_KEY, JSON.stringify(all));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function normalizeContact(raw) {
+    if (!raw?.id) return null;
+    return {
+      id: raw.id,
+      username: raw.username,
+      displayName: raw.displayName || raw.username || "Member",
+      avatarUrl: raw.avatarUrl || null,
+      signedIn: Boolean(raw.signedIn || raw.online),
+    };
+  }
+
+  function mergeContactPools(...lists) {
+    const byId = new Map();
+    for (const list of lists) {
+      for (const raw of list || []) {
+        const c = normalizeContact(raw);
+        if (!c) continue;
+        const prev = byId.get(c.id);
+        byId.set(c.id, prev ? { ...prev, ...c, signedIn: c.signedIn || prev.signedIn } : c);
+      }
+    }
+    return [...byId.values()].sort((a, b) =>
+      String(a.displayName).localeCompare(String(b.displayName), undefined, { sensitivity: "base" })
+    );
+  }
+
+  function setContactPool(next) {
+    state.contactPool = mergeContactPools(next, state.modelPool);
+    renderContactPoolPanel();
+  }
+
+  function addActiveMember(raw) {
+    const contact = normalizeContact(raw);
+    if (!contact) return false;
+    if (state.activeMembers.some((m) => m.id === contact.id)) return false;
+    state.activeMembers = [...state.activeMembers, contact];
+    saveActiveMembersToStorage(state.activeMembers);
+    renderActiveMembersPanel();
+    syncPartnerSelectToMember(contact.id);
+    applyHostPeerIdFromMeetings();
+    return true;
+  }
+
+  function removeActiveMember(memberId) {
+    const id = String(memberId || "").trim();
+    if (!id) return;
+    state.activeMembers = state.activeMembers.filter((m) => m.id !== id);
+    saveActiveMembersToStorage(state.activeMembers);
+    renderActiveMembersPanel();
+  }
+
+  function clearActiveMembers({ clearStorage = true } = {}) {
+    state.activeMembers = [];
+    if (clearStorage) clearActiveMembersStorage();
+    renderActiveMembersPanel();
+  }
+
+  function syncPartnerSelectToMember(memberId) {
+    document.querySelectorAll(".js-meeting-partner-select").forEach((sel) => {
+      if (sel instanceof HTMLSelectElement && [...sel.options].some((o) => o.value === memberId)) {
+        sel.value = memberId;
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+  }
+
+  async function selectPartnerById(partnerId) {
+    const id = String(partnerId || "").trim();
+    if (!id) return;
+    const thread = state.threads.find((t) => t.partner?.id === id);
+    if (thread?.id) {
+      state.partner = thread.partner;
+      state.threadId = thread.id;
+      await loadThreadMessages(thread.id);
+      return;
+    }
+    state.partner = state.contactPool.find((c) => c.id === id) || null;
+  }
+
+  function buildMemberCard(m, { variant, onRemove, onActivate } = {}) {
+    const card = document.createElement("div");
+    card.className = "model-card" + (m.signedIn ? " is-signed-in" : "");
+    if (variant === "pool") {
+      card.classList.add("model-card--pool");
+      card.title = "Double-click to add to Members";
+    }
+    if (variant === "active") card.classList.add("model-card--active");
+
+    const avatarPath = m.avatarUrl || null;
+    if (avatarPath) {
+      const photo = document.createElement("img");
+      photo.className = "model-card-photo";
+      let photoSrc = avatarPath;
+      try {
+        photoSrc = new URL(String(avatarPath), location.origin).href;
+      } catch (_) {
+        photoSrc = global.DualPeerAuth?.resolveAssetUrl?.(avatarPath) || avatarPath;
+      }
+      photo.src = photoSrc;
+      photo.alt = "";
+      photo.width = 48;
+      photo.height = 48;
+      photo.loading = "lazy";
+      card.appendChild(photo);
+    }
+
+    const head = document.createElement("div");
+    head.className = "model-card-head";
+    const name = document.createElement("strong");
+    name.textContent = m.displayName || m.username || "Member";
+    head.appendChild(name);
+    if (m.signedIn) {
+      const badge = document.createElement("span");
+      badge.className = "model-signed-in-badge";
+      badge.textContent = "Online";
+      head.appendChild(badge);
+    }
+    if (variant === "active" && onRemove) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "model-card-remove-btn";
+      removeBtn.title = "Remove from Members";
+      removeBtn.setAttribute("aria-label", `Remove ${name.textContent}`);
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onRemove(m.id);
+      });
+      head.appendChild(removeBtn);
+    }
+    card.appendChild(head);
+
+    const meta = document.createElement("span");
+    meta.textContent = m.signedIn ? "Online now" : "Offline";
+    card.appendChild(meta);
+
+    if (variant === "pool" && onActivate) {
+      card.addEventListener("dblclick", () => onActivate(m));
+    }
+
+    return card;
   }
 
   function setMessages(next, { skipBroadcast = false } = {}) {
@@ -173,14 +355,17 @@
   }
 
   /** Wipe in-memory social UI (chat, members, meetings) — e.g. on logout or account switch. */
-  function resetSocialClientState({ broadcast = true } = {}) {
+  function resetSocialClientState({ broadcast = true, userId = null } = {}) {
     state.threadId = null;
     state.threads = [];
     state.partner = null;
     state.inviteHost = null;
     state.meetings = [];
     state.modelPool = [];
+    state.contactPool = [];
+    state.activeMembers = [];
     state.messages = [];
+    clearActiveMembersStorage(userId || state.activeUserId);
     state.renderFingerprint = messagesFingerprint([]);
     state.loaded = false;
     state._pendingMeetingId = null;
@@ -253,7 +438,7 @@
     setMessages(data.messages || [], { skipBroadcast: false });
   }
 
-  async function bootstrap() {
+  async function bootstrap({ loadChat = false } = {}) {
     if (!isLoggedIn()) return;
     try {
       const data = await api("/api/social/bootstrap");
@@ -262,20 +447,32 @@
       state.calendar = data.calendar || state.calendar;
       const threads = data.threads || [];
       state.threads = threads;
+      setContactPool(data.contacts || []);
+      state.activeMembers = loadActiveMembersFromStorage().map(normalizeContact).filter(Boolean);
+
       const activeThread = pickActiveThread(threads);
       if (activeThread) {
         state.partner = activeThread.partner;
-        await loadThreadMessages(activeThread.id);
+        state.threadId = activeThread.id;
+        if (loadChat) {
+          await loadThreadMessages(activeThread.id);
+        }
       } else if (state.inviteHost) {
         state.partner = state.inviteHost;
+        state.threadId = null;
       } else {
-        const fromMeeting = state.meetings.find((m) => m.threadId);
-        if (fromMeeting?.threadId) {
-          await loadThreadMessages(fromMeeting.threadId);
-        }
+        state.partner = null;
+        state.threadId = null;
       }
+
+      if (!loadChat) {
+        setMessages([], { skipBroadcast: true });
+      }
+
       await loadModelPool();
+      setContactPool([...(data.contacts || []), ...state.modelPool]);
       fillPartnerSelects(threads);
+      renderActiveMembersPanel();
       updateSessionActionHighlight();
       updateSetupHints();
       updateMeetingPanels();
@@ -291,9 +488,11 @@
     if (!isLoggedIn()) return;
     const data = await api("/api/social/bootstrap");
     state.meetings = data.meetings || [];
+    setContactPool(data.contacts || []);
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
     await loadModelPool();
+    renderActiveMembersPanel();
     updateSessionActionHighlight();
   }
 
@@ -900,77 +1099,94 @@
   async function loadModelPool() {
     if (!isLoggedIn()) {
       state.modelPool = [];
-      renderModelPoolPanels();
+      setContactPool([]);
+      renderActiveMembersPanel();
       return;
     }
     try {
       const data = await api("/api/social/model-pool");
       state.modelPool = data.models || [];
-      renderModelPoolPanels();
+      setContactPool([...state.contactPool, ...state.modelPool]);
     } catch (err) {
       console.warn("[social] model pool failed:", err);
     }
   }
 
-  function renderModelPoolPanels() {
-    const targets = [
-      {
-        root: document.getElementById("setupModelPoolList"),
-        status: document.getElementById("setupModelPoolStatus"),
-      },
-      { root: document.getElementById("modelPoolList"), status: document.getElementById("modelPoolStatus") },
-    ];
-    for (const { root, status } of targets) {
-      if (!root) continue;
-      root.replaceChildren();
-      if (!state.modelPool.length) {
-        if (status) {
-          status.className = "status-line";
-          status.textContent = "No members yet — invite someone or add an existing member in Setup.";
-        }
-        continue;
-      }
+  function renderContactPoolPanel() {
+    const root = document.getElementById("modelPoolList");
+    const status = document.getElementById("modelPoolStatus");
+    if (!root) return;
+    root.replaceChildren();
+    if (!state.contactPool.length) {
       if (status) {
-        status.className = "status-line ok";
-        status.textContent = `${state.modelPool.length} member${state.modelPool.length === 1 ? "" : "s"}.`;
+        status.className = "status-line";
+        status.textContent =
+          "No contacts yet — invite someone or complete a session to build your pool.";
       }
-      for (const m of state.modelPool) {
-        const card = document.createElement("div");
-        card.className = "model-card" + (m.signedIn ? " is-signed-in" : "");
-        const avatarPath = m.avatarUrl || null;
-        if (avatarPath) {
-          const photo = document.createElement("img");
-          photo.className = "model-card-photo";
-          let photoSrc = avatarPath;
-          try {
-            photoSrc = new URL(String(avatarPath), location.origin).href;
-          } catch (_) {
-            photoSrc = global.DualPeerAuth?.resolveAssetUrl?.(avatarPath) || avatarPath;
-          }
-          photo.src = photoSrc;
-          photo.alt = "";
-          photo.width = 48;
-          photo.height = 48;
-          photo.loading = "lazy";
-          card.appendChild(photo);
-        }
-        const head = document.createElement("div");
-        head.className = "model-card-head";
-        const name = document.createElement("strong");
-        name.textContent = m.displayName || m.username || "Model";
-        head.appendChild(name);
-        if (m.signedIn) {
-          const badge = document.createElement("span");
-          badge.className = "model-signed-in-badge";
-          badge.textContent = "Signed in";
-          head.appendChild(badge);
-        }
-        const meta = document.createElement("span");
-        meta.textContent = m.signedIn ? "Signed in now" : "Offline";
-        card.appendChild(head);
-        card.appendChild(meta);
-        root.appendChild(card);
+      return;
+    }
+    if (status) {
+      status.className = "status-line ok";
+      status.textContent = `${state.contactPool.length} contact${state.contactPool.length === 1 ? "" : "s"} · double-click to add`;
+    }
+    for (const m of state.contactPool) {
+      root.appendChild(
+        buildMemberCard(m, {
+          variant: "pool",
+          onActivate: (contact) => {
+            if (addActiveMember(contact)) {
+              const st = document.getElementById("setupActiveMembersStatus");
+              if (st) {
+                st.hidden = false;
+                st.className = "status-line ok";
+                st.textContent = `${contact.displayName} added to Members.`;
+              }
+            }
+          },
+        })
+      );
+    }
+  }
+
+  function renderActiveMembersPanel() {
+    const root = document.getElementById("setupModelPoolList");
+    const status = document.getElementById("setupModelPoolStatus");
+    if (!root) return;
+    root.replaceChildren();
+    if (!state.activeMembers.length) {
+      if (status) {
+        status.className = "status-line";
+        status.textContent = "No members selected — double-click someone in Member Pool (right).";
       }
+      return;
+    }
+    if (status) {
+      status.className = "status-line ok";
+      status.textContent = `${state.activeMembers.length} member${state.activeMembers.length === 1 ? "" : "s"} for this session.`;
+    }
+    for (const m of state.activeMembers) {
+      const poolEntry = state.contactPool.find((c) => c.id === m.id);
+      const merged = poolEntry ? { ...m, signedIn: poolEntry.signedIn } : m;
+      root.appendChild(
+        buildMemberCard(merged, {
+          variant: "active",
+          onRemove: (id) => removeActiveMember(id),
+        })
+      );
+    }
+  }
+
+  async function refreshMembersWorkspace({ clearChat = true } = {}) {
+    clearActiveMembers({ clearStorage: true });
+    if (clearChat) clearLocalChatMessages();
+    state.threadId = null;
+    state.partner = null;
+    await bootstrap({ loadChat: false });
+    const st = document.getElementById("setupActiveMembersStatus");
+    if (st) {
+      st.hidden = false;
+      st.className = "status-line ok";
+      st.textContent = "Refreshed — pick members from Member Pool (right).";
     }
   }
 
@@ -1015,7 +1231,7 @@
 
   function fillPartnerSelects(threads = []) {
     const partners = [];
-    for (const m of state.modelPool || []) {
+    for (const m of state.contactPool || []) {
       if (m.id && !partners.some((p) => p.id === m.id)) {
         partners.push({
           id: m.id,
@@ -1038,9 +1254,15 @@
     document.querySelectorAll(".js-meeting-partner-select").forEach((sel) => {
       if (!sel.dataset.partnerHighlightBound) {
         sel.dataset.partnerHighlightBound = "1";
-        sel.addEventListener("change", () => {
+        sel.addEventListener("change", async () => {
+          const partnerId = sel.value?.trim() || "";
+          const contact =
+            state.contactPool.find((c) => c.id === partnerId) ||
+            partners.find((p) => p.id === partnerId);
+          if (contact) addActiveMember(contact);
           applyHostPeerIdFromMeetings();
           updateSessionActionHighlight();
+          if (partnerId) await selectPartnerById(partnerId);
         });
       }
       sel.replaceChildren();
@@ -1100,11 +1322,34 @@
       startMeetingsPolling();
       startPresenceHeartbeat();
     } else {
+      const prevUid = state.activeUserId;
       state.activeUserId = null;
-      resetSocialClientState({ broadcast: true });
+      resetSocialClientState({ broadcast: true, userId: prevUid });
       stopMeetingsPolling();
       stopPresenceHeartbeat();
     }
+  }
+
+  function initMembersToolbar() {
+    document.getElementById("btnClearActiveMembers")?.addEventListener("click", () => {
+      clearActiveMembers({ clearStorage: true });
+      const st = document.getElementById("setupActiveMembersStatus");
+      if (st) {
+        st.hidden = false;
+        st.className = "status-line ok";
+        st.textContent = "Members cleared — pick from Member Pool (right).";
+      }
+    });
+    document.getElementById("btnRefreshMembers")?.addEventListener("click", () => {
+      refreshMembersWorkspace({ clearChat: true }).catch((err) => {
+        const st = document.getElementById("setupActiveMembersStatus");
+        if (st) {
+          st.hidden = false;
+          st.className = "status-line err";
+          st.textContent = err?.message || "Refresh failed.";
+        }
+      });
+    });
   }
 
   function init() {
@@ -1112,6 +1357,7 @@
     mountMeetingBlocks();
     initMeetingBlocks();
     initAddToModelPool();
+    initMembersToolbar();
     initHeaderChatSend();
     handleCalendarRedirect();
 
@@ -1141,6 +1387,10 @@
     checkConnectAvailable,
     endLiveSession,
     getModelPool: () => state.modelPool,
+    getContactPool: () => state.contactPool,
+    getActiveMembers: () => state.activeMembers,
+    addActiveMember,
+    refreshMembersWorkspace,
     getThreadId: () => state.threadId,
     getMessages: () => state.messages,
     appendLocalEcho(text, senderName, { messageId } = {}) {

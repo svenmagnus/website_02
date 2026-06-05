@@ -3204,6 +3204,41 @@ footer {
   color: var(--accent);
 }
 
+.model-card--pool {
+  cursor: pointer;
+}
+
+.model-card--pool:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.model-card--active {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+.model-card-remove-btn {
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.model-card-remove-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.members-toolbar-row {
+  margin-bottom: 0.5rem;
+}
+
 .setup-session-actions button.session-action-glow {
   animation: session-action-pulse 1.4s ease-in-out infinite;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent),
