@@ -209,6 +209,10 @@ function runMigrations(database) {
   }
   if (!userColsPresence.includes("avatar_updated_at")) {
     database.exec(`ALTER TABLE users ADD COLUMN avatar_updated_at INTEGER`);
+    userColsPresence = tableColumns(database, "users");
+  }
+  if (!userColsPresence.includes("play_prefs_json")) {
+    database.exec(`ALTER TABLE users ADD COLUMN play_prefs_json TEXT NOT NULL DEFAULT '{}'`);
   }
 
   database.exec(`

@@ -1,40 +1,38 @@
 /**
- * Built-in technique presets (gender-aware). Loaded before member-profile.js / auth.js.
+ * Built-in Playbook presets (Dom / Sub). Loaded before member-profile.js / auth.js.
  * Labels describe actions between partners, not model instructions.
  */
 (function (global) {
-  const SHARED = [
+  const DOM = [
+    { id: "dom_set_pace", label: "Set the pace" },
+    { id: "dom_guide_us", label: "Guide us" },
+    { id: "dom_hold_space", label: "Hold the space" },
+    { id: "dom_take_initiative", label: "Take initiative" },
+    { id: "dom_lead_moment", label: "Lead the moment" },
+  ];
+
+  const SUB = [
+    { id: "sub_follow_lead", label: "Follow your lead" },
+    { id: "sub_yield_control", label: "Yield control" },
+    { id: "sub_trust_pace", label: "Trust your pace" },
+    { id: "sub_surrender_moment", label: "Surrender the moment" },
+    { id: "sub_receive_direction", label: "Receive your direction" },
+  ];
+
+  /** Legacy ids from older profiles — still accepted when loading saved data. */
+  const LEGACY = [
     { id: "send_kiss", label: "Send a kiss" },
     { id: "tease_denial", label: "Tease me" },
     { id: "dirty_talk", label: "Dirty talk" },
     { id: "roleplay", label: "Roleplay" },
     { id: "affection", label: "Affection" },
-  ];
-
-  const MALE = [
     { id: "jerk_off", label: "Your pleasure" },
     { id: "body_worship", label: "Focus on you" },
     { id: "spank_ass", label: "Playful impact" },
     { id: "nipple_play", label: "Physical connection" },
-  ];
-
-  const FEMALE = [
     { id: "fingering", label: "Show me more" },
-    { id: "nipple_play", label: "Physical connection" },
     { id: "spank_breast", label: "Tease me" },
-    { id: "spank_ass", label: "Playful impact" },
     { id: "deepen_view", label: "Deepen the view" },
-  ];
-
-  /** Legacy ids from older profiles — still accepted when loading saved data. */
-  const LEGACY = [
-    { id: "spank_ass", label: "Playful impact" },
-    { id: "spank_breast", label: "Tease me" },
-    { id: "nipple_play", label: "Physical connection" },
-    { id: "tease_denial", label: "Tease me" },
-    { id: "body_worship", label: "Focus on you" },
-    { id: "fingering", label: "Show me more" },
-    { id: "jerk_off", label: "Your pleasure" },
   ];
 
   function dedupeById(list) {
@@ -46,13 +44,27 @@
   }
 
   function allPresets() {
-    return dedupeById([...SHARED, ...MALE, ...FEMALE, ...LEGACY]);
+    return dedupeById([...DOM, ...SUB, ...LEGACY]);
+  }
+
+  /** Sections for My Playbook based on dynamics role prefs. */
+  function presetSectionsForDynamics(dynamics) {
+    const set = new Set(Array.isArray(dynamics) ? dynamics : []);
+    const showDom = set.has("dom") || set.has("switch");
+    const showSub = set.has("sub") || set.has("switch");
+    const sections = [];
+    if (showDom || (!showDom && !showSub)) {
+      sections.push({ key: "dom", title: "Dom", items: DOM });
+    }
+    if (showSub || (!showDom && !showSub)) {
+      sections.push({ key: "sub", title: "Sub", items: SUB });
+    }
+    return sections;
   }
 
   function presetsForGender(gender) {
-    if (gender === "male") return dedupeById([...MALE, ...SHARED]);
-    if (gender === "female") return dedupeById([...FEMALE, ...SHARED]);
-    return dedupeById([...SHARED, ...MALE, ...FEMALE]);
+    void gender;
+    return dedupeById([...DOM, ...SUB]);
   }
 
   function allBuiltinIds() {
@@ -60,10 +72,11 @@
   }
 
   global.DualPeerTechniques = {
-    SHARED,
-    MALE,
-    FEMALE,
+    DOM,
+    SUB,
+    LEGACY,
     allPresets,
+    presetSectionsForDynamics,
     presetsForGender,
     allBuiltinIds,
   };

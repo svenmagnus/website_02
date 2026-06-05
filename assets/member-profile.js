@@ -28,6 +28,13 @@
   let partnerProfile = null;
   let userPinnedTab = false;
 
+  function normalizePlayPrefs(raw) {
+    if (global.DualPeerPlayPrefs?.normalizePlayPrefs) {
+      return global.DualPeerPlayPrefs.normalizePlayPrefs(raw);
+    }
+    return { dynamics: [], kinks: [], intensity: [] };
+  }
+
   function defaultProfile() {
     return {
       displayName: "Guest",
@@ -39,6 +46,7 @@
       lovenseToys: "",
       techniques: [],
       customTechniques: [],
+      playPrefs: normalizePlayPrefs(null),
       updatedAt: Date.now(),
     };
   }
@@ -90,6 +98,7 @@
       lovenseToys: String(raw.lovenseToys || "").trim().slice(0, 500),
       techniques,
       customTechniques,
+      playPrefs: normalizePlayPrefs(raw.playPrefs),
       updatedAt: raw.updatedAt || Date.now(),
     };
   }
@@ -110,6 +119,7 @@
       lovenseToys: raw.lovenseToys,
       techniques: raw.techniques,
       customTechniques: raw.customTechniques,
+      playPrefs: raw.playPrefs,
     });
   }
 
@@ -157,6 +167,7 @@
         lovenseToys: next.lovenseToys,
         techniques: next.techniques,
         customTechniques: next.customTechniques,
+        playPrefs: next.playPrefs,
       }).catch(() => {
         /* keep local copy; user can retry save */
       });
@@ -306,6 +317,36 @@
     else if (getActivePanelTab() === "stream") setPanelTab("setup");
   }
 
+  function readPlayPrefsFromForm() {
+    const pick = (name) => {
+      const ids = [];
+      document.querySelectorAll(`input[name="${name}"]:checked`).forEach((el) => {
+        if (el instanceof HTMLInputElement && el.value) ids.push(el.value);
+      });
+      return ids;
+    };
+    return normalizePlayPrefs({
+      dynamics: pick("profileDynamics"),
+      kinks: pick("profileKinks"),
+      intensity: pick("profileIntensity"),
+    });
+  }
+
+  function getCheckedTechniqueIds() {
+    const ids = [];
+    document.querySelectorAll('input[name="profileTechnique"]:checked').forEach((el) => {
+      if (el instanceof HTMLInputElement && el.value) ids.push(el.value);
+    });
+    return ids;
+  }
+
+  function setTechniqueChecks(ids) {
+    const set = new Set(ids);
+    document.querySelectorAll('input[name="profileTechnique"]').forEach((el) => {
+      if (el instanceof HTMLInputElement) el.checked = set.has(el.value);
+    });
+  }
+
   function readProfileForm() {
     const nameEl = document.getElementById("profileDisplayName");
     const genderEl = document.getElementById("profileGender");
@@ -315,10 +356,6 @@
     const bioEl = document.getElementById("profileBio");
     const toysEl = document.getElementById("profileLovenseToys");
     const current = loadProfile();
-    const techniques = [];
-    document.querySelectorAll('input[name="profileTechnique"]:checked').forEach((el) => {
-      if (el instanceof HTMLInputElement && el.value) techniques.push(el.value);
-    });
     return normalizeProfile({
       displayName: nameEl instanceof HTMLInputElement ? nameEl.value : "Guest",
       gender: genderEl instanceof HTMLSelectElement ? genderEl.value : "",
@@ -327,8 +364,9 @@
       location: locationEl instanceof HTMLInputElement ? locationEl.value : "",
       bio: bioEl instanceof HTMLTextAreaElement ? bioEl.value : "",
       lovenseToys: toysEl instanceof HTMLTextAreaElement ? toysEl.value : "",
-      techniques,
+      techniques: getCheckedTechniqueIds(),
       customTechniques: current.customTechniques,
+      playPrefs: readPlayPrefsFromForm(),
     });
   }
 
@@ -509,11 +547,71 @@
     if (locationEl instanceof HTMLInputElement) locationEl.value = p.location || "";
     if (bioEl instanceof HTMLTextAreaElement) bioEl.value = p.bio;
     if (toysEl instanceof HTMLTextAreaElement) toysEl.value = p.lovenseToys || "";
-    document.querySelectorAll('input[name="profileTechnique"]').forEach((el) => {
-      if (!(el instanceof HTMLInputElement)) return;
-      el.checked = p.techniques.includes(el.value);
-    });
+    renderPlayPrefsChecklists(p);
+    setTechniqueChecks(p.techniques);
     updateProfileAvatarPreview();
+  }
+
+  function buildPrefCheckbox(name, id, label, checked) {
+    const labelEl = document.createElement("label");
+    labelEl.className = "technique-check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = name;
+    input.value = id;
+    input.checked = checked;
+    const span = document.createElement("span");
+    span.textContent = label;
+    labelEl.appendChild(input);
+    labelEl.appendChild(span);
+    return labelEl;
+  }
+
+  function renderPlayPrefsChecklists(profile) {
+    const PP = global.DualPeerPlayPrefs;
+    if (!PP) return;
+    const p = normalizeProfile(profile || loadProfile());
+    const prefs = p.playPrefs;
+
+    const renderGroup = (rootId, items, groupName, selected) => {
+      const root = document.getElementById(rootId);
+      if (!root) return;
+      root.innerHTML = "";
+      items.forEach((item) => {
+        root.appendChild(buildPrefCheckbox(groupName, item.id, item.label, selected.includes(item.id)));
+      });
+    };
+
+    renderGroup("profileDynamicsList", PP.DYNAMICS, "profileDynamics", prefs.dynamics);
+    renderGroup("profileKinksList", PP.KINKS, "profileKinks", prefs.kinks);
+    renderGroup("profileIntensityList", PP.INTENSITY, "profileIntensity", prefs.intensity);
+    attachDynamicsChangeListener();
+  }
+
+  let dynamicsListenerBound = false;
+
+  function onDynamicsPrefChange() {
+    const checked = getCheckedTechniqueIds();
+    renderTechniqueChecklist();
+    setTechniqueChecks(checked);
+  }
+
+  function attachDynamicsChangeListener() {
+    if (dynamicsListenerBound) return;
+    const root = document.getElementById("profileDynamicsList");
+    if (!root) return;
+    root.addEventListener("change", (e) => {
+      if (e.target instanceof HTMLInputElement && e.target.name === "profileDynamics") {
+        onDynamicsPrefChange();
+      }
+    });
+    dynamicsListenerBound = true;
+  }
+
+  function dynamicsForPlaybook() {
+    const hasInputs = document.querySelectorAll('input[name="profileDynamics"]').length > 0;
+    if (hasInputs) return readPlayPrefsFromForm().dynamics;
+    return loadProfile().playPrefs.dynamics;
   }
 
   function renderTechniqueChecklist() {
@@ -522,24 +620,20 @@
     const p = loadProfile();
     if (presetRoot) {
       presetRoot.innerHTML = "";
-      const genderEl = document.getElementById("profileGender");
-      const gender =
-        genderEl instanceof HTMLSelectElement ? genderEl.value : p.gender || "";
-      const presetTitle = document.createElement("p");
-      presetTitle.className = "status-line profile-preset-heading";
-      presetTitle.textContent =
-        gender === "male"
-          ? "Presets (male)"
-          : gender === "female"
-            ? "Presets (female)"
-            : "Presets";
-      presetRoot.appendChild(presetTitle);
-      const grid = document.createElement("div");
-      grid.className = "profile-technique-grid";
-      presetsForCurrentGender(gender).forEach((t) => {
-        grid.appendChild(buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), false));
+      const sections =
+        global.DualPeerTechniques?.presetSectionsForDynamics?.(dynamicsForPlaybook()) || [];
+      sections.forEach((section) => {
+        const title = document.createElement("p");
+        title.className = "profile-preset-section-title";
+        title.textContent = section.title;
+        presetRoot.appendChild(title);
+        const grid = document.createElement("div");
+        grid.className = "profile-technique-grid";
+        section.items.forEach((t) => {
+          grid.appendChild(buildTechniqueCheckbox(t.id, t.label, p.techniques.includes(t.id), false));
+        });
+        presetRoot.appendChild(grid);
       });
-      presetRoot.appendChild(grid);
     }
     if (customRoot) {
       customRoot.innerHTML = "";
@@ -734,12 +828,17 @@
     const presetRoot = document.getElementById("profileTechniqueList");
     customRoot?.addEventListener("change", onEdit);
     presetRoot?.addEventListener("change", onEdit);
+    ["profileDynamicsList", "profileKinksList", "profileIntensityList"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("change", onEdit);
+    });
     document.getElementById("btnAddCustomTechnique")?.addEventListener("click", onEdit);
   }
 
   function enterProfileWorkspace({ onboarding = false } = {}) {
     setPanelTab("profile", { userAction: Boolean(onboarding) });
-    fillProfileForm(loadProfile());
+    const p = loadProfile();
+    renderPlayPrefsChecklists(p);
+    fillProfileForm(p);
     renderTechniqueChecklist();
     refreshWelcomeBanner();
     updateProfileTabHint();
@@ -759,7 +858,9 @@
         if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
         else document.getElementById("accountMenu")?.classList.remove("is-open");
         document.getElementById("accountDropdown")?.setAttribute("hidden", "");
-        fillProfileForm(loadProfile());
+        const p = loadProfile();
+        renderPlayPrefsChecklists(p);
+        fillProfileForm(p);
         renderTechniqueChecklist();
       });
     }
@@ -781,8 +882,10 @@
   }
 
   function initProfileForm() {
+    const p = loadProfile();
+    renderPlayPrefsChecklists(p);
+    fillProfileForm(p);
     renderTechniqueChecklist();
-    fillProfileForm(loadProfile());
     initProfileAvatar();
     refreshAccountMini();
     initWelcomeBannerDismiss();
@@ -821,13 +924,6 @@
       });
     }
 
-    const genderEl = document.getElementById("profileGender");
-    if (genderEl) {
-      genderEl.addEventListener("change", () => {
-        renderTechniqueChecklist();
-      });
-    }
-
     const form = document.getElementById("profileForm");
     if (form) {
       form.addEventListener("submit", async (e) => {
@@ -852,8 +948,10 @@
               lovenseToys: draft.lovenseToys,
               techniques: draft.techniques,
               customTechniques: draft.customTechniques,
+              playPrefs: draft.playPrefs,
             });
             const saved = persistLocal(profileFromAuth(updated) || draft);
+            renderPlayPrefsChecklists(saved);
             fillProfileForm(saved);
             renderTechniqueChecklist();
             refreshWelcomeBanner();
@@ -870,6 +968,7 @@
           }
         } else {
           const saved = saveProfile(draft);
+          renderPlayPrefsChecklists(saved);
           fillProfileForm(saved);
           renderTechniqueChecklist();
           if (msg) {
@@ -889,7 +988,9 @@
   }
 
   function onAuthProfileSynced() {
-    fillProfileForm(loadProfile());
+    const p = loadProfile();
+    renderPlayPrefsChecklists(p);
+    fillProfileForm(p);
     renderTechniqueChecklist();
     updateProfileTabHint();
     refreshWelcomeBanner();

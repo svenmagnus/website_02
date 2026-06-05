@@ -1925,6 +1925,34 @@ video {
   color: var(--text);
 }
 
+.profile-prefs-field {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  margin: 0 0 0.75rem;
+}
+
+.profile-prefs-field legend {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0 0.25rem;
+}
+
+.profile-prefs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  gap: 0.35rem 0.65rem;
+}
+
+.profile-preset-section-title {
+  margin: 0.35rem 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .profile-techniques-field {
   border: none;
   margin: 0 0 0.75rem;

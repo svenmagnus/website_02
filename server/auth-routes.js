@@ -211,6 +211,13 @@ function rowToProfile(row) {
   } catch (_) {
     /* ignore */
   }
+  let playPrefs = { dynamics: [], kinks: [], intensity: [] };
+  try {
+    const parsed = JSON.parse(row.play_prefs_json || "{}");
+    if (parsed && typeof parsed === "object") playPrefs = parsed;
+  } catch (_) {
+    /* ignore */
+  }
   return {
     id: row.id,
     username: row.username,
@@ -221,6 +228,11 @@ function rowToProfile(row) {
     bio: row.bio || "",
     techniques: Array.isArray(techniques) ? techniques : [],
     customTechniques: Array.isArray(customTechniques) ? customTechniques : [],
+    playPrefs: {
+      dynamics: Array.isArray(playPrefs.dynamics) ? playPrefs.dynamics : [],
+      kinks: Array.isArray(playPrefs.kinks) ? playPrefs.kinks : [],
+      intensity: Array.isArray(playPrefs.intensity) ? playPrefs.intensity : [],
+    },
     lovenseToys: String(row.lovense_toys || "").slice(0, 500),
     nationality: String(row.nationality || "").slice(0, 64),
     languages: String(row.languages || "").slice(0, 120),
@@ -811,9 +823,17 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
       : current.languages;
   const location =
     req.body?.location != null ? String(req.body.location).trim().slice(0, 120) : current.location;
+  const playPrefs =
+    req.body?.playPrefs != null
+      ? {
+          dynamics: Array.isArray(req.body.playPrefs.dynamics) ? req.body.playPrefs.dynamics : [],
+          kinks: Array.isArray(req.body.playPrefs.kinks) ? req.body.playPrefs.kinks : [],
+          intensity: Array.isArray(req.body.playPrefs.intensity) ? req.body.playPrefs.intensity : [],
+        }
+      : current.playPrefs;
 
   db.prepare(
-    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?
+    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?
      WHERE id = ?`
   ).run(
     displayName,
@@ -821,6 +841,7 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     bio,
     JSON.stringify(Array.isArray(techniques) ? techniques : []),
     JSON.stringify(Array.isArray(customTechniques) ? customTechniques : []),
+    JSON.stringify(playPrefs),
     lovenseToys,
     nationality,
     languages,

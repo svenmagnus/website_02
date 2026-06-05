@@ -630,10 +630,23 @@
                 <label for="profileBio">About you</label>
                 <textarea id="profileBio" rows="4" maxlength="500" placeholder="A few words about you …"></textarea>
               </div>
+              <fieldset class="profile-prefs-field">
+                <legend>Dynamics &amp; roles</legend>
+                <div id="profileDynamicsList" class="profile-prefs-grid"></div>
+              </fieldset>
+              <fieldset class="profile-prefs-field">
+                <legend>Kink &amp; practices</legend>
+                <div id="profileKinksList" class="profile-prefs-grid"></div>
+              </fieldset>
+              <fieldset class="profile-prefs-field">
+                <legend>Intensity &amp; vibe</legend>
+                <div id="profileIntensityList" class="profile-prefs-grid"></div>
+              </fieldset>
               <fieldset class="profile-techniques-field">
                 <legend>My Playbook</legend>
                 <p class="status-line" style="margin: 0 0 0.5rem">
                   Actions your partner can pick from your Playbook during the stream (shown in live chat).
+                  Dom and Sub presets follow your dynamics selection above.
                 </p>
                 <div id="profileTechniqueList" class="profile-technique-list"></div>
                 <p class="status-line profile-custom-heading">Custom actions</p>
@@ -1107,12 +1120,13 @@
 
     <script src="assets/api-config.js?v=8425"></script>
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
-    <script src="assets/technique-presets.js?v=8484"></script>
+    <script src="assets/play-prefs.js?v=8570"></script>
+    <script src="assets/technique-presets.js?v=8570"></script>
     <script src="assets/ui-shell.js?v=8483"></script>
     <script src="assets/app.js?v=8531"></script>
-    <script src="assets/auth.js?v=8548"></script>
+    <script src="assets/auth.js?v=8570"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8564"></script>
-    <script src="assets/member-profile.js?v=8484"></script>
+    <script src="assets/member-profile.js?v=8570"></script>
   </body>
 </html>

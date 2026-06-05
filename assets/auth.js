@@ -105,6 +105,7 @@
       location: user.location || "",
       techniques: user.techniques || [],
       customTechniques: user.customTechniques || [],
+      playPrefs: user.playPrefs || { dynamics: [], kinks: [], intensity: [] },
       username: user.username,
       accountType: user.accountType === "host" ? "host" : "guest",
       isAdmin: Boolean(user.isAdmin),
@@ -153,6 +154,7 @@
       customTechniques: Array.isArray(profile.customTechniques)
         ? profile.customTechniques
         : session.user?.customTechniques || [],
+      playPrefs: profile.playPrefs || session.user?.playPrefs || { dynamics: [], kinks: [], intensity: [] },
       accountType: profile.accountType,
       isAdmin: profile.isAdmin,
       isPremium: profile.isPremium,
