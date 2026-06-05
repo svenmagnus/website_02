@@ -3791,15 +3791,14 @@ function initMemberProfileBridge() {
     sendTechniqueRequest(techniqueId, label, fromName);
   });
   window.addEventListener("dualpeer-technique-request-incoming", (e) => {
-    playTechniqueBell(e.detail?.soundId);
+    const { label, fromName, ts, soundId } = e.detail || {};
+    playTechniqueBell(soundId, { ts, label });
     if (global.DualPeerSocial?.reloadChatMessages) {
-      global.DualPeerSocial.reloadChatMessages().catch(() => {
-        const { label, fromName, ts } = e.detail || {};
+      global.DualPeerSocial.reloadChatMessages({ skipBell: true }).catch(() => {
         appendChatTechniqueMessage(fromName, label, false, ts);
       });
       return;
     }
-    const { label, fromName, ts } = e.detail || {};
     appendChatTechniqueMessage(fromName, label, false, ts);
   });
   window.addEventListener("dualpeer-profile-share-request", () => {

@@ -473,17 +473,19 @@
         !seen.has(m.id)
     );
     if (fresh.length) {
-      const partnerSound =
-        state.partner?.playModeSound || global.DualPeerPlayModeSounds?.loadPartnerSoundId?.();
-      global.playTechniqueBell(partnerSound);
+      const m = fresh[fresh.length - 1];
+      global.playTechniqueBell(global.DualPeerPlayModeSounds?.loadPartnerSoundId?.(), {
+        ts: m.createdAt,
+        label: m.body,
+      });
     }
   }
 
-  function setMessages(next, { skipBroadcast = false } = {}) {
+  function setMessages(next, { skipBroadcast = false, skipBell = false } = {}) {
     const merged = sortMessages(next || []);
     const fp = messagesFingerprint(merged);
     if (fp === state.renderFingerprint) return false;
-    maybePlayBellForNewTechniques(state.messages, merged);
+    if (!skipBell) maybePlayBellForNewTechniques(state.messages, merged);
     state.messages = merged;
     state.renderFingerprint = fp;
     syncThreadLastMessageAt(merged);
@@ -778,7 +780,7 @@
     getChatBroadcastChannel();
   }
 
-  async function loadThreadMessages(threadId) {
+  async function loadThreadMessages(threadId, { skipBell = false } = {}) {
     if (!threadId) return;
     const data = await api(`/api/social/chat/threads/${encodeURIComponent(threadId)}/messages`);
     const serverMsgs = sortMessages(data.messages || []);
@@ -793,7 +795,7 @@
     });
     state.threadId = threadId;
     state.loaded = true;
-    setMessages(mergeMessages(serverMsgs, pending), { skipBroadcast: false });
+    setMessages(mergeMessages(serverMsgs, pending), { skipBroadcast: false, skipBell });
   }
 
   async function bootstrap({ loadChat = false } = {}) {
@@ -1223,9 +1225,9 @@
     }
   }
 
-  async function reloadChatMessages() {
+  async function reloadChatMessages({ skipBell = false } = {}) {
     if (!state.threadId || !isLoggedIn()) return;
-    await loadThreadMessages(state.threadId);
+    await loadThreadMessages(state.threadId, { skipBell });
   }
 
   function showChatError(msg) {

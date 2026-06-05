@@ -9,6 +9,8 @@
   let audioCtx = null;
   let lastPlayedAt = 0;
   let serverSyncTimer = null;
+  const recentBellKeys = new Map();
+  const BELL_DEDUPE_MS = 4000;
 
   function getAudioContext() {
     const Ctx = global.AudioContext || global.webkitAudioContext;
@@ -277,7 +279,26 @@
     if (explicitId && presetById.has(explicitId)) return explicitId;
     const partner = loadPartnerSoundId();
     if (partner && presetById.has(partner)) return partner;
-    return DEFAULT_SOUND;
+    return null;
+  }
+
+  function bellDedupeKey(meta) {
+    const label = String(meta?.label || "").trim().slice(0, 80);
+    if (!label) return "";
+    const ts = Number(meta?.ts) || Date.now();
+    const bucket = Math.floor(ts / 3000);
+    return `technique:${bucket}:${label}`;
+  }
+
+  function shouldPlayBellForKey(key) {
+    if (!key) return true;
+    const now = Date.now();
+    for (const [k, at] of recentBellKeys) {
+      if (now - at > BELL_DEDUPE_MS) recentBellKeys.delete(k);
+    }
+    if (recentBellKeys.has(key)) return false;
+    recentBellKeys.set(key, now);
+    return true;
   }
 
   function shareMyPlayModeSound() {
@@ -314,8 +335,12 @@
     return playSoundById(loadSoundId());
   }
 
-  async function playIncomingRequestSound(soundId) {
-    return playSoundById(resolveIncomingSoundId(soundId));
+  async function playIncomingRequestSound(soundId, meta) {
+    const key = bellDedupeKey(meta);
+    if (key && !shouldPlayBellForKey(key)) return;
+    const resolved = resolveIncomingSoundId(soundId);
+    if (!resolved) return;
+    return playSoundById(resolved);
   }
 
   function fillSoundSelect() {
