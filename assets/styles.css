@@ -2030,22 +2030,6 @@ video {
   margin: 0.65rem 0 0.35rem;
 }
 
-.profile-own-menus-field {
-  border: 1px dashed color-mix(in srgb, var(--border) 80%, var(--accent));
-  border-radius: 8px;
-  margin: 0 0 0.65rem;
-  padding: 0.55rem 0.65rem 0.6rem;
-}
-
-.profile-own-menus-field legend {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0 0.25rem;
-}
-
 .profile-custom-menus-editor {
   display: flex;
   flex-direction: column;

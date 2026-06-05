@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8581" />
+    <link rel="stylesheet" href="assets/styles.css?v=8582" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -642,19 +642,19 @@
                 <legend>Intensity &amp; vibe</legend>
                 <div id="profileIntensityList" class="profile-prefs-grid"></div>
               </fieldset>
+              <fieldset class="profile-prefs-field">
+                <legend>Own menus</legend>
+                <p class="status-line profile-field-hint" style="margin: 0 0 0.4rem">
+                  Check a menu to show it in My Playbook below. Uncheck to hide it again.
+                </p>
+                <div id="profileOwnMenusList" class="profile-prefs-grid"></div>
+              </fieldset>
               <fieldset class="profile-techniques-field">
                 <legend>My Playbook</legend>
                 <p class="status-line" style="margin: 0 0 0.5rem">
                   Actions your partner can pick from your Playbook during the stream (shown in live chat).
-                  Preset menus appear only for the roles, practices, and intensity you check above.
+                  Sections appear only for the dynamics, kinks, intensity, and own menus you check above.
                 </p>
-                <fieldset class="profile-own-menus-field">
-                  <legend>Own menus</legend>
-                  <p class="status-line profile-field-hint" style="margin: 0 0 0.35rem">
-                    Check a menu to show its actions in your Playbook below (next to the preset menus).
-                  </p>
-                  <div id="profileOwnMenusList" class="profile-prefs-grid"></div>
-                </fieldset>
                 <div id="profileTechniqueList" class="profile-technique-list"></div>
                 <p class="status-line profile-custom-heading">Custom actions</p>
                 <div class="profile-technique-add row">
@@ -670,7 +670,7 @@
                 <div id="profileCustomTechniqueList" class="profile-technique-list profile-custom-list"></div>
                 <p class="status-line profile-custom-heading">Create own menus</p>
                 <p class="status-line profile-field-hint" style="margin: 0 0 0.35rem">
-                  Build grouped menus with several actions. Enable them under <strong>Own menus</strong> above.
+                  Build grouped menus with several actions. Enable them under <strong>Own menus</strong> (above My Playbook).
                 </p>
                 <div class="profile-technique-add row">
                   <input
@@ -1168,6 +1168,6 @@
     <script src="assets/auth.js?v=8581"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8581"></script>
-    <script src="assets/member-profile.js?v=8581"></script>
+    <script src="assets/member-profile.js?v=8582"></script>
   </body>
 </html>

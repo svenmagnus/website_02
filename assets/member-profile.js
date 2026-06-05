@@ -679,6 +679,7 @@
     renderGroup("profileDynamicsList", PP.DYNAMICS, "profileDynamics", prefs.dynamics);
     renderGroup("profileKinksList", PP.KINKS, "profileKinks", prefs.kinks);
     renderGroup("profileIntensityList", PP.INTENSITY, "profileIntensity", prefs.intensity);
+    renderOwnMenusChecklist();
     attachPlayPrefsChangeListener();
   }
 
@@ -1171,9 +1172,11 @@
     const presetRoot = document.getElementById("profileTechniqueList");
     customRoot?.addEventListener("change", onEdit);
     presetRoot?.addEventListener("change", onEdit);
-    ["profileDynamicsList", "profileKinksList", "profileIntensityList"].forEach((id) => {
-      document.getElementById(id)?.addEventListener("change", onEdit);
-    });
+    ["profileDynamicsList", "profileKinksList", "profileIntensityList", "profileOwnMenusList"].forEach(
+      (id) => {
+        document.getElementById(id)?.addEventListener("change", onEdit);
+      }
+    );
     document.getElementById("btnAddCustomTechnique")?.addEventListener("click", onEdit);
   }
 
