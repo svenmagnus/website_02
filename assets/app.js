@@ -2689,6 +2689,10 @@ function appendChatMessage(sender, text, isLocal, ts, { variant } = {}) {
 }
 
 function appendChatTechniqueMessage(sender, label, isLocal, ts) {
+  if (global.DualPeerSocial?.appendTechniqueMessage) {
+    global.DualPeerSocial.appendTechniqueMessage(sender, label, isLocal, ts);
+    return;
+  }
   const text = isLocal ? `You request: ${label}` : `${sender} requests: ${label}`;
   appendChatMessage(isLocal ? "You" : sender, text, isLocal, ts, { variant: "technique" });
 }

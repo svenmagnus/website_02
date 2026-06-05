@@ -101,9 +101,11 @@
   function buildMessageEl(m, uid) {
     const isLocal = m.senderUserId === uid;
     const msg = document.createElement("div");
-    const kind = m.kind === "system" ? "system" : isLocal ? "local" : "remote";
+    const kind =
+      m.kind === "system" ? "system" : m.kind === "technique" ? (isLocal ? "local" : "remote") : isLocal ? "local" : "remote";
     msg.className = `chat-message chat-message--${kind}`;
     if (kind === "system") msg.classList.add("chat-message--system");
+    if (m.kind === "technique") msg.classList.add("chat-message--technique");
 
     const meta = document.createElement("span");
     meta.className = "chat-meta";
@@ -1119,6 +1121,28 @@
             body,
             kind: "text",
             createdAt: Date.now(),
+          },
+        ])
+      );
+    },
+    appendTechniqueMessage(senderName, label, isLocal, ts) {
+      const uid = getSessionUserId();
+      const at = ts || Date.now();
+      const name = String(senderName || "Partner").trim();
+      const action = String(label || "").trim();
+      if (!action) return;
+      const body = isLocal ? `You request: ${action}` : `${name} requests: ${action}`;
+      const id = `technique-${at}-${Math.random().toString(36).slice(2, 9)}`;
+      if (state.messages.some((m) => m.id === id)) return;
+      setMessages(
+        mergeMessages(state.messages, [
+          {
+            id,
+            senderUserId: isLocal ? uid : null,
+            senderName: isLocal ? "You" : name,
+            body,
+            kind: "technique",
+            createdAt: at,
           },
         ])
       );
