@@ -1,5 +1,7 @@
 # Tangent Club — Community Code of Conduct
 
+**Published version:** [code-of-conduct.html](https://tangent-club.com/code-of-conduct.html)
+
 Welcome to Tangent Club. As our platform is built on private peer-to-peer (P2P) communication, our community thrives on trust, mutual respect, and technological integrity.
 
 ## 1. Core Principles
