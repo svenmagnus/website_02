@@ -6,14 +6,14 @@
   const SHARED = [
     { id: "send_kiss", label: "Send a kiss" },
     { id: "tease_denial", label: "Tease me" },
-    { id: "dirty_talk", label: "Dirty talk" },
+    { id: "dirty_talk", label: "Shared fantasy" },
     { id: "roleplay", label: "Roleplay" },
-    { id: "affection", label: "Affection" },
+    { id: "affection", label: "Moments of closeness" },
   ];
 
   const MALE = [
-    { id: "jerk_off", label: "Your pleasure" },
-    { id: "body_worship", label: "Focus on you" },
+    { id: "jerk_off", label: "Focus on you" },
+    { id: "body_worship", label: "Celebrate you" },
     { id: "spank_ass", label: "Playful impact" },
     { id: "nipple_play", label: "Physical connection" },
   ];
@@ -32,9 +32,9 @@
     { id: "spank_breast", label: "Tease me" },
     { id: "nipple_play", label: "Physical connection" },
     { id: "tease_denial", label: "Tease me" },
-    { id: "body_worship", label: "Focus on you" },
+    { id: "body_worship", label: "Celebrate you" },
     { id: "fingering", label: "Show me more" },
-    { id: "jerk_off", label: "Your pleasure" },
+    { id: "jerk_off", label: "Focus on you" },
   ];
 
   function dedupeById(list) {
