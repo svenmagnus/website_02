@@ -551,7 +551,8 @@
     const partnerId = getSelectedPartnerUserId();
     return (
       state.meetings?.find((m) => {
-        if (!m.isHost || m.status !== "live") return false;
+        if (!m.isHost || m.mode !== "instant") return false;
+        if (m.status !== "live" && m.status !== "completed") return false;
         if (String(m.hostPeerId || "").trim()) return false;
         if (partnerId && m.guest?.id !== partnerId) return false;
         return true;
@@ -742,8 +743,12 @@
               timeStyle: "short",
             })
           : "—";
+        const statusLabel =
+          m.status === "live" && !String(m.hostPeerId || "").trim()
+            ? "live · ready to resume"
+            : m.status;
         body.innerHTML =
-          `<strong>${m.mode === "instant" ? "Instant" : "Scheduled"}</strong> · ${m.status}` +
+          `<strong>${m.mode === "instant" ? "Instant" : "Scheduled"}</strong> · ${statusLabel}` +
           (partner ? ` · ${escapeHtml(partner.displayName)}` : "") +
           (m.mode === "scheduled" ? `<br><span class="status-line">${when}</span>` : "") +
           (m.hostPeerId ? `<br><code class="meeting-peer-id">${escapeHtml(m.hostPeerId)}</code>` : "") +
@@ -889,12 +894,30 @@
     return getActiveLiveMeetingId();
   }
 
+  function findResumableHostMeeting() {
+    const partnerId = getSelectedPartnerUserId();
+    return (
+      state.meetings.find((m) => {
+        if (!m.isHost) return false;
+        if (m.mode !== "instant") return false;
+        if (m.status !== "live" && m.status !== "completed") return false;
+        if (partnerId && m.guest?.id !== partnerId) return false;
+        return true;
+      }) || null
+    );
+  }
+
   function getActiveLiveMeetingId() {
     if (state._pendingMeetingId) return state._pendingMeetingId;
-    const m = state.meetings.find(
-      (x) => x.isHost && x.status === "live" && x.mode === "instant"
-    );
-    return m?.id || state.meetings.find((x) => x.isHost && x.status === "live")?.id || null;
+    const instant = findResumableHostMeeting();
+    if (instant?.id) return instant.id;
+    const partnerId = getSelectedPartnerUserId();
+    const fallback = state.meetings.find((m) => {
+      if (!m.isHost || m.status !== "live") return false;
+      if (partnerId && m.guest?.id !== partnerId) return false;
+      return true;
+    });
+    return fallback?.id || null;
   }
 
   function initHeaderChatSend() {
@@ -1224,9 +1247,15 @@
     }
   }
 
+  async function pauseActiveSession() {
+    await api("/api/social/session/pause", { method: "POST" });
+    await bootstrap({ loadChat: false });
+    applyHostPeerIdFromMeetings();
+    updateSessionActionHighlight();
+  }
+
   async function endLiveSession() {
-    await api("/api/social/session/end-live", { method: "POST" });
-    await bootstrap();
+    return pauseActiveSession();
   }
 
   function fillPartnerSelects(threads = []) {
@@ -1386,6 +1415,7 @@
     addModelToPool,
     checkConnectAvailable,
     endLiveSession,
+    pauseActiveSession,
     getModelPool: () => state.modelPool,
     getContactPool: () => state.contactPool,
     getActiveMembers: () => state.activeMembers,

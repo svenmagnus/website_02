@@ -212,12 +212,19 @@ function getActiveProviderSession(db, providerUserId) {
   );
 }
 
-export function endLiveSessionsForProvider(db, providerUserId) {
-  if (!providerUserId) return;
+/** Disconnect video but keep the session row resumable (live, peer id cleared). */
+export function pauseLiveSessionsForUser(db, userId) {
+  if (!userId) return;
   const at = nowMs();
   db.prepare(
-    `UPDATE meetings SET status = 'completed', updated_at = ? WHERE host_user_id = ? AND status = 'live'`
-  ).run(at, providerUserId);
+    `UPDATE meetings SET host_peer_id = '', updated_at = ?
+     WHERE status = 'live' AND (host_user_id = ? OR guest_user_id = ?)`
+  ).run(at, userId, userId);
+}
+
+/** @deprecated use pauseLiveSessionsForUser */
+export function endLiveSessionsForProvider(db, providerUserId) {
+  pauseLiveSessionsForUser(db, providerUserId);
 }
 
 function resolveProviderUserId(db, { providerUserId, hostPeerId }) {
@@ -405,7 +412,13 @@ socialRouter.post("/social/session/connect-check", requireAuth, (req, res) => {
 
 socialRouter.post("/social/session/end-live", requireAuth, (req, res) => {
   const db = getDb();
-  endLiveSessionsForProvider(db, req.authUser.id);
+  pauseLiveSessionsForUser(db, req.authUser.id);
+  res.json({ ok: true });
+});
+
+socialRouter.post("/social/session/pause", requireAuth, (req, res) => {
+  const db = getDb();
+  pauseLiveSessionsForUser(db, req.authUser.id);
   res.json({ ok: true });
 });
 

@@ -1642,10 +1642,12 @@ function hangup() {
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
-  if (wasStreamProvider) {
-    global.DualPeerSocial?.endLiveSession?.().catch(() => {});
+  if (wasStreamProvider || hadLiveCall) {
+    global.DualPeerSocial?.pauseActiveSession?.().catch(() => {});
   }
   if (hadLiveCall) endSessionChat();
+  const peerIn = els.peerIdIn;
+  if (peerIn instanceof HTMLInputElement) peerIn.value = "";
   global.DualPeerSocial?.applyHostPeerIdFromMeetings?.();
   if (videoAccessUnlocked) applyAccountStreamingUi();
   else {
@@ -2902,7 +2904,7 @@ async function publishHostPeerIdToGuest(peerId) {
     if (!meetingId) {
       setStatus(
         els.statusHost,
-        "First create an instant session (Setup → New session), then Start Camera.",
+        "Select your partner under Session with, then New session (instant) — or resume an existing session.",
         "err"
       );
       return;
