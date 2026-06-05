@@ -2963,6 +2963,12 @@ function handleIncomingDataMessage(raw) {
     handleIncomingChatPayload(data);
     return;
   }
+  if (data.type === "chat-delete-last") {
+    if (global.DualPeerSocial?.applyDeleteLastMessage) {
+      global.DualPeerSocial.applyDeleteLastMessage(data.messageId, { skipBroadcast: true });
+    }
+    return;
+  }
   if (data.type === "session_end") {
     endSessionChat();
     return;
@@ -3029,8 +3035,21 @@ function relayChatToPeer(text, sender) {
   }
 }
 
+function relayChatDeleteLast(messageId) {
+  try {
+    sendDataChannelMessage({
+      type: "chat-delete-last",
+      messageId: messageId || null,
+      ts: Date.now(),
+    });
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 global.DualPeerChat = {
   relayToPeer: (text) => relayChatToPeer(text, getChatDisplayName()),
+  relayDeleteLast: relayChatDeleteLast,
   ensureEmojiBars: ensureChatEmojiBars,
 };
 

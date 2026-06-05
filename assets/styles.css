@@ -2147,6 +2147,13 @@ html[data-theme="cb-dark"] .chat-card {
   letter-spacing: 0.04em;
 }
 
+.chat-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
 .chat-clear-btn {
   flex-shrink: 0;
   font-size: 0.78rem;

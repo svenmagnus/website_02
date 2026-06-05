@@ -27,6 +27,7 @@
     loaded: false,
     calendar: { configured: false, connected: false, email: "" },
     renderFingerprint: null,
+    threadLastMessageAt: null,
     activeUserId: null,
     sessionJoinedMeetingId: null,
   };
@@ -448,6 +449,7 @@
     if (fp === state.renderFingerprint) return false;
     state.messages = merged;
     state.renderFingerprint = fp;
+    syncThreadLastMessageAt(merged);
     renderMessages({ skipBroadcast });
     return true;
   }
@@ -525,9 +527,50 @@
     }
   }
 
+  function broadcastDeleteLast(messageId) {
+    try {
+      const bc = getChatBroadcastChannel();
+      if (!bc) return;
+      bc.postMessage({
+        type: "delete-last",
+        threadId: state.threadId,
+        messageId: messageId || null,
+        sourceId: global.__dualpeerTabId,
+      });
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function syncThreadLastMessageAt(messages) {
+    const sorted = sortMessages(messages || []);
+    state.threadLastMessageAt = sorted.length ? sorted[sorted.length - 1].createdAt || null : null;
+  }
+
+  function isEphemeralMessageId(id) {
+    const value = String(id || "");
+    return value.startsWith("local-") || value.startsWith("technique-");
+  }
+
+  function deleteLastLocalMessage({ messageId, skipBroadcast = false } = {}) {
+    if (!state.messages.length) return false;
+    const sorted = sortMessages(state.messages);
+    const targetId = messageId || sorted[sorted.length - 1]?.id;
+    if (!targetId) return false;
+    const next = state.messages.filter((m) => m.id !== targetId);
+    if (next.length === state.messages.length) return false;
+    state.messages = next;
+    state.renderFingerprint = messagesFingerprint(next);
+    syncThreadLastMessageAt(next);
+    renderMessages({ skipBroadcast });
+    if (!skipBroadcast) broadcastDeleteLast(targetId);
+    return true;
+  }
+
   function clearLocalChatMessages({ skipBroadcast = false } = {}) {
     state.messages = [];
     state.renderFingerprint = messagesFingerprint([]);
+    state.threadLastMessageAt = null;
     renderMessages({ skipBroadcast });
     if (!skipBroadcast) broadcastChatClear();
   }
@@ -560,6 +603,47 @@
       }
     }
     clearLocalChatMessages();
+  }
+
+  async function deleteLastChatMessage() {
+    if (!state.messages.length) {
+      setChatClearStatus("No message to delete.");
+      return false;
+    }
+    const sorted = sortMessages(state.messages);
+    const last = sorted[sorted.length - 1];
+    const lastId = last?.id;
+    if (!lastId) {
+      setChatClearStatus("No message to delete.");
+      return false;
+    }
+
+    if (!isEphemeralMessageId(lastId) && state.threadId && isLoggedIn()) {
+      try {
+        const data = await api(
+          `/api/social/chat/threads/${encodeURIComponent(state.threadId)}/messages/last`,
+          { method: "DELETE" }
+        );
+        deleteLastLocalMessage({ messageId: data.messageId || lastId, skipBroadcast: true });
+      } catch (err) {
+        console.warn("[social] delete last chat failed:", err);
+        setChatClearStatus(err?.message || "Could not delete last message.", "err");
+        return false;
+      }
+    } else {
+      deleteLastLocalMessage({ messageId: lastId, skipBroadcast: true });
+    }
+
+    broadcastDeleteLast(lastId);
+    if (global.DualPeerChat?.relayDeleteLast) {
+      global.DualPeerChat.relayDeleteLast(lastId);
+    }
+    setChatClearStatus("Last message deleted.");
+    return true;
+  }
+
+  function applyDeleteLastMessage(messageId, { skipBroadcast = true } = {}) {
+    deleteLastLocalMessage({ messageId, skipBroadcast });
   }
 
   async function clearChatAfterSession() {
@@ -615,6 +699,12 @@
       if (data.sourceId && data.sourceId === global.__dualpeerTabId) return;
       if (data.threadId && state.threadId && data.threadId !== state.threadId) return;
       clearLocalChatMessages({ skipBroadcast: true });
+      return;
+    }
+    if (data?.type === "delete-last") {
+      if (data.sourceId && data.sourceId === global.__dualpeerTabId) return;
+      if (data.threadId && state.threadId && data.threadId !== state.threadId) return;
+      deleteLastLocalMessage({ messageId: data.messageId, skipBroadcast: true });
       return;
     }
     if (data?.type !== "sync" || !Array.isArray(data.messages)) return;
@@ -725,6 +815,24 @@
     refreshPartnerPlaybookIfNeeded().catch(() => {});
   }
 
+  async function maybeRefreshChatFromServer(threads) {
+    if (!state.threadId || !state.loaded || !Array.isArray(threads)) return;
+    const activeThread = threads.find((t) => t.id === state.threadId);
+    if (!activeThread) return;
+    const serverAt = activeThread.lastMessageAt || null;
+    if (state.threadLastMessageAt == null) {
+      state.threadLastMessageAt = serverAt;
+      return;
+    }
+    if (serverAt !== state.threadLastMessageAt) {
+      try {
+        await loadThreadMessages(state.threadId);
+      } catch (err) {
+        console.warn("[social] chat sync failed:", err);
+      }
+    }
+  }
+
   async function refreshMeetingsFromServer() {
     if (!isLoggedIn()) return;
     const data = await api("/api/social/bootstrap");
@@ -736,6 +844,7 @@
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
     syncJoinedSessionState();
+    await maybeRefreshChatFromServer(data.threads || []);
     await refreshPartnerPlaybookIfNeeded();
     await loadModelPool();
     renderActiveMembersPanel();
@@ -1755,6 +1864,13 @@
   }
 
   function initLiveChatToolbar() {
+    document.getElementById("btnDeleteLastChat")?.addEventListener("click", async () => {
+      try {
+        await deleteLastChatMessage();
+      } catch (err) {
+        setChatClearStatus(err?.message || "Could not delete last message.", "err");
+      }
+    });
     document.getElementById("btnClearLiveChat")?.addEventListener("click", async () => {
       try {
         await clearLiveChat({ deleteServer: true });
@@ -1804,6 +1920,8 @@
     sendPersistentMessage,
     clearChatAfterSession,
     clearLiveChat,
+    deleteLastChatMessage,
+    applyDeleteLastMessage,
     resetSocialClientState,
     publishHostPeerId,
     getActiveLiveMeetingId,

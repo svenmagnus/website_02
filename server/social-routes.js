@@ -778,6 +778,27 @@ socialRouter.post("/social/chat/threads/:threadId/messages", requireAuth, (req, 
   res.status(201).json({ ok: true, message: mapMessageRow(row, db) });
 });
 
+socialRouter.delete("/social/chat/threads/:threadId/messages/last", requireAuth, (req, res) => {
+  const db = getDb();
+  const thread = db.prepare("SELECT * FROM chat_threads WHERE id = ?").get(req.params.threadId);
+  if (!thread) return res.status(404).json({ ok: false, error: "thread_not_found" });
+  const uid = req.authUser.id;
+  if (thread.user_low_id !== uid && thread.user_high_id !== uid) {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+  const last = db
+    .prepare(
+      "SELECT id FROM chat_messages WHERE thread_id = ? ORDER BY created_at DESC LIMIT 1"
+    )
+    .get(thread.id);
+  if (!last) {
+    return res.json({ ok: true, threadId: thread.id, deleted: false });
+  }
+  db.prepare("DELETE FROM chat_messages WHERE id = ?").run(last.id);
+  db.prepare("UPDATE chat_threads SET updated_at = ? WHERE id = ?").run(nowMs(), thread.id);
+  res.json({ ok: true, threadId: thread.id, deleted: true, messageId: last.id });
+});
+
 socialRouter.delete("/social/chat/threads/:threadId/messages", requireAuth, (req, res) => {
   const db = getDb();
   const thread = db.prepare("SELECT * FROM chat_threads WHERE id = ?").get(req.params.threadId);
