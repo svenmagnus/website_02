@@ -370,6 +370,7 @@
     try {
       if (isLoggedIn()) {
         await api("/api/social/presence/offline", { method: "POST" }).catch(() => {});
+        await api("/api/social/sessions/clear", { method: "POST" }).catch(() => {});
         await api("/api/auth/logout", { method: "POST" });
       }
     } catch (_) {

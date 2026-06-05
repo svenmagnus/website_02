@@ -1254,6 +1254,18 @@
     updateSessionActionHighlight();
   }
 
+  async function clearAllSessions() {
+    await api("/api/social/sessions/clear", { method: "POST" });
+    state.meetings = state.meetings.filter(
+      (m) => m.status === "scheduled" || (m.mode === "scheduled" && m.status !== "completed")
+    );
+    state._pendingMeetingId = null;
+    updateMeetingPanels();
+    applyHostPeerIdFromMeetings();
+    updateSessionActionHighlight();
+    broadcastMeetingsChanged();
+  }
+
   async function endLiveSession() {
     return pauseActiveSession();
   }
@@ -1416,6 +1428,7 @@
     checkConnectAvailable,
     endLiveSession,
     pauseActiveSession,
+    clearAllSessions,
     getModelPool: () => state.modelPool,
     getContactPool: () => state.contactPool,
     getActiveMembers: () => state.activeMembers,

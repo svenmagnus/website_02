@@ -422,6 +422,56 @@ socialRouter.post("/social/session/pause", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+/** Remove finished sessions on logout; keep future scheduled meetings. */
+function listFinishedMeetingsForUser(db, uid) {
+  return db
+    .prepare(
+      `SELECT * FROM meetings
+       WHERE (host_user_id = ? OR guest_user_id = ?)
+         AND (
+           status = 'completed'
+           OR (status = 'live' AND mode = 'instant')
+         )`
+    )
+    .all(uid, uid);
+}
+
+socialRouter.post("/social/sessions/clear", requireAuth, async (req, res) => {
+  const db = getDb();
+  const uid = req.authUser.id;
+  const meetings = listFinishedMeetingsForUser(db, uid);
+
+  if (req.authUser.google_refresh_token_enc) {
+    try {
+      const accessToken = await getAccessTokenForUser(db, uid);
+      if (accessToken) {
+        for (const meeting of meetings) {
+          if (!meeting.google_event_id) continue;
+          try {
+            await deleteCalendarEvent(accessToken, meeting.google_event_id);
+          } catch (err) {
+            console.warn("[calendar] clear sessions delete event failed:", err.message);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[calendar] clear sessions calendar access failed:", err.message);
+    }
+  }
+
+  const result = db
+    .prepare(
+      `DELETE FROM meetings
+       WHERE (host_user_id = ? OR guest_user_id = ?)
+         AND (
+           status = 'completed'
+           OR (status = 'live' AND mode = 'instant')
+         )`
+    )
+    .run(uid, uid);
+  res.json({ ok: true, removed: result.changes ?? meetings.length });
+});
+
 socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
   const db = getDb();
   const uid = req.authUser.id;
