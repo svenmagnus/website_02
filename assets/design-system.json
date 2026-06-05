@@ -89,6 +89,49 @@
         "font": "'Segoe UI', system-ui, sans-serif"
       }
     },
+    "neon": {
+      "label": "Neon night",
+      "web": {
+        "bg": "#080012",
+        "surface": "#140822",
+        "border": "rgba(0, 229, 255, 0.28)",
+        "text": "#f8f4ff",
+        "muted": "#a89cc8",
+        "accent": "#ff2bd6",
+        "accentDim": "#bf00ff",
+        "partner": "#00e5ff",
+        "success": "#46d369",
+        "danger": "#ff4d9a",
+        "headerBg": "#0c0218",
+        "secondaryBg": "rgba(191, 0, 255, 0.18)",
+        "secondaryBorder": "rgba(255, 43, 214, 0.45)",
+        "secondaryText": "#ffffff",
+        "chatRemoteBg": "rgba(255, 43, 214, 0.12)",
+        "chatRemoteBorder": "rgba(0, 229, 255, 0.32)",
+        "chatLocalBg": "rgba(255, 255, 255, 0.04)",
+        "chatLocalBorder": "rgba(191, 0, 255, 0.22)",
+        "chatPanelBg": "#0f0318",
+        "videoRadius": "10px",
+        "radius": "10px",
+        "font": "\"DM Sans\", system-ui, sans-serif",
+        "fontHeading": "\"DM Sans\", system-ui, sans-serif",
+        "videoEmptyBg": "#050008",
+        "logoViolet": "#bf00ff"
+      },
+      "email": {
+        "outerBg": "#080012",
+        "cardBg": "#140822",
+        "cardBorder": "rgba(0, 229, 255, 0.35)",
+        "text": "#f8f4ff",
+        "textMuted": "#a89cc8",
+        "heading": "#ffffff",
+        "accent": "#ff2bd6",
+        "accentText": "#ffffff",
+        "codeBg": "#0f0318",
+        "radius": "12px",
+        "font": "'Segoe UI', system-ui, sans-serif"
+      }
+    },
     "hippie": {
       "label": "Hippie style",
       "web": {

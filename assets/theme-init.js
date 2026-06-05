@@ -1,12 +1,12 @@
 /**
  * Theme bootstrap — runs before paint and on DOMContentLoaded.
- * Storage key: theme (values: cb-dark | cb-light | hippie).
+ * Storage key: theme (values: cb-dark | cb-light | hippie | neon).
  * Migrates legacy dualpeer-theme on first read.
  */
 (function (global) {
   var STORAGE_KEY = "theme";
   var LEGACY_KEY = "dualpeer-theme";
-  var ALLOWED = ["cb-dark", "cb-light", "hippie"];
+  var ALLOWED = ["cb-dark", "cb-light", "hippie", "neon"];
   var DEFAULT_THEME = "cb-dark";
 
   var ALIASES = {
@@ -14,6 +14,8 @@
     dark: "cb-dark",
     light: "cb-light",
     hippie: "hippie",
+    neon: "neon",
+    "neon-night": "neon",
     "cb-dark": "cb-dark",
     "cb-light": "cb-light",
   };

@@ -1,6 +1,6 @@
 /**
  * Tangent Club — design tokens (see design-system.json).
- * Themes: cb-dark, cb-light, hippie
+ * Themes: cb-dark, cb-light, hippie, neon
  */
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap");
 
@@ -66,6 +66,37 @@ html[data-theme="cb-light"] {
   --logo-violet: #8b7cf7;
 }
 
+html[data-theme="neon"] {
+  --bg: #080012;
+  --surface: #140822;
+  --border: rgba(0, 229, 255, 0.28);
+  --text: #f8f4ff;
+  --muted: #a89cc8;
+  --accent: #ff2bd6;
+  --accent-dim: #bf00ff;
+  --partner: #00e5ff;
+  --success: #46d369;
+  --danger: #ff4d9a;
+  --header-bg: #0c0218;
+  --secondary-bg: rgba(191, 0, 255, 0.18);
+  --secondary-border: rgba(255, 43, 214, 0.45);
+  --secondary-text: #ffffff;
+  --chat-remote-bg: rgba(255, 43, 214, 0.12);
+  --chat-remote-border: rgba(0, 229, 255, 0.32);
+  --chat-local-bg: rgba(255, 255, 255, 0.04);
+  --chat-local-border: rgba(191, 0, 255, 0.22);
+  --chat-panel-bg: #0f0318;
+  --video-radius: 10px;
+  --radius: 10px;
+  --font: "DM Sans", system-ui, sans-serif;
+  --font-heading: "DM Sans", system-ui, sans-serif;
+  --video-empty-bg: #050008;
+  --logo-violet: #bf00ff;
+  --neon-cyan: #00e5ff;
+  --neon-pink: #ff2bd6;
+  --neon-purple: #bf00ff;
+}
+
 html[data-theme="hippie"] {
   --bg: #fdf5e6;
   --surface: #fff8ed;
@@ -113,6 +144,14 @@ html[data-theme="hippie"] .logo-link .site-logo--theme-light {
   display: block;
 }
 
+html[data-theme="neon"] .logo-link .site-logo--theme-light {
+  display: none;
+}
+
+html[data-theme="neon"] .logo-link .site-logo--theme-dark {
+  display: block;
+}
+
 /* Hippie — softer type & warm paper feel */
 html[data-theme="hippie"] body {
   background-color: var(--bg);
@@ -156,4 +195,61 @@ html[data-theme="hippie"] .login-overlay {
 
 html[data-theme="hippie"] .login-overlay-card {
   box-shadow: 0 20px 48px rgba(74, 44, 42, 0.12);
+}
+
+/* Neon — synthwave / club glow (pink + cyan from Lovense-style promos) */
+html[data-theme="neon"] body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 15% 0%, rgba(255, 43, 214, 0.18), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 85% 100%, rgba(0, 229, 255, 0.12), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(191, 0, 255, 0.08), transparent 60%);
+}
+
+html[data-theme="neon"] .main-header,
+html[data-theme="neon"] .login-overlay-card,
+html[data-theme="neon"] .card,
+html[data-theme="neon"] fieldset {
+  border-color: color-mix(in srgb, var(--neon-cyan) 35%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--neon-purple) 25%, transparent),
+    0 4px 24px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="neon"] button.primary,
+html[data-theme="neon"] .primary {
+  background: linear-gradient(135deg, var(--neon-pink) 0%, var(--neon-purple) 100%);
+  border: 1px solid color-mix(in srgb, var(--neon-cyan) 55%, transparent);
+  box-shadow:
+    0 0 12px rgba(255, 43, 214, 0.45),
+    0 0 28px rgba(191, 0, 255, 0.2);
+  color: #fff;
+}
+
+html[data-theme="neon"] button.primary:hover,
+html[data-theme="neon"] .primary:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    0 0 16px rgba(255, 43, 214, 0.55),
+    0 0 32px rgba(0, 229, 255, 0.25);
+}
+
+html[data-theme="neon"] a {
+  color: var(--neon-cyan);
+}
+
+html[data-theme="neon"] .login-overlay {
+  background: color-mix(in srgb, var(--bg) 92%, var(--neon-purple));
+}
+
+html[data-theme="neon"] .theme-segment.is-active,
+html[data-theme="neon"] .theme-segment[aria-pressed="true"] {
+  color: #fff;
+  background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple));
+  box-shadow: 0 0 10px rgba(255, 43, 214, 0.5);
+}
+
+html[data-theme="neon"] .account-avatar {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.35);
 }

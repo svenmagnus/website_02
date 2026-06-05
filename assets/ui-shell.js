@@ -4,12 +4,13 @@
 (function (global) {
   const THEME_STORAGE_KEY = "theme";
   const PROFILE_NAME_KEY = "dualpeer-profile-name";
-  const ALLOWED_THEMES = ["cb-dark", "cb-light", "hippie"];
+  const ALLOWED_THEMES = ["cb-dark", "cb-light", "hippie", "neon"];
 
   const THEME_LABELS = {
     "cb-light": "Light",
     "cb-dark": "Dark",
     hippie: "Hippie",
+    neon: "Neon",
   };
 
   function normalizeTheme(theme) {

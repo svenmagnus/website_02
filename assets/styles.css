@@ -324,7 +324,7 @@ button.linkish {
 
 .theme-segmented {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
   padding: 3px;
   border-radius: calc(var(--radius) + 4px);
@@ -333,7 +333,7 @@ button.linkish {
 }
 
 .theme-segmented--settings {
-  max-width: 20rem;
+  max-width: 26rem;
 }
 
 .theme-segment {
@@ -369,6 +369,10 @@ button.linkish {
 html[data-theme="hippie"] .theme-segment.is-active,
 html[data-theme="hippie"] .theme-segment[aria-pressed="true"] {
   color: #fff8ed;
+}
+
+html[data-theme="neon"] .theme-segment {
+  font-size: 0.72rem;
 }
 
 .account-toggle-row {
