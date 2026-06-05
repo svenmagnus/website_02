@@ -8,6 +8,8 @@
   let meetingsPollTimer = null;
   let meetingsBroadcastChannel = null;
   const ACTIVE_MEMBERS_KEY = "dualpeer-active-members-v1";
+  const SESSION_PARTNER_KEY = "dualpeer-session-partner-v1";
+  let couplingPartner = false;
 
   const state = {
     threadId: null,
@@ -18,6 +20,7 @@
     modelPool: [],
     contactPool: [],
     activeMembers: [],
+    sessionPartnerId: null,
     messages: [],
     loaded: false,
     calendar: { configured: false, connected: false, email: "" },
@@ -102,9 +105,87 @@
       const all = JSON.parse(localStorage.getItem(ACTIVE_MEMBERS_KEY) || "{}");
       delete all[uid];
       localStorage.setItem(ACTIVE_MEMBERS_KEY, JSON.stringify(all));
+      const partners = JSON.parse(localStorage.getItem(SESSION_PARTNER_KEY) || "{}");
+      delete partners[uid];
+      localStorage.setItem(SESSION_PARTNER_KEY, JSON.stringify(partners));
     } catch (_) {
       /* ignore */
     }
+  }
+
+  function loadSessionPartnerIdFromStorage() {
+    const uid = getSessionUserId();
+    if (!uid) return null;
+    try {
+      const all = JSON.parse(localStorage.getItem(SESSION_PARTNER_KEY) || "{}");
+      return all[uid] || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function saveSessionPartnerIdToStorage(partnerId) {
+    const uid = getSessionUserId();
+    if (!uid) return;
+    try {
+      const all = JSON.parse(localStorage.getItem(SESSION_PARTNER_KEY) || "{}");
+      if (partnerId) all[uid] = partnerId;
+      else delete all[uid];
+      localStorage.setItem(SESSION_PARTNER_KEY, JSON.stringify(all));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function getCoupledPartnerId() {
+    if (state.sessionPartnerId) return state.sessionPartnerId;
+    if (state.activeMembers.length === 1) return state.activeMembers[0].id;
+    const sel = document.querySelector(".js-meeting-partner-select");
+    return sel?.value?.trim() || null;
+  }
+
+  function coupleSessionWithPartner(partnerId, { addToMembers = true } = {}) {
+    const id = String(partnerId || "").trim();
+    if (!id) {
+      state.sessionPartnerId = null;
+      saveSessionPartnerIdToStorage(null);
+      couplingPartner = true;
+      document.querySelectorAll(".js-meeting-partner-select").forEach((sel) => {
+        if (sel instanceof HTMLSelectElement) sel.value = "";
+      });
+      couplingPartner = false;
+      renderActiveMembersPanel();
+      applyHostPeerIdFromMeetings();
+      updateSessionActionHighlight();
+      return;
+    }
+
+    if (addToMembers) {
+      const contact =
+        state.contactPool.find((c) => c.id === id) ||
+        state.activeMembers.find((m) => m.id === id) ||
+        state.threads.find((t) => t.partner?.id === id)?.partner;
+      if (contact && !state.activeMembers.some((m) => m.id === id)) {
+        state.activeMembers = [...state.activeMembers, normalizeContact(contact)];
+        saveActiveMembersToStorage(state.activeMembers);
+      }
+    }
+
+    state.sessionPartnerId = id;
+    saveSessionPartnerIdToStorage(id);
+
+    couplingPartner = true;
+    document.querySelectorAll(".js-meeting-partner-select").forEach((sel) => {
+      if (sel instanceof HTMLSelectElement && [...sel.options].some((o) => o.value === id)) {
+        sel.value = id;
+      }
+    });
+    couplingPartner = false;
+
+    renderActiveMembersPanel();
+    applyHostPeerIdFromMeetings();
+    updateSessionActionHighlight();
+    selectPartnerById(id);
   }
 
   function normalizeContact(raw) {
@@ -141,12 +222,11 @@
   function addActiveMember(raw) {
     const contact = normalizeContact(raw);
     if (!contact) return false;
-    if (state.activeMembers.some((m) => m.id === contact.id)) return false;
-    state.activeMembers = [...state.activeMembers, contact];
-    saveActiveMembersToStorage(state.activeMembers);
-    renderActiveMembersPanel();
-    syncPartnerSelectToMember(contact.id);
-    applyHostPeerIdFromMeetings();
+    if (!state.activeMembers.some((m) => m.id === contact.id)) {
+      state.activeMembers = [...state.activeMembers, contact];
+      saveActiveMembersToStorage(state.activeMembers);
+    }
+    coupleSessionWithPartner(contact.id, { addToMembers: false });
     return true;
   }
 
@@ -155,22 +235,24 @@
     if (!id) return;
     state.activeMembers = state.activeMembers.filter((m) => m.id !== id);
     saveActiveMembersToStorage(state.activeMembers);
-    renderActiveMembersPanel();
+    if (state.sessionPartnerId === id) {
+      coupleSessionWithPartner(state.activeMembers[0]?.id || null, { addToMembers: false });
+    } else {
+      renderActiveMembersPanel();
+    }
   }
 
   function clearActiveMembers({ clearStorage = true } = {}) {
     state.activeMembers = [];
+    state.sessionPartnerId = null;
     if (clearStorage) clearActiveMembersStorage();
+    else saveSessionPartnerIdToStorage(null);
     renderActiveMembersPanel();
-  }
-
-  function syncPartnerSelectToMember(memberId) {
+    couplingPartner = true;
     document.querySelectorAll(".js-meeting-partner-select").forEach((sel) => {
-      if (sel instanceof HTMLSelectElement && [...sel.options].some((o) => o.value === memberId)) {
-        sel.value = memberId;
-        sel.dispatchEvent(new Event("change", { bubbles: true }));
-      }
+      if (sel instanceof HTMLSelectElement) sel.value = "";
     });
+    couplingPartner = false;
   }
 
   async function selectPartnerById(partnerId) {
@@ -186,14 +268,21 @@
     state.partner = state.contactPool.find((c) => c.id === id) || null;
   }
 
-  function buildMemberCard(m, { variant, onRemove, onActivate } = {}) {
+  function buildMemberCard(m, { variant, onRemove, onActivate, onSelect, selected } = {}) {
     const card = document.createElement("div");
     card.className = "model-card" + (m.signedIn ? " is-signed-in" : "");
     if (variant === "pool") {
       card.classList.add("model-card--pool");
       card.title = "Double-click to add to Members";
     }
-    if (variant === "active") card.classList.add("model-card--active");
+    if (variant === "active") {
+      card.classList.add("model-card--active");
+      if (selected) card.classList.add("is-session-partner");
+      card.title = "Click to set as Session with partner";
+      if (onSelect) {
+        card.addEventListener("click", () => onSelect(m));
+      }
+    }
 
     const avatarPath = m.avatarUrl || null;
     if (avatarPath) {
@@ -364,6 +453,7 @@
     state.modelPool = [];
     state.contactPool = [];
     state.activeMembers = [];
+    state.sessionPartnerId = null;
     state.messages = [];
     clearActiveMembersStorage(userId || state.activeUserId);
     state.renderFingerprint = messagesFingerprint([]);
@@ -449,6 +539,11 @@
       state.threads = threads;
       setContactPool(data.contacts || []);
       state.activeMembers = loadActiveMembersFromStorage().map(normalizeContact).filter(Boolean);
+      const storedPartnerId = loadSessionPartnerIdFromStorage();
+      state.sessionPartnerId =
+        storedPartnerId && state.activeMembers.some((m) => m.id === storedPartnerId)
+          ? storedPartnerId
+          : state.activeMembers[0]?.id || null;
 
       const activeThread = pickActiveThread(threads);
       if (activeThread) {
@@ -472,7 +567,11 @@
       await loadModelPool();
       setContactPool([...(data.contacts || []), ...state.modelPool]);
       fillPartnerSelects(threads);
-      renderActiveMembersPanel();
+      if (state.sessionPartnerId) {
+        coupleSessionWithPartner(state.sessionPartnerId, { addToMembers: false });
+      } else {
+        renderActiveMembersPanel();
+      }
       updateSessionActionHighlight();
       updateSetupHints();
       updateMeetingPanels();
@@ -497,6 +596,7 @@
   }
 
   function getSelectedPartnerUserId() {
+    if (state.sessionPartnerId) return state.sessionPartnerId;
     const sel = document.querySelector(".js-meeting-partner-select");
     return sel?.value?.trim() || "";
   }
@@ -979,6 +1079,13 @@
         disconnectGoogleCalendar()
       );
       block.querySelector(".js-calendar-sync")?.addEventListener("click", () => syncGoogleCalendar());
+      block.querySelector(".js-invite-by-email")?.addEventListener("click", () => {
+        if (global.DualPeerAuth?.openInviteModal) {
+          global.DualPeerAuth.openInviteModal();
+        } else {
+          global.dispatchEvent(new CustomEvent("dualpeer-open-invite"));
+        }
+      });
 
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -1193,6 +1300,8 @@
       root.appendChild(
         buildMemberCard(merged, {
           variant: "active",
+          selected: merged.id === state.sessionPartnerId,
+          onSelect: (member) => coupleSessionWithPartner(member.id, { addToMembers: false }),
           onRemove: (id) => removeActiveMember(id),
         })
       );
@@ -1295,15 +1404,14 @@
     document.querySelectorAll(".js-meeting-partner-select").forEach((sel) => {
       if (!sel.dataset.partnerHighlightBound) {
         sel.dataset.partnerHighlightBound = "1";
-        sel.addEventListener("change", async () => {
+        sel.addEventListener("change", () => {
+          if (couplingPartner) return;
           const partnerId = sel.value?.trim() || "";
-          const contact =
-            state.contactPool.find((c) => c.id === partnerId) ||
-            partners.find((p) => p.id === partnerId);
-          if (contact) addActiveMember(contact);
-          applyHostPeerIdFromMeetings();
-          updateSessionActionHighlight();
-          if (partnerId) await selectPartnerById(partnerId);
+          if (!partnerId) {
+            coupleSessionWithPartner(null, { addToMembers: false });
+            return;
+          }
+          coupleSessionWithPartner(partnerId, { addToMembers: true });
         });
       }
       sel.replaceChildren();
@@ -1314,12 +1422,21 @@
         sel.appendChild(opt);
         return;
       }
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Choose session partner…";
+      sel.appendChild(placeholder);
       for (const p of partners) {
         const opt = document.createElement("option");
         opt.value = p.id;
-        const role = p.accountType === "host" ? "Host" : "Guest";
         opt.textContent = `${p.displayName} (@${p.username}) · Model`;
         sel.appendChild(opt);
+      }
+      const coupledId = getCoupledPartnerId();
+      if (coupledId && [...sel.options].some((o) => o.value === coupledId)) {
+        couplingPartner = true;
+        sel.value = coupledId;
+        couplingPartner = false;
       }
     });
   }

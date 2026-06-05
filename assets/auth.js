@@ -965,6 +965,8 @@
       .replace(/"/g, "&quot;");
   }
 
+  let openInviteModalImpl = null;
+
   function initInviteModal() {
     const modal = document.getElementById("inviteModal");
     const openBtn = document.getElementById("btnInviteByEmail");
@@ -1099,6 +1101,13 @@
         }
       });
     }
+
+    openInviteModalImpl = open;
+    global.addEventListener("dualpeer-open-invite", open);
+  }
+
+  function openInviteModal() {
+    if (openInviteModalImpl) openInviteModalImpl();
   }
 
   function initPremiumLoginModal() {
@@ -1826,6 +1835,7 @@
     uploadProfileAvatar,
     deleteProfileAvatar,
     sendInvite,
+    openInviteModal,
     fetchPremiumModels,
     bookModel,
     validateInviteToken,

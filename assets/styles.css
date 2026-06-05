@@ -3214,6 +3214,12 @@ footer {
 
 .model-card--active {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  cursor: pointer;
+}
+
+.model-card--active.is-session-partner {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .model-card-remove-btn {
@@ -3237,6 +3243,16 @@ footer {
 
 .members-toolbar-row {
   margin-bottom: 0.5rem;
+}
+
+.meeting-invite-row {
+  margin-top: 0.35rem;
+}
+
+.meeting-invite-row .js-invite-by-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .setup-session-actions button.session-action-glow {
