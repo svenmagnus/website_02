@@ -492,7 +492,18 @@
 
     const textNode = document.createElement("span");
     textNode.className = "chat-text";
-    textNode.textContent = m.body;
+    if (m.kind === "technique") {
+      const action = String(m.body || "").trim();
+      if (/requests:/i.test(action) || action.startsWith("You request:")) {
+        textNode.textContent = action;
+      } else {
+        textNode.textContent = isLocal
+          ? `You request: ${action}`
+          : `${m.senderName || "Partner"} requests: ${action}`;
+      }
+    } else {
+      textNode.textContent = m.body;
+    }
 
     msg.appendChild(meta);
     msg.appendChild(textNode);
@@ -740,9 +751,19 @@
   async function loadThreadMessages(threadId) {
     if (!threadId) return;
     const data = await api(`/api/social/chat/threads/${encodeURIComponent(threadId)}/messages`);
+    const serverMsgs = sortMessages(data.messages || []);
+    const pending = state.messages.filter((m) => {
+      if (!String(m.id).startsWith("technique-pending-")) return false;
+      return !serverMsgs.some(
+        (s) =>
+          s.kind === "technique" &&
+          s.body === m.body &&
+          Math.abs((s.createdAt || 0) - (m.createdAt || 0)) < 8000
+      );
+    });
     state.threadId = threadId;
     state.loaded = true;
-    setMessages(data.messages || [], { skipBroadcast: false });
+    setMessages(mergeMessages(serverMsgs, pending), { skipBroadcast: false });
   }
 
   async function bootstrap({ loadChat = false } = {}) {
@@ -1121,6 +1142,56 @@
       setMessages(mergeMessages(state.messages, [msg]));
     }
     return msg;
+  }
+
+  function appendTechniqueMessageLocal(senderName, label, isLocal, ts, messageId) {
+    const uid = getSessionUserId();
+    const at = ts || Date.now();
+    const name = String(senderName || "Partner").trim();
+    const action = String(label || "").trim();
+    if (!action) return;
+    const id = messageId || `technique-${at}-${Math.random().toString(36).slice(2, 9)}`;
+    if (state.messages.some((m) => m.id === id)) return;
+    setMessages(
+      mergeMessages(state.messages, [
+        {
+          id,
+          senderUserId: isLocal ? uid : null,
+          senderName: isLocal ? "You" : name,
+          body: action,
+          kind: "technique",
+          createdAt: at,
+        },
+      ])
+    );
+  }
+
+  async function sendTechniqueMessage(label, ts = Date.now()) {
+    const action = String(label || "").trim().slice(0, 2000);
+    if (!action) return null;
+    const at = ts || Date.now();
+    if (!isLoggedIn()) {
+      appendTechniqueMessageLocal("You", action, true, at);
+      return null;
+    }
+    const tempId = `technique-pending-${at}-${Math.random().toString(36).slice(2, 7)}`;
+    appendTechniqueMessageLocal("You", action, true, at, tempId);
+    try {
+      const msg = await sendPersistentMessage(action, { kind: "technique" });
+      if (msg) {
+        state.messages = state.messages.filter((m) => m.id !== tempId);
+        setMessages(mergeMessages(state.messages, [msg]));
+      }
+      return msg;
+    } catch (err) {
+      console.warn("[social] technique message failed:", err);
+      return null;
+    }
+  }
+
+  async function reloadChatMessages() {
+    if (!state.threadId || !isLoggedIn()) return;
+    await loadThreadMessages(state.threadId);
   }
 
   function showChatError(msg) {
@@ -1920,6 +1991,9 @@
     init,
     bootstrap,
     sendPersistentMessage,
+    appendTechniqueMessageLocal,
+    sendTechniqueMessage,
+    reloadChatMessages,
     clearChatAfterSession,
     clearLiveChat,
     deleteLastChatMessage,
@@ -1971,28 +2045,6 @@
             body,
             kind: "text",
             createdAt: Date.now(),
-          },
-        ])
-      );
-    },
-    appendTechniqueMessage(senderName, label, isLocal, ts) {
-      const uid = getSessionUserId();
-      const at = ts || Date.now();
-      const name = String(senderName || "Partner").trim();
-      const action = String(label || "").trim();
-      if (!action) return;
-      const body = isLocal ? `You request: ${action}` : `${name} requests: ${action}`;
-      const id = `technique-${at}-${Math.random().toString(36).slice(2, 9)}`;
-      if (state.messages.some((m) => m.id === id)) return;
-      setMessages(
-        mergeMessages(state.messages, [
-          {
-            id,
-            senderUserId: isLocal ? uid : null,
-            senderName: isLocal ? "You" : name,
-            body,
-            kind: "technique",
-            createdAt: at,
           },
         ])
       );

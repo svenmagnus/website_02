@@ -2784,6 +2784,10 @@ function appendChatMessage(sender, text, isLocal, ts, { variant } = {}) {
 }
 
 function appendChatTechniqueMessage(sender, label, isLocal, ts) {
+  if (global.DualPeerSocial?.appendTechniqueMessageLocal) {
+    global.DualPeerSocial.appendTechniqueMessageLocal(sender, label, isLocal, ts);
+    return;
+  }
   if (global.DualPeerSocial?.appendTechniqueMessage) {
     global.DualPeerSocial.appendTechniqueMessage(sender, label, isLocal, ts);
     return;
@@ -3731,7 +3735,13 @@ window.addEventListener("beforeunload", () => hangup());
 
 function sendTechniqueRequest(techniqueId, label, fromName) {
   const ts = Date.now();
-  appendChatTechniqueMessage(fromName, label, true, ts);
+  if (global.DualPeerSocial?.sendTechniqueMessage) {
+    global.DualPeerSocial.sendTechniqueMessage(label, ts).catch(() => {
+      appendChatTechniqueMessage(fromName, label, true, ts);
+    });
+  } else {
+    appendChatTechniqueMessage(fromName, label, true, ts);
+  }
   if (!dataConn?.open) {
     setDataActivityStatus("Technique saved to chat — connect for partner to see it.", "");
     return;
@@ -3751,9 +3761,16 @@ function initMemberProfileBridge() {
     sendTechniqueRequest(techniqueId, label, fromName);
   });
   window.addEventListener("dualpeer-technique-request-incoming", (e) => {
+    playTechniqueBell();
+    if (global.DualPeerSocial?.reloadChatMessages) {
+      global.DualPeerSocial.reloadChatMessages().catch(() => {
+        const { label, fromName, ts } = e.detail || {};
+        appendChatTechniqueMessage(fromName, label, false, ts);
+      });
+      return;
+    }
     const { label, fromName, ts } = e.detail || {};
     appendChatTechniqueMessage(fromName, label, false, ts);
-    playTechniqueBell();
   });
   window.addEventListener("dualpeer-profile-share-request", () => {
     shareMemberProfileOverDataChannel();

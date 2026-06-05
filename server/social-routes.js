@@ -783,7 +783,7 @@ socialRouter.post("/social/chat/threads/:threadId/messages", requireAuth, (req, 
     return res.status(403).json({ ok: false, error: "forbidden" });
   }
   const row = insertChatMessage(db, thread.id, uid, req.body?.body, {
-    kind: req.body?.kind === "system" ? "system" : "text",
+    kind: ["system", "technique"].includes(req.body?.kind) ? req.body.kind : "text",
   });
   if (!row) return res.status(400).json({ ok: false, error: "empty_message" });
   res.status(201).json({ ok: true, message: mapMessageRow(row, db) });
