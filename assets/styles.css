@@ -3700,9 +3700,9 @@ main.layout-cb[data-chat-dock="bottom-center"] .chat-card {
   width: 100%;
   max-width: none;
   justify-self: stretch;
-  height: min(38vh, 440px);
-  min-height: 240px;
-  max-height: min(38vh, 440px);
+  height: var(--cb-chat-height, min(38vh, 440px));
+  min-height: 200px;
+  max-height: var(--cb-chat-height, min(38vh, 440px));
 }
 
 main.layout-cb[data-chat-dock="bottom"] .cb-under-video {
@@ -3725,6 +3725,35 @@ main.layout-cb[data-chat-dock="bottom-center"] .chat-card .chat-messages {
   min-height: 0;
   height: auto;
   overflow-y: auto;
+}
+
+.chat-height-resize-handle {
+  flex-shrink: 0;
+  height: 8px;
+  margin: 0.4rem -0.65rem -0.65rem;
+  cursor: row-resize;
+  touch-action: none;
+  position: relative;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.chat-height-resize-handle::before {
+  content: "";
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 3px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--border);
+  opacity: 0.75;
+}
+
+.chat-height-resize-handle:hover::before,
+.chat-height-resize-handle.is-dragging::before,
+.chat-height-resize-handle:focus-visible::before {
+  background: var(--accent);
+  opacity: 1;
 }
 
 /* Browser fullscreen (Esc to exit) */

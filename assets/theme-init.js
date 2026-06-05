@@ -7,7 +7,7 @@
   var STORAGE_KEY = "theme";
   var LEGACY_KEY = "dualpeer-theme";
   var ALLOWED = ["cb-dark", "cb-light", "hippie", "neon"];
-  var DEFAULT_THEME = "cb-dark";
+  var DEFAULT_THEME = "neon";
 
   var ALIASES = {
     original: "cb-dark",

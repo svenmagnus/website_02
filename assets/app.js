@@ -199,12 +199,16 @@ let whipPollTimer = null;
 const LAYOUT_STORAGE_KEY = "dualpeer-layout";
 const CHAT_DOCK_STORAGE_KEY = "dualpeer-chat-dock";
 const CHAT_WIDTH_STORAGE_KEY = "dualpeer-chat-width";
+const CHAT_HEIGHT_STORAGE_KEY = "dualpeer-chat-height";
 const STAGE_HEIGHT_STORAGE_KEY = "dualpeer-stage-height";
 const VIDEO_DEVICE_STORAGE_KEY = "dualpeer-video-device";
 const AUDIO_DEVICE_STORAGE_KEY = "dualpeer-audio-device";
 const DEFAULT_LAYOUT = "split";
 const CHAT_WIDTH_MIN = 260;
 const CHAT_WIDTH_MAX = 720;
+const CHAT_HEIGHT_MIN = 200;
+const CHAT_HEIGHT_MAX = 640;
+const CHAT_HEIGHT_DEFAULT = 340;
 const STAGE_HEIGHT_MIN = 280;
 const STAGE_HEIGHT_MAX = 920;
 
@@ -425,17 +429,22 @@ function applyLayout(mode) {
 function updateResizeHandles() {
   const main = els.appMain;
   const chatHandle = document.getElementById("chatResizeHandle");
+  const chatHeightHandle = document.getElementById("chatHeightResizeHandle");
   const rowHandle = document.getElementById("videoRowResizeHandle");
   if (!main) return;
 
   const dock = main.dataset.chatDock || "bottom-center";
-  const showChatHandle = dock === "right";
   const layout = els.stage?.dataset.layout || "split";
+  const showChatWidthHandle = dock === "right";
+  const showChatHeightHandle = dock === "bottom-center" && layout === "split";
   const showRowHandle = layout === "pip-remote";
 
   if (chatHandle) {
-    chatHandle.classList.toggle("is-visible", showChatHandle);
-    chatHandle.hidden = !showChatHandle;
+    chatHandle.classList.toggle("is-visible", showChatWidthHandle);
+    chatHandle.hidden = !showChatWidthHandle;
+  }
+  if (chatHeightHandle) {
+    chatHeightHandle.hidden = !showChatHeightHandle;
   }
   if (rowHandle) rowHandle.hidden = !showRowHandle;
 }
@@ -470,6 +479,32 @@ function applyChatDock(mode) {
 
   updateResizeHandles();
   syncStageShellHeight();
+}
+
+function applyChatHeight(px, options) {
+  const opts = options || {};
+  const main = els.appMain;
+  if (!main) return;
+
+  let height = Number(px);
+  if (!Number.isFinite(height)) {
+    try {
+      height = Number(localStorage.getItem(CHAT_HEIGHT_STORAGE_KEY)) || CHAT_HEIGHT_DEFAULT;
+    } catch (_) {
+      height = CHAT_HEIGHT_DEFAULT;
+    }
+  }
+
+  height = Math.round(Math.min(CHAT_HEIGHT_MAX, Math.max(CHAT_HEIGHT_MIN, height)));
+  main.style.setProperty("--cb-chat-height", `${height}px`);
+
+  if (!opts.skipStorage) {
+    try {
+      localStorage.setItem(CHAT_HEIGHT_STORAGE_KEY, String(height));
+    } catch (_) {
+      /* ignore */
+    }
+  }
 }
 
 function syncStageShellHeight() {
@@ -636,6 +671,61 @@ function initChatResize() {
   });
 }
 
+function initChatHeightResize() {
+  const handle = document.getElementById("chatHeightResizeHandle");
+  const chatCard = document.getElementById("chatCard");
+  const main = els.appMain;
+  if (!handle || !chatCard || !main) return;
+
+  let dragging = false;
+
+  const currentHeight = () => {
+    const fromVar = parseInt(getComputedStyle(main).getPropertyValue("--cb-chat-height"), 10);
+    if (Number.isFinite(fromVar) && fromVar > 0) return fromVar;
+    return chatCard.offsetHeight || CHAT_HEIGHT_DEFAULT;
+  };
+
+  handle.addEventListener("pointerdown", (e) => {
+    if (main.dataset.chatDock !== "bottom-center") return;
+    if ((els.stage?.dataset.layout || "split") !== "split") return;
+    dragging = true;
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("is-dragging");
+    document.body.classList.add("layout-resize-active-row");
+    e.preventDefault();
+  });
+
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    applyChatHeight(currentHeight() + e.movementY);
+  });
+
+  const stopDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("is-dragging");
+    document.body.classList.remove("layout-resize-active-row");
+    try {
+      handle.releasePointerCapture(e.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  handle.addEventListener("pointerup", stopDrag);
+  handle.addEventListener("pointercancel", stopDrag);
+
+  handle.addEventListener("keydown", (e) => {
+    if (main.dataset.chatDock !== "bottom-center") return;
+    let delta = 0;
+    if (e.key === "ArrowDown") delta = 12;
+    if (e.key === "ArrowUp") delta = -12;
+    if (!delta) return;
+    e.preventDefault();
+    applyChatHeight(currentHeight() + delta);
+  });
+}
+
 function initStageViewControls() {
   const shell = document.querySelector(".stage-shell");
   if (!shell) return;
@@ -706,7 +796,9 @@ function initLayoutControls() {
     applyPipCorner(corner);
   }
   applyChatWidth(undefined, { skipStorage: true });
+  applyChatHeight(undefined, { skipStorage: true });
   initChatResize();
+  initChatHeightResize();
   initStageRowResize();
   initStageViewControls();
   initMainFullscreen();
