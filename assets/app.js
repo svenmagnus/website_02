@@ -2853,6 +2853,17 @@ function getChatDisplayName() {
   return sessionRole === "host" ? "You" : sessionRole === "guest" ? "Partner" : "You";
 }
 
+function shareChatDisplayColorsOverDataChannel() {
+  if (!dataConn?.open || !global.DualPeerChatUi?.getMyDisplayColors) return;
+  const colors = global.DualPeerChatUi.getMyDisplayColors();
+  sendDataChannelMessage({
+    type: "chat_display_colors",
+    name: colors.name,
+    text: colors.text,
+    ts: Date.now(),
+  });
+}
+
 function shareMemberProfileOverDataChannel() {
   if (!global.MemberProfile?.shareProfileOverDataChannel) return;
   MemberProfile.shareProfileOverDataChannel((payload) => sendDataChannelMessage(payload));
@@ -2999,16 +3010,13 @@ function handleIncomingDataMessage(raw) {
     }
     return;
   }
-  if (data.type === "chat_partner_colors_request") {
-    global.DualPeerChatUi?.onPartnerColorsRequest?.(data.fromName);
-    return;
-  }
-  if (data.type === "chat_partner_colors_grant") {
-    global.DualPeerChatUi?.onPartnerColorsGrant?.();
-    return;
-  }
-  if (data.type === "chat_partner_colors_denied") {
-    global.DualPeerChatUi?.onPartnerColorsDenied?.();
+  if (data.type === "chat_display_colors") {
+    if (global.DualPeerChatUi?.setPartnerSharedColors) {
+      global.DualPeerChatUi.setPartnerSharedColors({
+        name: data.name,
+        text: data.text,
+      });
+    }
     return;
   }
   if (data.type === "session_end") {
@@ -3594,6 +3602,7 @@ function setupDataConnection(conn) {
     broadcastLocalToyInventory();
     sendDataChannelMessage({ type: "toy_inventory_request", ts: Date.now() });
     shareMemberProfileOverDataChannel();
+    shareChatDisplayColorsOverDataChannel();
     sendDataChannelMessage({ type: "profile_request", ts: Date.now() });
   });
   conn.on("error", (err) => {
@@ -3608,6 +3617,7 @@ function setupDataConnection(conn) {
     broadcastLocalToyInventory();
     sendDataChannelMessage({ type: "toy_inventory_request", ts: Date.now() });
     shareMemberProfileOverDataChannel();
+    shareChatDisplayColorsOverDataChannel();
     sendDataChannelMessage({ type: "profile_request", ts: Date.now() });
   }
 }
@@ -3816,18 +3826,13 @@ function initMemberProfileBridge() {
   window.addEventListener("dualpeer-profile-share-request", () => {
     shareMemberProfileOverDataChannel();
   });
-  window.addEventListener("dualpeer-chat-partner-colors-request", () => {
-    if (!dataConn?.open) return;
+  window.addEventListener("dualpeer-chat-display-colors-share", () => {
+    if (!dataConn?.open || !global.DualPeerChatUi?.getMyDisplayColors) return;
+    const colors = global.DualPeerChatUi.getMyDisplayColors();
     sendDataChannelMessage({
-      type: "chat_partner_colors_request",
-      fromName: getChatDisplayName(),
-      ts: Date.now(),
-    });
-  });
-  window.addEventListener("dualpeer-chat-partner-colors-grant", () => {
-    if (!dataConn?.open) return;
-    sendDataChannelMessage({
-      type: "chat_partner_colors_grant",
+      type: "chat_display_colors",
+      name: colors.name,
+      text: colors.text,
       ts: Date.now(),
     });
   });

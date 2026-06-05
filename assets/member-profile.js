@@ -337,6 +337,7 @@
         kinks: [...(p.playPrefs?.kinks || [])],
         intensity: [...(p.playPrefs?.intensity || [])],
       },
+      chatColors: global.DualPeerChatUi?.getMyDisplayColors?.() || null,
     };
   }
 
@@ -1195,6 +1196,9 @@
   function handleIncomingProfile(data) {
     if (!data?.profile) return;
     setPartnerProfile(data.profile);
+    if (data.profile.chatColors && global.DualPeerChatUi?.setPartnerSharedColors) {
+      global.DualPeerChatUi.setPartnerSharedColors(data.profile.chatColors);
+    }
   }
 
   function shareProfileOverDataChannel(sendFn) {

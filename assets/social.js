@@ -1990,6 +1990,9 @@
         resetPartnerPlaybookCache();
       }
     });
+    global.addEventListener("dualpeer-chat-colors-updated", () => {
+      renderMessages({ skipBroadcast: true });
+    });
     if (global.DualPeerAuth?.onReady) {
       global.DualPeerAuth.onReady(() => refreshAuthUi());
     } else {

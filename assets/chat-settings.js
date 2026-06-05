@@ -1,5 +1,6 @@
 /**
  * Live Chat appearance — compact inline layout + user settings (localStorage).
+ * "You" colors are sent to the partner and used for your messages on their screen.
  */
 (function (global) {
   const STORAGE_KEY = "dualpeer-chat-settings-v1";
@@ -40,7 +41,16 @@
   }
 
   function defaultSettings() {
-    return { ...(THEME_DEFAULTS[currentTheme()] || THEME_DEFAULTS.neon) };
+    return { ...(THEME_DEFAULTS[currentTheme()] || THEME_DEFAULTS.neon), partnerSharedColors: null };
+  }
+
+  function normalizeSharedColors(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const name = String(raw.name || "").trim();
+    const text = String(raw.text || "").trim();
+    if (!name && !text) return null;
+    const base = defaultSettings();
+    return { name: name || base.remoteName, text: text || base.remoteText };
   }
 
   function loadSettings() {
@@ -51,12 +61,8 @@
       return {
         localName: raw.localName || base.localName,
         localText: raw.localText || base.localText,
-        remoteName: raw.remoteName || base.remoteName,
-        remoteText: raw.remoteText || base.remoteText,
         fontSize: Number(raw.fontSize) || base.fontSize,
-        partnerColorsUnlocked: Boolean(raw.partnerColorsUnlocked),
-        partnerColorsPending: Boolean(raw.partnerColorsPending),
-        partnerColorsApprovalPending: Boolean(raw.partnerColorsApprovalPending),
+        partnerSharedColors: normalizeSharedColors(raw.partnerSharedColors),
       };
     } catch (_) {
       return defaultSettings();
@@ -79,9 +85,32 @@
     const root = document.documentElement;
     root.style.setProperty("--chat-local-name-color", s.localName);
     root.style.setProperty("--chat-local-text-color", s.localText);
-    root.style.setProperty("--chat-remote-name-color", s.remoteName);
-    root.style.setProperty("--chat-remote-text-color", s.remoteText);
     root.style.setProperty("--chat-font-size", `${s.fontSize}px`);
+  }
+
+  function getMyDisplayColors() {
+    const s = loadSettings();
+    return { name: s.localName, text: s.localText };
+  }
+
+  function resolveRemoteColors() {
+    const shared = loadSettings().partnerSharedColors;
+    if (shared) return shared;
+    const defs = defaultSettings();
+    return { name: defs.remoteName, text: defs.remoteText };
+  }
+
+  function shareMyDisplayColors() {
+    global.dispatchEvent(new CustomEvent("dualpeer-chat-display-colors-share"));
+    global.dispatchEvent(new CustomEvent("dualpeer-profile-share-request"));
+  }
+
+  function setPartnerSharedColors(colors) {
+    const normalized = normalizeSharedColors(colors);
+    if (!normalized) return;
+    saveSettings({ partnerSharedColors: normalized });
+    updatePartnerPreview(loadSettings());
+    global.dispatchEvent(new CustomEvent("dualpeer-chat-colors-updated"));
   }
 
   function formatTechniqueBody(body, isLocal, senderName) {
@@ -90,6 +119,12 @@
     return isLocal
       ? `You request: ${action}`
       : `${String(senderName || "Partner").trim()} requests: ${action}`;
+  }
+
+  function applyRemoteColorsToLine(senderEl, textEl) {
+    const colors = resolveRemoteColors();
+    if (senderEl) senderEl.style.color = colors.name;
+    if (textEl) textEl.style.color = colors.text;
   }
 
   function buildMessageElement({ isLocal, senderName, body, kind, createdAt, uid, message }) {
@@ -119,8 +154,9 @@
     const line = document.createElement("div");
     line.className = "chat-line";
 
+    let sender = null;
     if (msgKind !== "system") {
-      const sender = document.createElement("span");
+      sender = document.createElement("span");
       sender.className = "chat-sender";
       sender.textContent = name;
       line.appendChild(sender);
@@ -130,101 +166,41 @@
     textNode.className = "chat-text";
     textNode.textContent = String(text || "");
     line.appendChild(textNode);
+
+    if (!isSelf && msgKind !== "system") {
+      applyRemoteColorsToLine(sender, textNode);
+    }
+
     msg.appendChild(line);
     return msg;
   }
 
-  function updatePartnerColorsUi(settings) {
+  function updatePartnerPreview(settings) {
     const s = settings || loadSettings();
-    const group = document.getElementById("chatPartnerColorsGroup");
     const hint = document.getElementById("chatPartnerColorsHint");
-    const requestBtn = document.getElementById("btnChatPartnerColorsRequest");
-    const approveBtn = document.getElementById("btnChatPartnerColorsApprove");
-    const nameInput = document.getElementById("chatRemoteNameColor");
-    const textInput = document.getElementById("chatRemoteTextColor");
-    const unlocked = s.partnerColorsUnlocked;
-
-    if (nameInput instanceof HTMLInputElement) nameInput.disabled = !unlocked;
-    if (textInput instanceof HTMLInputElement) textInput.disabled = !unlocked;
-    group?.classList.toggle("is-locked", !unlocked);
+    const nameSwatch = document.getElementById("chatPartnerSharedNameSwatch");
+    const textSwatch = document.getElementById("chatPartnerSharedTextSwatch");
+    const colors = s.partnerSharedColors || resolveRemoteColors();
 
     if (hint) {
-      hint.className = "chat-settings-partner-hint";
-      if (s.partnerColorsApprovalPending) {
-        hint.textContent = "Your partner wants to customize how they see your messages. Approve?";
-        hint.classList.add("pending");
-      } else if (s.partnerColorsPending) {
-        hint.textContent = "Waiting for partner approval…";
-        hint.classList.add("pending");
-      } else if (unlocked) {
-        hint.textContent = "Approved — these colors apply to your partner on your screen only.";
-        hint.classList.add("ok");
-      } else {
-        hint.textContent = "Customize how you see your partner. Requires their approval first.";
-      }
+      hint.textContent = s.partnerSharedColors
+        ? "Your partner chose these colors under You — used for their messages here."
+        : "Waiting for partner colors (they set these under You on their screen).";
     }
-
-    if (requestBtn instanceof HTMLButtonElement) {
-      requestBtn.hidden = unlocked || s.partnerColorsPending;
-      requestBtn.disabled = Boolean(s.partnerColorsPending);
+    if (nameSwatch instanceof HTMLElement) {
+      nameSwatch.style.background = colors.name;
+      nameSwatch.title = colors.name;
     }
-    if (approveBtn instanceof HTMLButtonElement) {
-      approveBtn.hidden = !s.partnerColorsApprovalPending;
+    if (textSwatch instanceof HTMLElement) {
+      textSwatch.style.background = colors.text;
+      textSwatch.title = colors.text;
     }
-  }
-
-  function requestPartnerColorsApproval() {
-    const s = loadSettings();
-    if (s.partnerColorsUnlocked) return;
-    saveSettings({ ...s, partnerColorsPending: true });
-    updatePartnerColorsUi(loadSettings());
-    global.dispatchEvent(new CustomEvent("dualpeer-chat-partner-colors-request"));
-  }
-
-  function grantPartnerColorsApproval() {
-    saveSettings({
-      ...loadSettings(),
-      partnerColorsApprovalPending: false,
-    });
-    updatePartnerColorsUi(loadSettings());
-    global.dispatchEvent(new CustomEvent("dualpeer-chat-partner-colors-grant"));
-  }
-
-  function onPartnerColorsRequest(fromName) {
-    saveSettings({
-      ...loadSettings(),
-      partnerColorsApprovalPending: true,
-    });
-    updatePartnerColorsUi(loadSettings());
-    const panel = document.getElementById("chatSettings");
-    if (panel instanceof HTMLDetailsElement) panel.open = true;
-    if (global.playTechniqueBell) global.playTechniqueBell();
-    void fromName;
-  }
-
-  function onPartnerColorsGrant() {
-    saveSettings({
-      ...loadSettings(),
-      partnerColorsUnlocked: true,
-      partnerColorsPending: false,
-    });
-    updatePartnerColorsUi(loadSettings());
-  }
-
-  function onPartnerColorsDenied() {
-    saveSettings({
-      ...loadSettings(),
-      partnerColorsPending: false,
-    });
-    updatePartnerColorsUi(loadSettings());
   }
 
   function fillSettingsForm(settings) {
     const map = {
       chatLocalNameColor: settings.localName,
       chatLocalTextColor: settings.localText,
-      chatRemoteNameColor: settings.remoteName,
-      chatRemoteTextColor: settings.remoteText,
       chatFontSize: settings.fontSize,
     };
     Object.entries(map).forEach(([id, value]) => {
@@ -234,25 +210,21 @@
     });
     const label = document.getElementById("chatFontSizeVal");
     if (label) label.textContent = `${settings.fontSize}px`;
-    updatePartnerColorsUi(settings);
+    updatePartnerPreview(settings);
   }
 
   function readSettingsForm() {
-    const s = loadSettings();
     const pick = (id) => {
       const el = document.getElementById(id);
       return el instanceof HTMLInputElement ? el.value : "";
     };
-    const next = {
+    const saved = saveSettings({
       fontSize: Number(pick("chatFontSize")) || defaultSettings().fontSize,
       localName: pick("chatLocalNameColor"),
       localText: pick("chatLocalTextColor"),
-    };
-    if (s.partnerColorsUnlocked) {
-      next.remoteName = pick("chatRemoteNameColor");
-      next.remoteText = pick("chatRemoteTextColor");
-    }
-    return saveSettings(next);
+    });
+    shareMyDisplayColors();
+    return saved;
   }
 
   function initChatSettingsUI() {
@@ -262,7 +234,7 @@
     const panel = document.getElementById("chatSettings");
     if (!panel) return;
 
-    panel.querySelectorAll("input[type='color']").forEach((input) => {
+    panel.querySelectorAll("#chatLocalNameColor, #chatLocalTextColor").forEach((input) => {
       input.addEventListener("input", () => readSettingsForm());
       input.addEventListener("change", () => readSettingsForm());
     });
@@ -272,7 +244,7 @@
       fontInput.addEventListener("input", () => {
         const label = document.getElementById("chatFontSizeVal");
         if (label) label.textContent = `${fontInput.value}px`;
-        readSettingsForm();
+        saveSettings({ fontSize: Number(fontInput.value) || defaultSettings().fontSize });
       });
       fontInput.addEventListener("change", () => readSettingsForm());
     }
@@ -283,20 +255,15 @@
       } catch (_) {
         /* ignore */
       }
-      const defaults = { ...defaultSettings(), partnerColorsUnlocked: false };
+      const defaults = defaultSettings();
       applySettings(defaults);
       fillSettingsForm(defaults);
+      shareMyDisplayColors();
     });
 
-    document.getElementById("btnChatPartnerColorsRequest")?.addEventListener("click", () => {
-      requestPartnerColorsApproval();
-    });
-    document.getElementById("btnChatPartnerColorsApprove")?.addEventListener("click", () => {
-      grantPartnerColorsApproval();
-    });
-
-    global.addEventListener("dualpeer-chat-partner-colors-denied", () => {
-      onPartnerColorsDenied();
+    global.addEventListener("dualpeer-partner-profile", (e) => {
+      const colors = e.detail?.profile?.chatColors;
+      if (colors) setPartnerSharedColors(colors);
     });
   }
 
@@ -305,12 +272,10 @@
     saveSettings,
     applySettings,
     defaultSettings,
+    getMyDisplayColors,
+    setPartnerSharedColors,
     buildMessageElement,
     initChatSettingsUI,
-    onPartnerColorsRequest,
-    onPartnerColorsGrant,
-    onPartnerColorsDenied,
-    updatePartnerColorsUi,
   };
 
   if (document.readyState === "loading") {
