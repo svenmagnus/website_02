@@ -80,12 +80,24 @@ function partnerPlaybookRow(row) {
   } catch (_) {
     /* ignore */
   }
+  let playPrefs = { dynamics: [], kinks: [], intensity: [] };
+  try {
+    const parsed = JSON.parse(row.play_prefs_json || "{}");
+    if (parsed && typeof parsed === "object") playPrefs = parsed;
+  } catch (_) {
+    /* ignore */
+  }
   return {
     displayName: row.display_name || row.username,
     gender: row.gender || "",
     bio: row.bio || "",
     techniques: Array.isArray(techniques) ? techniques : [],
     customTechniques: Array.isArray(customTechniques) ? customTechniques : [],
+    playPrefs: {
+      dynamics: Array.isArray(playPrefs.dynamics) ? playPrefs.dynamics : [],
+      kinks: Array.isArray(playPrefs.kinks) ? playPrefs.kinks : [],
+      intensity: Array.isArray(playPrefs.intensity) ? playPrefs.intensity : [],
+    },
   };
 }
 
@@ -103,7 +115,11 @@ function usersShareThreadOrMeeting(db, uid, partnerId) {
        LIMIT 1`
     )
     .get(uid, partnerId, partnerId, uid);
-  return !!meeting;
+  if (meeting) return true;
+  const member = db
+    .prepare("SELECT 1 FROM session_members WHERE user_id = ? AND member_user_id = ?")
+    .get(uid, partnerId);
+  return !!member;
 }
 
 function isHostAccount(user) {

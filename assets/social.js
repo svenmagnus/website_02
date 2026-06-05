@@ -10,6 +10,8 @@
   const ACTIVE_MEMBERS_KEY = "dualpeer-active-members-v1";
   const SESSION_PARTNER_KEY = "dualpeer-session-partner-v1";
   let couplingPartner = false;
+  let lastPartnerPlaybookPartnerId = null;
+  let lastPartnerPlaybookFingerprint = "";
 
   const state = {
     threadId: null,
@@ -213,6 +215,53 @@
     applyHostPeerIdFromMeetings();
     updateSessionActionHighlight();
     selectPartnerById(id);
+    if (id && isLoggedIn()) {
+      resetPartnerPlaybookCache();
+      loadPartnerPlaybook(id, { force: true }).catch(() => {});
+    }
+  }
+
+  function partnerPlaybookFingerprint(profile) {
+    if (!profile || typeof profile !== "object") return "";
+    return JSON.stringify({
+      displayName: profile.displayName || "",
+      gender: profile.gender || "",
+      bio: profile.bio || "",
+      techniques: Array.isArray(profile.techniques) ? profile.techniques : [],
+      customTechniques: Array.isArray(profile.customTechniques) ? profile.customTechniques : [],
+      playPrefs: profile.playPrefs || null,
+    });
+  }
+
+  function resetPartnerPlaybookCache() {
+    lastPartnerPlaybookPartnerId = null;
+    lastPartnerPlaybookFingerprint = "";
+  }
+
+  function resolvePartnerIdForPlaybookRefresh() {
+    const selected = getSelectedPartnerUserId();
+    if (selected) return selected;
+    if (state.sessionJoinedMeetingId) {
+      const meeting = state.meetings.find((m) => m.id === state.sessionJoinedMeetingId);
+      if (meeting) return meeting.isHost ? meeting.guest?.id : meeting.host?.id;
+    }
+    return null;
+  }
+
+  function shouldRefreshPartnerPlaybook() {
+    const partnerId = resolvePartnerIdForPlaybookRefresh();
+    if (!partnerId) return false;
+    if (state.sessionJoinedMeetingId) return true;
+    if (global.appSessionRole?.()) return true;
+    if (global.MemberProfile?.getPartnerProfile?.()) return true;
+    if (state.activeMembers.some((m) => m.id === partnerId)) return true;
+    return false;
+  }
+
+  async function refreshPartnerPlaybookIfNeeded() {
+    const partnerId = resolvePartnerIdForPlaybookRefresh();
+    if (!partnerId || !isLoggedIn() || !shouldRefreshPartnerPlaybook()) return null;
+    return loadPartnerPlaybook(partnerId);
   }
 
   function normalizeContact(raw) {
@@ -552,6 +601,7 @@
       guestStatus.className = "status-line";
     }
 
+    resetPartnerPlaybookCache();
     if (global.MemberProfile?.setPartnerProfile) {
       global.MemberProfile.setPartnerProfile(null);
     }
@@ -672,10 +722,7 @@
       updateMeetingPanels();
       return;
     }
-    const partnerId = meeting.host?.id;
-    if (partnerId) {
-      loadPartnerPlaybook(partnerId).catch(() => {});
-    }
+    refreshPartnerPlaybookIfNeeded().catch(() => {});
   }
 
   async function refreshMeetingsFromServer() {
@@ -689,6 +736,7 @@
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
     syncJoinedSessionState();
+    await refreshPartnerPlaybookIfNeeded();
     await loadModelPool();
     renderActiveMembersPanel();
     updateSessionActionHighlight();
@@ -759,12 +807,18 @@
     );
   }
 
-  async function loadPartnerPlaybook(partnerUserId) {
+  async function loadPartnerPlaybook(partnerUserId, { force = false } = {}) {
     const id = String(partnerUserId || "").trim();
     if (!id) return null;
     const data = await api(`/api/social/partners/${encodeURIComponent(id)}/playbook`);
     const profile = data.profile;
-    if (profile && global.MemberProfile?.setPartnerProfile) {
+    if (!profile) return null;
+    const fp = partnerPlaybookFingerprint(profile);
+    const unchanged =
+      !force && id === lastPartnerPlaybookPartnerId && fp === lastPartnerPlaybookFingerprint;
+    lastPartnerPlaybookPartnerId = id;
+    lastPartnerPlaybookFingerprint = fp;
+    if (!unchanged && global.MemberProfile?.setPartnerProfile) {
       global.MemberProfile.setPartnerProfile(profile);
     }
     return profile;
@@ -1722,7 +1776,21 @@
     handleCalendarRedirect();
 
     global.addEventListener("dualpeer-auth-change", () => refreshAuthUi());
-    global.addEventListener("dualpeer-session-role", () => updateSessionActionHighlight());
+    global.addEventListener("dualpeer-session-role", () => {
+      updateSessionActionHighlight();
+      refreshPartnerPlaybookIfNeeded().catch(() => {});
+    });
+    global.addEventListener("dualpeer-session-joined", () => {
+      refreshPartnerPlaybookIfNeeded().catch(() => {});
+    });
+    global.addEventListener("dualpeer-partner-profile", (e) => {
+      const profile = e.detail?.profile;
+      if (profile) {
+        lastPartnerPlaybookFingerprint = partnerPlaybookFingerprint(profile);
+      } else {
+        resetPartnerPlaybookCache();
+      }
+    });
     if (global.DualPeerAuth?.onReady) {
       global.DualPeerAuth.onReady(() => refreshAuthUi());
     } else {
@@ -1744,6 +1812,7 @@
     updateSessionActionHighlight,
     joinInstantMeeting,
     loadPartnerPlaybook,
+    refreshPartnerPlaybookIfNeeded,
     onPartnerDisconnected,
     isSessionJoined,
     ensureChatThread,

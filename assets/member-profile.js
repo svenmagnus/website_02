@@ -211,6 +211,11 @@
       bio: p.bio,
       techniques: [...p.techniques],
       customTechniques: p.customTechniques.map((c) => ({ ...c })),
+      playPrefs: {
+        dynamics: [...(p.playPrefs?.dynamics || [])],
+        kinks: [...(p.playPrefs?.kinks || [])],
+        intensity: [...(p.playPrefs?.intensity || [])],
+      },
     };
   }
 
