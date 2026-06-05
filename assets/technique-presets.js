@@ -1,32 +1,40 @@
 /**
  * Built-in technique presets (gender-aware). Loaded before member-profile.js / auth.js.
+ * Labels describe actions between partners, not model instructions.
  */
 (function (global) {
   const SHARED = [
-    { id: "tease_denial", label: "Tease / denial" },
+    { id: "send_kiss", label: "Send a kiss" },
+    { id: "tease_denial", label: "Tease me" },
     { id: "dirty_talk", label: "Dirty talk" },
     { id: "roleplay", label: "Roleplay" },
+    { id: "affection", label: "Affection" },
   ];
 
   const MALE = [
-    { id: "jerk_off", label: "Jerk off" },
-    { id: "body_worship", label: "Body worship" },
-    { id: "spank_ass", label: "Spank ass" },
-    { id: "nipple_play", label: "Nipple play" },
+    { id: "jerk_off", label: "Your pleasure" },
+    { id: "body_worship", label: "Focus on you" },
+    { id: "spank_ass", label: "Playful impact" },
+    { id: "nipple_play", label: "Physical connection" },
   ];
 
   const FEMALE = [
-    { id: "fingering", label: "Fingering" },
-    { id: "nipple_play", label: "Nipple play" },
-    { id: "spank_breast", label: "Spank breast" },
-    { id: "spank_ass", label: "Spank ass" },
+    { id: "fingering", label: "Show me more" },
+    { id: "nipple_play", label: "Physical connection" },
+    { id: "spank_breast", label: "Tease me" },
+    { id: "spank_ass", label: "Playful impact" },
+    { id: "deepen_view", label: "Deepen the view" },
   ];
 
   /** Legacy ids from older profiles — still accepted when loading saved data. */
   const LEGACY = [
-    { id: "spank_ass", label: "Spank ass" },
-    { id: "spank_breast", label: "Spank breast" },
-    { id: "nipple_play", label: "Nipple play" },
+    { id: "spank_ass", label: "Playful impact" },
+    { id: "spank_breast", label: "Tease me" },
+    { id: "nipple_play", label: "Physical connection" },
+    { id: "tease_denial", label: "Tease me" },
+    { id: "body_worship", label: "Focus on you" },
+    { id: "fingering", label: "Show me more" },
+    { id: "jerk_off", label: "Your pleasure" },
   ];
 
   function dedupeById(list) {

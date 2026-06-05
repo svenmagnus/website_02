@@ -248,8 +248,8 @@
       const pc = partner.techniques.length;
       el.textContent =
         pc === 0
-          ? `${partner.displayName}: no techniques enabled`
-          : `${partner.displayName}: ${pc} technique${pc === 1 ? "" : "s"} available`;
+          ? `${partner.displayName}: Playbook empty`
+          : `${partner.displayName}: ${pc} Playbook action${pc === 1 ? "" : "s"}`;
     });
   }
 
@@ -546,7 +546,7 @@
       if (!p.customTechniques.length) {
         const empty = document.createElement("p");
         empty.className = "technique-empty-note";
-        empty.textContent = "No custom techniques yet — add one below.";
+        empty.textContent = "No custom actions yet — add one below.";
         customRoot.appendChild(empty);
         return;
       }
@@ -616,17 +616,17 @@
     const partner = getPartnerProfile();
     if (!partner) {
       root.innerHTML =
-        '<p class="technique-empty-note">Connect to a partner to see their enabled techniques.</p>';
+        '<p class="technique-empty-note">Connect with your partner to see what they\'ve added to their current session.</p>';
       return;
     }
     const allowed = getEnabledTechniques(partner);
     if (!allowed.length) {
-      root.innerHTML = `<p class="technique-empty-note">${partner.displayName} has not enabled any techniques on their profile yet.</p>`;
+      root.innerHTML = `<p class="technique-empty-note">${partner.displayName} has not added anything to their Playbook for this session yet.</p>`;
       return;
     }
     const intro = document.createElement("p");
     intro.className = "status-line technique-request-intro";
-    intro.textContent = `Enabled by ${partner.displayName} (tap to request in chat):`;
+    intro.textContent = `${partner.displayName}'s Playbook:`;
     root.appendChild(intro);
     const grid = document.createElement("div");
     grid.className = "technique-request-grid";
