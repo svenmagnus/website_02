@@ -2800,6 +2800,15 @@ function getChatDisplayName() {
   return sessionRole === "host" ? "You" : sessionRole === "guest" ? "Partner" : "You";
 }
 
+function sharePlayModeSoundOverDataChannel() {
+  if (!dataConn?.open || !global.DualPeerPlayModeSounds?.loadSoundId) return;
+  sendDataChannelMessage({
+    type: "play_mode_sound",
+    soundId: global.DualPeerPlayModeSounds.loadSoundId(),
+    ts: Date.now(),
+  });
+}
+
 function shareChatDisplayColorsOverDataChannel() {
   if (!dataConn?.open || !global.DualPeerChatUi?.getMyDisplayColors) return;
   const colors = global.DualPeerChatUi.getMyDisplayColors();
@@ -2816,6 +2825,7 @@ function scheduleChatColorResync() {
     setTimeout(() => {
       shareMemberProfileOverDataChannel();
       shareChatDisplayColorsOverDataChannel();
+      sharePlayModeSoundOverDataChannel();
     }, ms);
   });
 }
@@ -2975,6 +2985,12 @@ function handleIncomingDataMessage(raw) {
     }
     return;
   }
+  if (data.type === "play_mode_sound") {
+    if (global.DualPeerPlayModeSounds?.setPartnerSoundId && data.soundId) {
+      global.DualPeerPlayModeSounds.setPartnerSoundId(data.soundId);
+    }
+    return;
+  }
   if (data.type === "session_end") {
     endSessionChat();
     return;
@@ -2988,6 +3004,7 @@ function handleIncomingDataMessage(raw) {
     if (data.type === "profile_request") {
       shareMemberProfileOverDataChannel();
       shareChatDisplayColorsOverDataChannel();
+      sharePlayModeSoundOverDataChannel();
       return;
     }
     if (global.MemberProfile?.handleIncomingProfile) MemberProfile.handleIncomingProfile(data);
@@ -3560,6 +3577,7 @@ function setupDataConnection(conn) {
     sendDataChannelMessage({ type: "toy_inventory_request", ts: Date.now() });
     shareMemberProfileOverDataChannel();
     shareChatDisplayColorsOverDataChannel();
+    sharePlayModeSoundOverDataChannel();
     sendDataChannelMessage({ type: "profile_request", ts: Date.now() });
     scheduleChatColorResync();
   });
@@ -3576,6 +3594,7 @@ function setupDataConnection(conn) {
     sendDataChannelMessage({ type: "toy_inventory_request", ts: Date.now() });
     shareMemberProfileOverDataChannel();
     shareChatDisplayColorsOverDataChannel();
+    sharePlayModeSoundOverDataChannel();
     sendDataChannelMessage({ type: "profile_request", ts: Date.now() });
     scheduleChatColorResync();
   }
@@ -3758,6 +3777,7 @@ function sendTechniqueRequest(techniqueId, label, fromName) {
     techniqueId,
     label,
     fromName,
+    soundId: global.DualPeerPlayModeSounds?.loadSoundId?.() || "chime",
     ts,
   });
 }
@@ -3771,7 +3791,7 @@ function initMemberProfileBridge() {
     sendTechniqueRequest(techniqueId, label, fromName);
   });
   window.addEventListener("dualpeer-technique-request-incoming", (e) => {
-    playTechniqueBell();
+    playTechniqueBell(e.detail?.soundId);
     if (global.DualPeerSocial?.reloadChatMessages) {
       global.DualPeerSocial.reloadChatMessages().catch(() => {
         const { label, fromName, ts } = e.detail || {};
@@ -3794,6 +3814,9 @@ function initMemberProfileBridge() {
       text: colors.text,
       ts: Date.now(),
     });
+  });
+  window.addEventListener("dualpeer-play-mode-sound-share", () => {
+    sharePlayModeSoundOverDataChannel();
   });
 }
 

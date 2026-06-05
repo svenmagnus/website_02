@@ -368,6 +368,13 @@
     }
   }
 
+  function applyPartnerPlayModeSound(partner) {
+    const id = partner?.playModeSound;
+    if (id && global.DualPeerPlayModeSounds?.setPartnerSoundId) {
+      global.DualPeerPlayModeSounds.setPartnerSoundId(id);
+    }
+  }
+
   async function selectPartnerById(partnerId) {
     const id = String(partnerId || "").trim();
     if (!id) return;
@@ -376,6 +383,7 @@
       state.partner = thread.partner;
       state.threadId = thread.id;
       applyPartnerChatColors(thread.partner);
+      applyPartnerPlayModeSound(thread.partner);
       await loadThreadMessages(thread.id);
       return;
     }
@@ -464,7 +472,11 @@
         m.senderUserId !== uid &&
         !seen.has(m.id)
     );
-    if (fresh.length) global.playTechniqueBell();
+    if (fresh.length) {
+      const partnerSound =
+        state.partner?.playModeSound || global.DualPeerPlayModeSounds?.loadPartnerSoundId?.();
+      global.playTechniqueBell(partnerSound);
+    }
   }
 
   function setMessages(next, { skipBroadcast = false } = {}) {
@@ -810,6 +822,7 @@
         state.partner = activeThread.partner;
         state.threadId = activeThread.id;
         applyPartnerChatColors(activeThread.partner);
+        applyPartnerPlayModeSound(activeThread.partner);
         if (loadChat) {
           await loadThreadMessages(activeThread.id);
         }
@@ -973,6 +986,7 @@
       global.MemberProfile.setPartnerProfile(profile);
     }
     if (profile.chatColors) applyPartnerChatColors({ chatColors: profile.chatColors });
+    if (profile.playModeSound) applyPartnerPlayModeSound({ playModeSound: profile.playModeSound });
     return profile;
   }
 

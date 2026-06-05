@@ -170,6 +170,7 @@
               text: String(raw.chatColors.text || "").trim(),
             }
           : null,
+      playModeSound: String(raw.playModeSound || "").trim() || null,
     };
   }
 
@@ -345,6 +346,7 @@
         intensity: [...(p.playPrefs?.intensity || [])],
       },
       chatColors: global.DualPeerChatUi?.getMyDisplayColors?.() || null,
+      playModeSound: global.DualPeerPlayModeSounds?.loadSoundId?.() || null,
     };
   }
 
@@ -1195,7 +1197,7 @@
     if (!label) return;
     global.dispatchEvent(
       new CustomEvent("dualpeer-technique-request-incoming", {
-        detail: { label, fromName, techniqueId: data.techniqueId, ts: data.ts },
+        detail: { label, fromName, techniqueId: data.techniqueId, ts: data.ts, soundId: data.soundId },
       })
     );
   }
@@ -1205,6 +1207,9 @@
     setPartnerProfile(data.profile);
     if (data.profile.chatColors && global.DualPeerChatUi?.setPartnerSharedColors) {
       global.DualPeerChatUi.setPartnerSharedColors(data.profile.chatColors);
+    }
+    if (data.profile.playModeSound && global.DualPeerPlayModeSounds?.setPartnerSoundId) {
+      global.DualPeerPlayModeSounds.setPartnerSoundId(data.profile.playModeSound);
     }
   }
 

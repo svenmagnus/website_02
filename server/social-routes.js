@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "./db.js";
 import { getAppPublicUrl } from "./mail.js";
 import { chatColorsFromRow } from "./chat-colors.js";
+import { playModeSoundFromRow } from "./play-mode-sound.js";
 import { avatarUrlForUser } from "./profile-avatar.js";
 import {
   buildGoogleCalendarUrl,
@@ -65,6 +66,7 @@ function userPublicRow(row) {
     accountType: row.account_type === "host" ? "host" : "guest",
     avatarUrl: avatarUrlForUser(row),
     chatColors: chatColorsFromRow(row),
+    playModeSound: playModeSoundFromRow(row),
   };
 }
 
@@ -112,6 +114,7 @@ function partnerPlaybookRow(row) {
       intensity: Array.isArray(playPrefs.intensity) ? playPrefs.intensity : [],
     },
     chatColors: chatColorsFromRow(row),
+    playModeSound: playModeSoundFromRow(row),
   };
 }
 

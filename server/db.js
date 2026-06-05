@@ -133,6 +133,10 @@ function runMigrations(database) {
   if (!userColsAfter.includes("chat_colors_json")) {
     database.exec(`ALTER TABLE users ADD COLUMN chat_colors_json TEXT`);
   }
+  userColsAfter = tableColumns(database, "users");
+  if (!userColsAfter.includes("play_mode_sound")) {
+    database.exec(`ALTER TABLE users ADD COLUMN play_mode_sound TEXT`);
+  }
   database.exec(`
     CREATE TABLE IF NOT EXISTS chat_threads (
       id TEXT PRIMARY KEY,

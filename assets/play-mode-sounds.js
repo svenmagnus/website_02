@@ -1,5 +1,6 @@
 /**
- * Play Mode request notification sounds — Web Audio presets + localStorage selection.
+ * Play Mode request sounds — Web Audio presets, localStorage, partner sync.
+ * Your selection is what the partner hears when you send a Play Mode request.
  */
 (function (global) {
   const STORAGE_KEY = "dualpeer-play-mode-sound-v1";
@@ -7,6 +8,7 @@
 
   let audioCtx = null;
   let lastPlayedAt = 0;
+  let serverSyncTimer = null;
 
   function getAudioContext() {
     const Ctx = global.AudioContext || global.webkitAudioContext;
@@ -63,13 +65,13 @@
     source.stop(start + duration + 0.03);
   }
 
-  function playVocal(ctx, { start, duration, baseFreq, vibratoHz = 5.5, peak = 0.16, pitchDrop = null }) {
+  function playVocal(ctx, { start, duration, baseFreq, vibratoHz = 5.5, peak = 0.16, pitchDrop = null, vibratoDepth = 0.045 }) {
     const osc = ctx.createOscillator();
     const vibrato = ctx.createOscillator();
     const vibratoGain = ctx.createGain();
     vibrato.type = "sine";
     vibrato.frequency.value = vibratoHz;
-    vibratoGain.gain.value = baseFreq * 0.045;
+    vibratoGain.gain.value = baseFreq * vibratoDepth;
     vibrato.connect(vibratoGain);
     vibratoGain.connect(osc.frequency);
     osc.type = "sine";
@@ -79,7 +81,7 @@
     }
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(peak, start + 0.045);
+    gain.gain.exponentialRampToValueAtTime(peak, start + 0.035);
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -96,8 +98,8 @@
       formant.frequency.exponentialRampToValueAtTime(Math.max(pitchDrop * 2.1, 80), start + duration * 0.5);
     }
     formantGain.gain.setValueAtTime(0.0001, start);
-    formantGain.gain.exponentialRampToValueAtTime(peak * 0.42, start + 0.035);
-    formantGain.gain.exponentialRampToValueAtTime(0.0001, start + duration * 0.85);
+    formantGain.gain.exponentialRampToValueAtTime(peak * 0.48, start + 0.028);
+    formantGain.gain.exponentialRampToValueAtTime(0.0001, start + duration * 0.88);
     formant.connect(formantGain);
     formantGain.connect(ctx.destination);
     formant.start(start);
@@ -185,54 +187,114 @@
     },
     {
       id: "whip",
-      label: "Peitsche",
+      label: "Whip",
       play(ctx, now) {
-        playNoiseBurst(ctx, { start: now, duration: 0.07, peak: 0.38, filterFreq: 4200, filterEndFreq: 280, q: 3.2 });
-        playTone(ctx, { freq: 2200, start: now, duration: 0.04, type: "triangle", peak: 0.12, endFreq: 180 });
-        playNoiseBurst(ctx, { start: now + 0.025, duration: 0.05, peak: 0.22, filterFreq: 1800, filterEndFreq: 120, q: 1.8 });
+        playNoiseBurst(ctx, { start: now, duration: 0.11, peak: 0.62, filterFreq: 5200, filterEndFreq: 220, q: 4.2 });
+        playTone(ctx, { freq: 2800, start: now, duration: 0.05, type: "sawtooth", peak: 0.22, endFreq: 120 });
+        playNoiseBurst(ctx, { start: now + 0.03, duration: 0.08, peak: 0.38, filterFreq: 2400, filterEndFreq: 90, q: 2.4 });
+        playTone(ctx, { freq: 1600, start: now + 0.045, duration: 0.04, type: "triangle", peak: 0.14, endFreq: 80 });
       },
     },
     {
       id: "moan",
-      label: "Stöhnen",
+      label: "Moan",
       play(ctx, now) {
-        playVocal(ctx, { start: now, duration: 0.72, baseFreq: 165, vibratoHz: 5.2, peak: 0.17 });
-        playVocal(ctx, { start: now + 0.08, duration: 0.58, baseFreq: 198, vibratoHz: 4.8, peak: 0.11 });
+        playVocal(ctx, { start: now, duration: 1.05, baseFreq: 128, vibratoHz: 4.6, peak: 0.32, vibratoDepth: 0.07 });
+        playVocal(ctx, { start: now + 0.1, duration: 0.88, baseFreq: 172, vibratoHz: 5.8, peak: 0.22, vibratoDepth: 0.06 });
+        playVocal(ctx, { start: now + 0.22, duration: 0.72, baseFreq: 205, vibratoHz: 6.2, peak: 0.14, vibratoDepth: 0.05 });
       },
     },
     {
       id: "ouch",
-      label: "Autsch",
+      label: "Ouch",
       play(ctx, now) {
-        playVocal(ctx, { start: now, duration: 0.28, baseFreq: 420, vibratoHz: 7, peak: 0.2, pitchDrop: 210 });
-        playNoiseBurst(ctx, { start: now, duration: 0.04, peak: 0.08, filterFreq: 2400, filterEndFreq: 600, q: 2 });
+        playVocal(ctx, { start: now, duration: 0.42, baseFreq: 520, vibratoHz: 9, peak: 0.38, pitchDrop: 140, vibratoDepth: 0.08 });
+        playNoiseBurst(ctx, { start: now, duration: 0.06, peak: 0.18, filterFreq: 3200, filterEndFreq: 400, q: 2.8 });
+        playTone(ctx, { freq: 680, start: now + 0.08, duration: 0.12, type: "square", peak: 0.12, endFreq: 180 });
       },
     },
   ];
 
   const presetById = new Map(SOUND_PRESETS.map((p) => [p.id, p]));
 
-  function loadSoundId() {
+  function readStore() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw && presetById.has(raw)) return raw;
+      if (!raw) return { local: DEFAULT_SOUND, partner: null };
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "string" && presetById.has(parsed)) {
+        return { local: parsed, partner: null };
+      }
+      if (parsed && typeof parsed === "object") {
+        return {
+          local: presetById.has(parsed.local) ? parsed.local : DEFAULT_SOUND,
+          partner: parsed.partner && presetById.has(parsed.partner) ? parsed.partner : null,
+        };
+      }
     } catch (_) {
       /* ignore */
     }
-    return DEFAULT_SOUND;
+    return { local: DEFAULT_SOUND, partner: null };
+  }
+
+  function writeStore(next) {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          local: presetById.has(next.local) ? next.local : DEFAULT_SOUND,
+          partner: next.partner && presetById.has(next.partner) ? next.partner : null,
+        })
+      );
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function loadSoundId() {
+    return readStore().local;
+  }
+
+  function loadPartnerSoundId() {
+    return readStore().partner;
   }
 
   function saveSoundId(id) {
-    const next = presetById.has(id) ? id : DEFAULT_SOUND;
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch (_) {
-      /* ignore */
-    }
-    return next;
+    const store = readStore();
+    store.local = presetById.has(id) ? id : DEFAULT_SOUND;
+    writeStore(store);
+    return store.local;
   }
 
-  async function playSelectedSound() {
+  function setPartnerSoundId(id) {
+    if (!id || !presetById.has(id)) return;
+    const store = readStore();
+    store.partner = id;
+    writeStore(store);
+  }
+
+  function resolveIncomingSoundId(explicitId) {
+    if (explicitId && presetById.has(explicitId)) return explicitId;
+    const partner = loadPartnerSoundId();
+    if (partner && presetById.has(partner)) return partner;
+    return DEFAULT_SOUND;
+  }
+
+  function shareMyPlayModeSound() {
+    global.dispatchEvent(new CustomEvent("dualpeer-play-mode-sound-share"));
+    global.dispatchEvent(new CustomEvent("dualpeer-profile-share-request"));
+    syncMyPlayModeSoundToServer();
+  }
+
+  function syncMyPlayModeSoundToServer() {
+    if (!global.DualPeerAuth?.isLoggedIn?.() || !global.DualPeerAuth?.updateProfile) return;
+    clearTimeout(serverSyncTimer);
+    serverSyncTimer = setTimeout(() => {
+      global.DualPeerAuth.updateProfile({ playModeSound: loadSoundId() }).catch(() => {});
+    }, 350);
+  }
+
+  async function playSoundById(soundId) {
     const nowMs = Date.now();
     if (nowMs - lastPlayedAt < 700) return;
     lastPlayedAt = nowMs;
@@ -241,11 +303,19 @@
       if (!ctx) return;
       if (ctx.state === "suspended") await ctx.resume();
       if (ctx.state !== "running") return;
-      const preset = presetById.get(loadSoundId()) || presetById.get(DEFAULT_SOUND);
+      const preset = presetById.get(soundId) || presetById.get(DEFAULT_SOUND);
       preset.play(ctx, ctx.currentTime);
     } catch (_) {
       /* ignore audio errors */
     }
+  }
+
+  async function playLocalPreview() {
+    return playSoundById(loadSoundId());
+  }
+
+  async function playIncomingRequestSound(soundId) {
+    return playSoundById(resolveIncomingSoundId(soundId));
   }
 
   function fillSoundSelect() {
@@ -264,23 +334,36 @@
 
   function initPlayModeSoundUI() {
     fillSoundSelect();
+    syncMyPlayModeSoundToServer();
     const sel = document.getElementById("playModeRequestSound");
     sel?.addEventListener("change", () => {
-      if (sel instanceof HTMLSelectElement) saveSoundId(sel.value);
+      if (sel instanceof HTMLSelectElement) {
+        saveSoundId(sel.value);
+        shareMyPlayModeSound();
+      }
     });
     document.getElementById("btnPlayModeSoundPreview")?.addEventListener("click", () => {
       unlockAudio();
-      playSelectedSound();
+      playLocalPreview();
+    });
+
+    global.addEventListener("dualpeer-partner-profile", (e) => {
+      const id = e.detail?.profile?.playModeSound;
+      if (id) setPartnerSoundId(id);
     });
   }
 
-  global.playTechniqueBell = playSelectedSound;
+  global.playTechniqueBell = playIncomingRequestSound;
   global.unlockTechniqueBellAudio = unlockAudio;
   global.DualPeerPlayModeSounds = {
     listPresets: () => SOUND_PRESETS.map(({ id, label }) => ({ id, label })),
     loadSoundId,
+    loadPartnerSoundId,
     saveSoundId,
-    preview: playSelectedSound,
+    setPartnerSoundId,
+    resolveIncomingSoundId,
+    preview: playLocalPreview,
+    playById: playSoundById,
   };
 
   if (document.readyState === "loading") {

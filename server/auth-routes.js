@@ -7,6 +7,7 @@ import { encryptSecret } from "./smtp-crypto.js";
 import { linkInviteHostToGuest } from "./social-routes.js";
 import { avatarUrlForUser } from "./profile-avatar.js";
 import { chatColorsFromRow, normalizeChatColorsInput } from "./chat-colors.js";
+import { playModeSoundFromRow, normalizePlayModeSoundInput } from "./play-mode-sound.js";
 import {
   getAppPublicUrl,
   hashInviteCode,
@@ -257,6 +258,7 @@ function rowToProfile(row) {
     isModel: isModelAccount(row),
     avatarUrl: avatarUrlForUser(row),
     chatColors: chatColorsFromRow(row),
+    playModeSound: playModeSoundFromRow(row),
   };
 }
 
@@ -852,9 +854,13 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
       : current.enabledCustomMenus;
   const chatColors =
     req.body?.chatColors != null ? normalizeChatColorsInput(req.body.chatColors) : current.chatColors;
+  const playModeSound =
+    req.body?.playModeSound != null
+      ? normalizePlayModeSoundInput(req.body.playModeSound)
+      : current.playModeSound;
 
   db.prepare(
-    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, custom_menus_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?, chat_colors_json = ?
+    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, custom_menus_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?, chat_colors_json = ?, play_mode_sound = ?
      WHERE id = ?`
   ).run(
     displayName,
@@ -872,6 +878,7 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     languages,
     location,
     chatColors ? JSON.stringify(chatColors) : null,
+    playModeSound,
     req.authUser.id
   );
 
