@@ -2464,13 +2464,6 @@ html[data-theme="cb-dark"] .chat-messages {
   pointer-events: none;
 }
 
-.chat-settings-you-hint {
-  font-size: 0.68rem;
-  color: var(--muted);
-  margin: 0 0 0.35rem;
-  line-height: 1.35;
-}
-
 .chat-settings-reset {
   font-size: 0.72rem;
   padding: 0.25rem 0.5rem;
