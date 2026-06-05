@@ -1646,6 +1646,7 @@ function hangup() {
     global.DualPeerSocial?.endLiveSession?.().catch(() => {});
   }
   if (hadLiveCall) endSessionChat();
+  global.DualPeerSocial?.applyHostPeerIdFromMeetings?.();
   if (videoAccessUnlocked) applyAccountStreamingUi();
   else {
     if (els.btnStartHost) els.btnStartHost.disabled = true;

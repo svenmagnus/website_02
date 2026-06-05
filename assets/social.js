@@ -18,6 +18,7 @@
     loaded: false,
     calendar: { configured: false, connected: false, email: "" },
     renderFingerprint: null,
+    activeUserId: null,
   };
 
   let chatBroadcastChannel = null;
@@ -171,6 +172,43 @@
     clearLocalChatMessages();
   }
 
+  /** Wipe in-memory social UI (chat, members, meetings) — e.g. on logout or account switch. */
+  function resetSocialClientState({ broadcast = true } = {}) {
+    state.threadId = null;
+    state.threads = [];
+    state.partner = null;
+    state.inviteHost = null;
+    state.meetings = [];
+    state.modelPool = [];
+    state.messages = [];
+    state.renderFingerprint = messagesFingerprint([]);
+    state.loaded = false;
+    state._pendingMeetingId = null;
+
+    renderMessages({ skipBroadcast: true });
+    renderModelPoolPanels();
+    updateMeetingPanels();
+    fillPartnerSelects([]);
+    updateHeaderChatBadge();
+
+    const peerIn = document.getElementById("peerIdIn");
+    if (peerIn instanceof HTMLInputElement) {
+      peerIn.value = "";
+      peerIn.placeholder = "Session ID …";
+    }
+    const guestStatus = document.getElementById("statusGuest");
+    if (guestStatus && !global.appSessionRole?.()) {
+      guestStatus.textContent = "";
+      guestStatus.className = "status-line";
+    }
+
+    if (global.MemberProfile?.setPartnerProfile) {
+      global.MemberProfile.setPartnerProfile(null);
+    }
+
+    if (broadcast) broadcastChatClear();
+  }
+
   function onChatBroadcastMessage(ev) {
     const data = ev.data;
     if (data?.type === "clear") {
@@ -301,7 +339,7 @@
     for (const m of state.meetings || []) {
       const peerId = String(m.hostPeerId || "").trim();
       if (!peerId) continue;
-      if (m.status !== "live" && !(m.mode === "instant" && m.status !== "ended")) continue;
+      if (m.status !== "live") continue;
       const providerId = m.host?.id;
       if (!providerId || providerId === uid) continue;
       if (partnerId && providerId !== partnerId) continue;
@@ -371,18 +409,16 @@
   function applyHostPeerIdFromMeetings(peerIdOverride) {
     const peerIn = document.getElementById("peerIdIn");
     const partnerId = getSelectedPartnerUserId();
-    const waiting =
-      state.meetings.find((m) => {
-        if (m.isHost || (!m.hostPeerId && !peerIdOverride)) return false;
-        if (partnerId) {
-          const otherId = m.isHost ? m.guest?.id : m.host?.id;
-          if (otherId && otherId !== partnerId) return false;
-        }
-        return (
-          m.status === "live" || (m.mode === "instant" && m.status !== "ended")
-        );
-      }) ||
-      state.meetings.find((m) => !m.isHost && m.hostPeerId);
+    const waiting = state.meetings.find((m) => {
+      if (m.isHost) return false;
+      if (m.status !== "live") return false;
+      if (!String(m.hostPeerId || "").trim() && !peerIdOverride) return false;
+      if (partnerId) {
+        const hostId = m.host?.id;
+        if (hostId && hostId !== partnerId) return false;
+      }
+      return true;
+    });
     const peerId = peerIdOverride || waiting?.hostPeerId;
     if (peerIn instanceof HTMLInputElement && peerId && peerIn.value.trim() !== peerId) {
       peerIn.value = peerId;
@@ -657,7 +693,7 @@
   function getActiveLiveMeetingId() {
     if (state._pendingMeetingId) return state._pendingMeetingId;
     const m = state.meetings.find(
-      (x) => x.isHost && (x.status === "live" || x.status === "scheduled") && x.mode === "instant"
+      (x) => x.isHost && x.status === "live" && x.mode === "instant"
     );
     return m?.id || state.meetings.find((x) => x.isHost && x.status === "live")?.id || null;
   }
@@ -1055,10 +1091,17 @@
     if (setupSessions) setupSessions.hidden = !loggedIn;
     if (setupModelPool) setupModelPool.hidden = !loggedIn;
     if (loggedIn) {
+      const uid = getSessionUserId();
+      if (state.activeUserId && uid && state.activeUserId !== uid) {
+        resetSocialClientState({ broadcast: true });
+      }
+      state.activeUserId = uid;
       bootstrap();
       startMeetingsPolling();
       startPresenceHeartbeat();
     } else {
+      state.activeUserId = null;
+      resetSocialClientState({ broadcast: true });
       stopMeetingsPolling();
       stopPresenceHeartbeat();
     }
@@ -1086,6 +1129,7 @@
     bootstrap,
     sendPersistentMessage,
     clearChatAfterSession,
+    resetSocialClientState,
     publishHostPeerId,
     getActiveLiveMeetingId,
     resolveLiveMeetingId,
