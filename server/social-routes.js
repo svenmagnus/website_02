@@ -4,6 +4,7 @@ import { getDb } from "./db.js";
 import { getAppPublicUrl } from "./mail.js";
 import { chatColorsFromRow } from "./chat-colors.js";
 import { playModeSoundFromRow } from "./play-mode-sound.js";
+import { isUserBanned } from "./member-ban.js";
 import { avatarUrlForUser } from "./profile-avatar.js";
 import {
   buildGoogleCalendarUrl,
@@ -49,6 +50,15 @@ function getUserByToken(token) {
 function requireAuth(req, res, next) {
   const user = getUserByToken(parseBearer(req));
   if (!user) return res.status(401).json({ ok: false, error: "unauthorized" });
+  if (isUserBanned(user)) {
+    return res.status(403).json({
+      ok: false,
+      error: "account_banned",
+      message: "Your account has been banned.",
+      banReason: String(user.ban_reason || "").trim(),
+      bannedAt: user.banned_at || null,
+    });
+  }
   req.authUser = user;
   next();
 }

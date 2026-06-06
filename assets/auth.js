@@ -114,6 +114,9 @@
       isPremium: Boolean(user.isPremium),
       isModel: Boolean(user.isModel),
       avatarUrl: user.avatarUrl || null,
+      isBanned: Boolean(user.isBanned),
+      banReason: user.banReason || "",
+      bannedAt: user.bannedAt || null,
     };
   }
 
@@ -168,6 +171,9 @@
       isPremium: profile.isPremium,
       isModel: profile.isModel,
       avatarUrl: profile.avatarUrl ?? session.user?.avatarUrl ?? null,
+      isBanned: Boolean(profile.isBanned),
+      banReason: profile.banReason || "",
+      bannedAt: profile.bannedAt || null,
     });
   }
 
@@ -191,6 +197,28 @@
 
   function isLoggedIn() {
     return Boolean(getSession()?.token);
+  }
+
+  function redirectToBannedPage({ banReason } = {}) {
+    const params = new URLSearchParams();
+    const reason = String(banReason || "").trim();
+    if (reason) params.set("reason", reason);
+    const qs = params.toString();
+    window.location.href = qs ? `account-banned.html?${qs}` : "account-banned.html";
+  }
+
+  function handleAccountBannedError(err) {
+    if (err?.code !== "account_banned") return false;
+    clearSession();
+    redirectToBannedPage({ banReason: err.data?.banReason || err.message });
+    return true;
+  }
+
+  function ensureNotBannedProfile(profile) {
+    if (!profile?.isBanned) return false;
+    clearSession();
+    redirectToBannedPage({ banReason: profile.banReason });
+    return true;
   }
 
   function stripAuthQueryParams() {
@@ -330,6 +358,9 @@
       err.code = data.error;
       err.status = resp.status;
       err.data = data;
+      if (data.error === "account_banned") {
+        clearSession();
+      }
       throw err;
     }
     return data;
@@ -354,6 +385,12 @@
       body: JSON.stringify({ username: u, password: p }),
     });
     const user = userToProfile(data.user) || data.user;
+    if (user?.isBanned) {
+      const err = new Error("Your account has been banned.");
+      err.code = "account_banned";
+      err.data = { banReason: user.banReason || "" };
+      throw err;
+    }
     setSession(data.token, { ...data.user, ...user });
     return user;
   }
@@ -392,6 +429,7 @@
   async function fetchProfile() {
     const data = await api("/api/profile");
     const profile = userToProfile(data.profile);
+    if (ensureNotBannedProfile(profile)) return profile;
     cacheProfile(profile);
     syncSessionUserFromProfile(profile);
     if (global.dualPeerUi?.setProfileName) {
@@ -1153,7 +1191,7 @@
   }
 
   function adminFlagCell(field, checked, { disabled = false } = {}) {
-    const labels = { isPremium: "Premium", isModel: "Model", isAdmin: "Admin" };
+    const labels = { isPremium: "Premium", isModel: "Model", isAdmin: "Admin", isBanned: "Banned" };
     const dis = disabled ? " disabled" : "";
     const chk = checked ? " checked" : "";
     const label = labels[field] || field;
@@ -1164,6 +1202,7 @@
     const tr = document.createElement("tr");
     tr.dataset.userId = user.id;
     tr.dataset.accountType = user.accountType === "host" ? "host" : "guest";
+    if (user.isBanned) tr.classList.add("is-banned-user");
     tr.innerHTML = `
       <td><strong>${escAdminAttr(user.username)}</strong></td>
       <td class="admin-status-cell">
@@ -1177,6 +1216,8 @@
       ${adminFlagCell("isPremium", user.isPremium, { disabled: true })}
       ${adminFlagCell("isModel", user.isModel)}
       ${adminFlagCell("isAdmin", user.isAdmin)}
+      <td><input type="text" class="admin-input admin-ban-reason-input" data-field="banReason" maxlength="500" placeholder="ban reason (optional)" value="${escAdminAttr(user.banReason)}" /></td>
+      ${adminFlagCell("isBanned", user.isBanned)}
       <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" autocomplete="new-password" /></td>
       <td class="admin-actions-cell">
         <button type="button" class="primary admin-save-btn">Save</button>
@@ -1324,6 +1365,7 @@
       const displayNameEl = tr.querySelector('[data-field="displayName"]');
       const isModelEl = tr.querySelector('[data-field="isModel"]');
       const isAdminEl = tr.querySelector('[data-field="isAdmin"]');
+      const isBannedEl = tr.querySelector('[data-field="isBanned"]');
       const patch = {
         email: emailEl?.value,
         displayName: displayNameEl?.value,
@@ -1333,6 +1375,8 @@
         location: tr.querySelector('[data-field="location"]')?.value,
         isModel: Boolean(isModelEl?.checked),
         isAdmin: Boolean(isAdminEl?.checked),
+        isBanned: Boolean(isBannedEl?.checked),
+        banReason: tr.querySelector('[data-field="banReason"]')?.value || "",
         password: tr.querySelector('[data-field="password"]')?.value || "",
       };
       btn.disabled = true;
@@ -1343,7 +1387,12 @@
         const pwd = tr.querySelector('[data-field="password"]');
         if (pwd) pwd.value = "";
         if (res.user?.username === getSession()?.user?.username) {
-          setSession(getSession().token, { ...getSession().user, ...userToProfile(res.user) });
+          const nextUser = userToProfile(res.user);
+          if (nextUser?.isBanned) {
+            handleAccountBannedError({ code: "account_banned", data: { banReason: nextUser.banReason } });
+            return;
+          }
+          setSession(getSession().token, { ...getSession().user, ...nextUser });
         }
       } catch (err) {
         setStatus(err.message || "Save failed.", "err");
@@ -1414,6 +1463,7 @@
           window.location.href = "index.html?onboard=1";
         }
       } catch (err) {
+        if (handleAccountBannedError(err)) return;
         if (errEl) {
           errEl.hidden = false;
           if (err.code === "invalid_credentials") {
@@ -1422,6 +1472,8 @@
             errEl.textContent =
               err.message || "Bitte bestätige zuerst deine E-Mail (Link in der Registrierungs-Mail).";
             if (resendPanel) resendPanel.hidden = false;
+          } else if (err.code === "account_banned") {
+            errEl.textContent = "Your account has been banned.";
           } else {
             errEl.textContent = err.message;
           }
@@ -1735,6 +1787,7 @@
         await login(usernameEl?.value, passwordEl?.value);
         enterAppAfterAuth({ showProfile: true });
       } catch (err) {
+        if (handleAccountBannedError(err)) return;
         console.warn("[auth] Login failed:", err.code || err.message);
         if (errEl) {
           errEl.hidden = false;
@@ -1742,6 +1795,7 @@
             invalid_credentials: "Invalid username or password.",
             email_not_verified:
               "Email not verified yet — open the link in your registration email.",
+            account_banned: "Your account has been banned.",
             network_error: apiUnreachableMessage(resolveApiBase()),
             api_not_configured: apiUnreachableMessage(""),
           };
@@ -1765,8 +1819,13 @@
     if (tokenAtStart) {
       try {
         await fetchProfile();
-        if (getSession()?.token === tokenAtStart) hasSiteAccess = true;
-      } catch (_) {
+        if (getSession()?.token === tokenAtStart) {
+          const profile = getCachedProfile() || getSession()?.user;
+          if (ensureNotBannedProfile(profile)) return;
+          hasSiteAccess = true;
+        }
+      } catch (err) {
+        if (handleAccountBannedError(err)) return;
         if (getSession()?.token === tokenAtStart) clearSession();
       }
     }

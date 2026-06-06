@@ -137,6 +137,13 @@ function runMigrations(database) {
   if (!userColsAfter.includes("play_mode_sound")) {
     database.exec(`ALTER TABLE users ADD COLUMN play_mode_sound TEXT`);
   }
+  userColsAfter = tableColumns(database, "users");
+  if (!userColsAfter.includes("banned_at")) {
+    database.exec(`ALTER TABLE users ADD COLUMN banned_at INTEGER`);
+  }
+  if (!userColsAfter.includes("ban_reason")) {
+    database.exec(`ALTER TABLE users ADD COLUMN ban_reason TEXT NOT NULL DEFAULT ''`);
+  }
   database.exec(`
     CREATE TABLE IF NOT EXISTS chat_threads (
       id TEXT PRIMARY KEY,

@@ -8,6 +8,7 @@ import { linkInviteHostToGuest } from "./social-routes.js";
 import { avatarUrlForUser } from "./profile-avatar.js";
 import { chatColorsFromRow, normalizeChatColorsInput } from "./chat-colors.js";
 import { playModeSoundFromRow, normalizePlayModeSoundInput } from "./play-mode-sound.js";
+import { isUserBanned, banFieldsForProfile, normalizeBanReasonInput } from "./member-ban.js";
 import {
   getAppPublicUrl,
   hashInviteCode,
@@ -259,6 +260,7 @@ function rowToProfile(row) {
     avatarUrl: avatarUrlForUser(row),
     chatColors: chatColorsFromRow(row),
     playModeSound: playModeSoundFromRow(row),
+    ...banFieldsForProfile(row),
   };
 }
 
@@ -351,6 +353,18 @@ function requireAuth(req, res, next) {
   const user = getUserByToken(token);
   if (!user) {
     return res.status(401).json({ ok: false, error: "unauthorized" });
+  }
+  if (isUserBanned(user)) {
+    const isLogout = req.method === "POST" && String(req.path || "").endsWith("/auth/logout");
+    if (!isLogout) {
+      return res.status(403).json({
+        ok: false,
+        error: "account_banned",
+        message: "Your account has been banned.",
+        banReason: String(user.ban_reason || "").trim(),
+        bannedAt: user.banned_at || null,
+      });
+    }
   }
   req.authUser = user;
   req.authToken = token;
@@ -789,6 +803,16 @@ authRouter.post("/auth/login", async (req, res) => {
     });
   }
 
+  if (isUserBanned(user)) {
+    return res.status(403).json({
+      ok: false,
+      error: "account_banned",
+      message: "Your account has been banned.",
+      banReason: String(user.ban_reason || "").trim(),
+      bannedAt: user.banned_at || null,
+    });
+  }
+
   const sessionToken = createSessionForUser(db, user.id);
 
   res.json({
@@ -1173,7 +1197,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason
        FROM users
        ORDER BY created_at ASC`
     )
@@ -1192,6 +1216,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
     location: row.location || "",
     emailVerified: Boolean(row.email_verified_at),
     createdAt: row.created_at,
+    ...banFieldsForProfile(row),
   }));
   res.json({ ok: true, users });
 });
@@ -1236,6 +1261,14 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   const isPremium = isAdmin ? 1 : Number(existing.is_premium || 0);
   const isModel = req.body?.isModel != null ? (req.body.isModel ? 1 : 0) : Number(existing.is_model || 0);
   const password = req.body?.password != null ? String(req.body.password || "") : "";
+  const nextBanned =
+    req.body?.isBanned != null ? Boolean(req.body.isBanned) : isUserBanned(existing);
+  const banReason =
+    req.body?.banReason != null
+      ? normalizeBanReasonInput(req.body.banReason)
+      : normalizeBanReasonInput(existing.ban_reason);
+  const bannedAt = nextBanned ? existing.banned_at || Date.now() : null;
+  const storedBanReason = nextBanned ? banReason : "";
 
   if (existing.id === req.authUser.id && !isAdmin) {
     return res.status(400).json({
@@ -1253,7 +1286,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   }
 
   db.prepare(
-    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ?, nationality = ?, languages = ?, location = ? WHERE id = ?`
+    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ?, nationality = ?, languages = ?, location = ?, banned_at = ?, ban_reason = ? WHERE id = ?`
   ).run(
     email,
     displayName,
@@ -1264,8 +1297,14 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
     nationality,
     languages,
     location,
+    bannedAt,
+    storedBanReason,
     existing.id
   );
+
+  if (nextBanned) {
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(existing.id);
+  }
 
   if (password) {
     if (password.length < 8 || password.length > 128) {
@@ -1277,7 +1316,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
 
   const updated = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason
        FROM users WHERE id = ?`
     )
     .get(existing.id);
@@ -1297,6 +1336,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       location: updated.location || "",
       emailVerified: Boolean(updated.email_verified_at),
       createdAt: updated.created_at,
+      ...banFieldsForProfile(updated),
     },
   });
 });
