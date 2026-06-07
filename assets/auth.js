@@ -672,6 +672,10 @@
     return api(`/api/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
   }
 
+  async function fetchAdminUserProfile(userId) {
+    return api(`/api/admin/users/${encodeURIComponent(userId)}/profile`);
+  }
+
   async function fetchPremiumModels() {
     return api("/api/models/premium");
   }
@@ -1190,6 +1194,162 @@
     return String(value || "").replace(/"/g, "&quot;");
   }
 
+  function escAdminHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function adminPlayPrefLabels(ids, options) {
+    const map = new Map((options || []).map((o) => [o.id, o.label]));
+    return (ids || []).map((id) => map.get(id) || id);
+  }
+
+  function adminTechniqueLabels(profile) {
+    const builtin = new Map(
+      (global.DualPeerTechniques?.allPresets?.() || []).map((t) => [t.id, t.label])
+    );
+    const custom = new Map((profile.customTechniques || []).map((t) => [t.id, t.label]));
+    return (profile.techniques || []).map((id) => custom.get(id) || builtin.get(id) || id);
+  }
+
+  function adminGenderLabel(value) {
+    if (global.MemberProfile?.genderLabel) return global.MemberProfile.genderLabel(value);
+    const map = {
+      female: "Female",
+      male: "Male",
+      nonbinary: "Non-binary",
+      other: "Other",
+    };
+    return map[value] || "Prefer not to say";
+  }
+
+  function formatAdminProfileDate(ts) {
+    if (!ts) return "—";
+    try {
+      return new Date(ts).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    } catch (_) {
+      return "—";
+    }
+  }
+
+  function renderAdminUserProfileBody(profile) {
+    const body = document.getElementById("adminUserProfileBody");
+    const title = document.getElementById("adminUserProfileTitle");
+    if (!body || !profile) return;
+    const PP = global.DualPeerPlayPrefs || {};
+    const displayName = profile.displayName || profile.username || "User";
+    if (title) title.textContent = `Profile: ${displayName}`;
+    const avatarSrc = profile.avatarUrl
+      ? global.DualPeerAuth?.resolveAssetUrl?.(profile.avatarUrl) || profile.avatarUrl
+      : "";
+    const badges = [];
+    if (profile.isAdmin) badges.push("Admin");
+    if (profile.isPremium) badges.push("Premium");
+    if (profile.isModel) badges.push("Model");
+    if (profile.isBanned) badges.push("Banned");
+    const dynamics = adminPlayPrefLabels(profile.playPrefs?.dynamics, PP.DYNAMICS);
+    const kinks = adminPlayPrefLabels(profile.playPrefs?.kinks, PP.KINKS);
+    const intensity = adminPlayPrefLabels(profile.playPrefs?.intensity, PP.INTENSITY);
+    const techniques = adminTechniqueLabels(profile);
+    const listHtml = (items) =>
+      items.length
+        ? `<ul class="admin-profile-tag-list">${items.map((t) => `<li>${escAdminHtml(t)}</li>`).join("")}</ul>`
+        : `<p class="admin-profile-empty">—</p>`;
+    body.innerHTML = `
+      <div class="admin-profile-head">
+        ${
+          avatarSrc
+            ? `<img class="admin-profile-avatar" src="${escAdminAttr(avatarSrc)}" alt="" width="72" height="72" />`
+            : `<span class="admin-profile-avatar admin-profile-avatar--initial" aria-hidden="true">${escAdminHtml(displayName.charAt(0).toUpperCase())}</span>`
+        }
+        <div class="admin-profile-head-meta">
+          <p class="admin-profile-display-name">${escAdminHtml(displayName)}</p>
+          <p class="admin-profile-username">@${escAdminHtml(profile.username || "")}</p>
+          ${
+            badges.length
+              ? `<p class="admin-profile-badges">${badges.map((b) => `<span class="admin-profile-badge">${escAdminHtml(b)}</span>`).join("")}</p>`
+              : ""
+          }
+        </div>
+      </div>
+      <dl class="admin-profile-dl">
+        <div><dt>Email</dt><dd>${escAdminHtml(profile.email || "—")}${profile.emailVerified ? " ✓ verified" : ""}</dd></div>
+        <div><dt>Gender</dt><dd>${escAdminHtml(adminGenderLabel(profile.gender))}</dd></div>
+        <div><dt>Nationality</dt><dd>${escAdminHtml(profile.nationality || "—")}</dd></div>
+        <div><dt>Languages</dt><dd>${escAdminHtml(profile.languages || "—")}</dd></div>
+        <div><dt>Location</dt><dd>${escAdminHtml(profile.location || "—")}</dd></div>
+        <div><dt>Member since</dt><dd>${escAdminHtml(formatAdminProfileDate(profile.createdAt))}</dd></div>
+        ${
+          profile.isBanned
+            ? `<div><dt>Ban reason</dt><dd>${escAdminHtml(profile.banReason || "—")}</dd></div>`
+            : ""
+        }
+      </dl>
+      <section class="admin-profile-section">
+        <h3>Bio</h3>
+        <p class="admin-profile-bio">${escAdminHtml(profile.bio || "—")}</p>
+      </section>
+      <section class="admin-profile-section">
+        <h3>Play preferences</h3>
+        <dl class="admin-profile-dl admin-profile-dl--compact">
+          <div><dt>Dynamics</dt><dd>${escAdminHtml(dynamics.join(", ") || "—")}</dd></div>
+          <div><dt>Kinks</dt><dd>${escAdminHtml(kinks.join(", ") || "—")}</dd></div>
+          <div><dt>Intensity</dt><dd>${escAdminHtml(intensity.join(", ") || "—")}</dd></div>
+        </dl>
+      </section>
+      <section class="admin-profile-section">
+        <h3>Playbook techniques</h3>
+        ${listHtml(techniques)}
+      </section>
+      <section class="admin-profile-section">
+        <h3>Lovense toys</h3>
+        <p class="admin-profile-bio">${escAdminHtml(profile.lovenseToys || "—")}</p>
+      </section>
+    `;
+  }
+
+  function openAdminUserProfileModal() {
+    const modal = document.getElementById("adminUserProfileModal");
+    if (!modal) return;
+    modal.hidden = false;
+    modal.removeAttribute("aria-hidden");
+  }
+
+  function closeAdminUserProfileModal() {
+    const modal = document.getElementById("adminUserProfileModal");
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  async function showAdminUserProfile(userId) {
+    const body = document.getElementById("adminUserProfileBody");
+    const status = document.getElementById("adminUserProfileStatus");
+    if (!body) return;
+    if (status) {
+      status.className = "status-line";
+      status.textContent = "Loading profile…";
+    }
+    body.innerHTML = "";
+    openAdminUserProfileModal();
+    try {
+      const data = await fetchAdminUserProfile(userId);
+      renderAdminUserProfileBody(data.profile);
+      if (status) {
+        status.textContent = "";
+        status.className = "status-line";
+      }
+    } catch (err) {
+      if (status) {
+        status.textContent = err.message || "Could not load profile.";
+        status.className = "status-line err";
+      }
+    }
+  }
+
   function adminFlagCell(field, checked, { disabled = false } = {}) {
     const labels = { isPremium: "Premium", isModel: "Model", isAdmin: "Admin", isBanned: "Banned" };
     const dis = disabled ? " disabled" : "";
@@ -1204,7 +1364,7 @@
     tr.dataset.accountType = user.accountType === "host" ? "host" : "guest";
     if (user.isBanned) tr.classList.add("is-banned-user");
     tr.innerHTML = `
-      <td><strong>${escAdminAttr(user.username)}</strong></td>
+      <td class="admin-user-name-cell"><strong class="admin-user-name" title="Double-click to view full profile">${escAdminAttr(user.username)}</strong></td>
       <td class="admin-status-cell">
         <span class="admin-status-badge admin-status-badge--model">Model</span>
       </td>
@@ -1286,6 +1446,25 @@
       else modal.hidden = true;
     });
     if (refreshBtn) refreshBtn.addEventListener("click", () => load());
+
+    const profileModal = document.getElementById("adminUserProfileModal");
+    const profileCloseBtn = document.getElementById("adminUserProfileClose");
+    if (profileCloseBtn) profileCloseBtn.addEventListener("click", () => closeAdminUserProfileModal());
+    if (profileModal) {
+      profileModal.addEventListener("click", (e) => {
+        if (e.target === profileModal) closeAdminUserProfileModal();
+      });
+    }
+
+    tbody.addEventListener("dblclick", async (e) => {
+      const nameEl = e.target?.closest?.(".admin-user-name");
+      if (!nameEl) return;
+      const tr = nameEl.closest("tr");
+      const userId = tr?.dataset?.userId;
+      if (!userId) return;
+      await showAdminUserProfile(userId);
+    });
+
     if (createBtn) {
       createBtn.addEventListener("click", async () => {
         const username = document.getElementById("adminCreateUsername")?.value?.trim();

@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8596" />
+    <link rel="stylesheet" href="assets/styles.css?v=8601" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -259,8 +259,8 @@
         <h2 id="adminUsersModalTitle">Administrator: User Profiles</h2>
         <p class="login-overlay-hint">
           Review all registered accounts. Everyone is a <strong>Model</strong> (symmetric roles in video: start camera or
-          join a session). Click <strong>Save</strong> on each row after edits.
-          Use <strong>Delete</strong> to remove a user permanently.
+          join a session). Double-click a <strong>username</strong> to view the full profile.
+          Click <strong>Save</strong> on each row after edits. Use <strong>Delete</strong> to remove a user permanently.
         </p>
         <p class="status-line" id="adminUsersStatus"></p>
         <div class="admin-users-table-wrap">
@@ -298,6 +298,24 @@
         <div class="row profile-mail-actions admin-users-footer">
           <button type="button" class="secondary" id="adminUsersRefreshBtn">Refresh</button>
           <button type="button" id="adminUsersModalClose">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="login-overlay admin-user-profile-overlay"
+      id="adminUserProfileModal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="adminUserProfileTitle"
+    >
+      <div class="login-overlay-card auth-card-wide admin-user-profile-card">
+        <h2 id="adminUserProfileTitle">Member profile</h2>
+        <p class="status-line" id="adminUserProfileStatus"></p>
+        <div id="adminUserProfileBody" class="admin-user-profile-body"></div>
+        <div class="row profile-mail-actions">
+          <button type="button" id="adminUserProfileClose">Close</button>
         </div>
       </div>
     </div>
@@ -1204,7 +1222,7 @@
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
     <script src="assets/app.js?v=8597"></script>
-    <script src="assets/auth.js?v=8600"></script>
+    <script src="assets/auth.js?v=8601"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8597"></script>
     <script src="assets/member-profile.js?v=8596"></script>

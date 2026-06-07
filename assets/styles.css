@@ -4452,3 +4452,147 @@ body.layout-resize-active * {
 .admin-users-table tr.is-banned-user td {
   background: rgba(239, 68, 68, 0.08);
 }
+
+.admin-user-name {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.15em;
+}
+
+.admin-user-name:hover {
+  color: var(--accent);
+}
+
+.admin-user-profile-overlay {
+  z-index: 10001;
+}
+
+.admin-user-profile-card {
+  max-width: min(92vw, 36rem);
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-user-profile-body {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.admin-profile-head {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.admin-profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.admin-profile-avatar--initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--accent);
+}
+
+.admin-profile-display-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.admin-profile-username {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.admin-profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.45rem 0 0;
+}
+
+.admin-profile-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 80%, var(--accent) 8%);
+}
+
+.admin-profile-dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 0.85rem;
+}
+
+.admin-profile-dl div {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.admin-profile-dl dt {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.admin-profile-dl dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.admin-profile-dl--compact div {
+  grid-template-columns: 5.5rem 1fr;
+}
+
+.admin-profile-section {
+  margin-bottom: 0.85rem;
+}
+
+.admin-profile-section h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.admin-profile-bio {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.admin-profile-tag-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.admin-profile-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}

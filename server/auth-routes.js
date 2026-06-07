@@ -1221,6 +1221,15 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
   res.json({ ok: true, users });
 });
 
+authRouter.get("/admin/users/:id/profile", requireAuth, requireAdminAccount, (req, res) => {
+  const userId = String(req.params.id || "").trim();
+  if (!userId) return res.status(400).json({ ok: false, error: "invalid_user" });
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  if (!row) return res.status(404).json({ ok: false, error: "user_not_found" });
+  res.json({ ok: true, profile: rowToProfile(row) });
+});
+
 authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res) => {
   const userId = String(req.params.id || "").trim();
   if (!userId) {
