@@ -22,6 +22,8 @@ fi
 echo "==> Firewall"
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
+# WebRTC media (WHIP/WHEP) — must match WEBRTC_UDP_PORT_MIN/MAX in server/.env
+ufw allow 10000:60000/udp
 ufw --force enable
 
 if ! id "$APP_USER" &>/dev/null; then

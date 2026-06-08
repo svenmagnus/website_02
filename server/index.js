@@ -67,6 +67,26 @@ const ICE_SERVERS = [
   },
 ];
 
+/** Public VPS IP for WebRTC host candidates (required behind NAT / cloud firewall). */
+const WEBRTC_ANNOUNCED_IP = (process.env.WEBRTC_ANNOUNCED_IP || "").trim();
+const WEBRTC_UDP_PORT_MIN = Number(process.env.WEBRTC_UDP_PORT_MIN) || 10000;
+const WEBRTC_UDP_PORT_MAX = Number(process.env.WEBRTC_UDP_PORT_MAX) || 60000;
+
+function weriftNetworkPeerConfig() {
+  const config = {};
+  if (WEBRTC_ANNOUNCED_IP) {
+    config.iceAdditionalHostAddresses = [WEBRTC_ANNOUNCED_IP];
+  }
+  if (
+    Number.isInteger(WEBRTC_UDP_PORT_MIN) &&
+    Number.isInteger(WEBRTC_UDP_PORT_MAX) &&
+    WEBRTC_UDP_PORT_MIN < WEBRTC_UDP_PORT_MAX
+  ) {
+    config.icePortRange = [WEBRTC_UDP_PORT_MIN, WEBRTC_UDP_PORT_MAX];
+  }
+  return config;
+}
+
 function trackId(track) {
   return track?.uuid ?? track?.id ?? null;
 }
@@ -523,6 +543,7 @@ function buildWeriftPeerConfig(offerSdp) {
     codecs: { audio: audioCodecs, video: videoCodecs },
     headerExtensions: { video: [useSdesRTPStreamId()] },
     iceServers: ICE_SERVERS,
+    ...weriftNetworkPeerConfig(),
   };
 }
 
@@ -947,7 +968,16 @@ app.get("/", (_req, res) => {
 app.use(express.static(WEB_ROOT, { index: false, maxAge: 0 }));
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`WHIP/WHEP server v16 (keep SSRC + live relay) on ${PUBLIC_BASE_URL}`);
+  console.log(`WHIP/WHEP server v17 (public ICE + UDP port range) on ${PUBLIC_BASE_URL}`);
+  if (WEBRTC_ANNOUNCED_IP) {
+    console.log(
+      `  WebRTC: announced IP ${WEBRTC_ANNOUNCED_IP}, UDP ${WEBRTC_UDP_PORT_MIN}-${WEBRTC_UDP_PORT_MAX}`
+    );
+  } else {
+    console.warn(
+      "  WebRTC: WEBRTC_ANNOUNCED_IP not set — OBS/WHIP media may fail on a public VPS (open UDP + set env)"
+    );
+  }
   console.log(`  App (local):  ${PUBLIC_BASE_URL}/  or  http://127.0.0.1:${PORT}/`);
   console.log(`  Live Server:  http://127.0.0.1:5500/ also works (API on :${PORT})`);
   console.log(`  WHIP ingest:  POST ${PUBLIC_BASE_URL}/whip/:stream_key`);
