@@ -1859,7 +1859,7 @@ const LOVENSE_PRESET_TOKENS = {
 
 const LOVENSE_SETUP_HINT =
   "One card per connected toy. Direct motor until slider 0 — no extension Basic Levels needed. " +
-  "Cam site Tangent-Club Live in extension. Open Lovense floating menu on this tab once.";
+  "Extension On, cam site Tangent-Club selected. Open Lovense floating menu on this tab — wait for Extension ready below.";
 
 const TOY_SPECIAL_COMMANDS = [
   { id: "earthquake", label: "Earthquake", tokens: 100 },
