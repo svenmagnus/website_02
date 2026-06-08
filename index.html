@@ -896,13 +896,13 @@
               </div>
             </div>
             <p class="status-line" id="whipBroadcastStatus">
-              Local: <strong>http://127.0.0.1:8787/</strong> — Production (www.tangent-club.com): Cloudflare tunnel URL in
-              <code>assets/app.js</code> (<code>WHIP_CLOUDFLARE_TUNNEL_URL</code>).
+              Production WHIP runs on <strong>https://tangent-club.com</strong> (Hetzner). Choose
+              <strong>OBS Studio (WHIP)</strong>, then <strong>Start Camera</strong> — Server and Bearer Token appear here.
             </p>
             <p class="status-line media-source-hint" style="margin-top: 0.35rem">
-              Local test: <strong>cd server && npm run restart</strong> — then
-              <strong>http://127.0.0.1:8787/</strong> or Live Server on <strong>:5500</strong>.
-              If you see “Cannot GET /”, an old server is still running; restart fixes it.
+              OBS: Settings → Stream → Service <strong>WHIP</strong> → Server =
+              <code>https://tangent-club.com/whip</code>, Bearer Token = copied line below (not the full URL with
+              <code>/tc-…</code>). OBS 30+ required. Re-copy after each <strong>Start Camera</strong> (new token).
             </p>
           </div>
           <div class="row media-source-row">
