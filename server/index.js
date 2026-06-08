@@ -15,7 +15,7 @@ import express from "express";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { initDb } from "./db.js";
+import { getDb, initDb } from "./db.js";
 import { authRouter } from "./auth-routes.js";
 import { socialRouter } from "./social-routes.js";
 import {
@@ -394,14 +394,54 @@ function normalizeStreamKey(raw) {
   return key;
 }
 
-function validateStreamKey(streamKey) {
-  const key = normalizeStreamKey(streamKey);
+function isStreamKeyFormat(key) {
   if (!key) return false;
   if (key.length < 12 || key.length > 128) return false;
-  if (!/^[a-zA-Z0-9_-]+$/.test(key)) return false;
+  return /^[a-zA-Z0-9_-]+$/.test(key);
+}
+
+function rememberRegisteredKey(streamKey, meta = {}) {
+  const key = normalizeStreamKey(streamKey);
+  if (!isStreamKeyFormat(key)) return false;
+  const prior = registeredKeys.get(key) || {};
+  registeredKeys.set(key, { ...prior, ...meta, createdAt: prior.createdAt || Date.now() });
+  return true;
+}
+
+function validateStreamKey(streamKey) {
+  const key = normalizeStreamKey(streamKey);
+  if (!isStreamKeyFormat(key)) return false;
   if (STATIC_KEYS.has(key)) return true;
   if (registeredKeys.has(key)) return true;
+  const row = getDb().prepare("SELECT id FROM users WHERE whip_stream_key = ?").get(key);
+  if (row) {
+    rememberRegisteredKey(key, { userId: row.id });
+    return true;
+  }
   return false;
+}
+
+function getAuthUserFromRequest(req) {
+  const raw = String(req.get?.("authorization") ?? "").trim();
+  const m = /^Bearer\s+(.+)$/i.exec(raw);
+  const token = m ? m[1].trim() : "";
+  if (!token || token.startsWith("tc-")) return null;
+  const db = getDb();
+  const session = db.prepare("SELECT user_id, expires_at FROM sessions WHERE token = ?").get(token);
+  const now = Date.now();
+  if (!session || session.expires_at < now) {
+    if (session) db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+    return null;
+  }
+  return db.prepare("SELECT * FROM users WHERE id = ?").get(session.user_id) || null;
+}
+
+function getOrCreateUserStreamKey(user) {
+  const existing = normalizeStreamKey(user.whip_stream_key || "");
+  if (isStreamKeyFormat(existing)) return existing;
+  const streamKey = makeStreamKey();
+  getDb().prepare("UPDATE users SET whip_stream_key = ? WHERE id = ?").run(streamKey, user.id);
+  return streamKey;
 }
 
 /** OBS: Authorization: Bearer <stream-key> (any casing / extra spaces). */
@@ -712,14 +752,28 @@ app.use("/api", socialRouter);
 
 app.post("/api/broadcast/register", (req, res) => {
   const peerId = typeof req.body?.peerId === "string" ? req.body.peerId.trim() : "";
-  const streamKey = makeStreamKey();
-  registeredKeys.set(streamKey, { peerId, createdAt: Date.now() });
+  const authUser = getAuthUserFromRequest(req);
+  let streamKey;
+  let reused = false;
+  if (authUser) {
+    const prior = normalizeStreamKey(authUser.whip_stream_key || "");
+    streamKey = getOrCreateUserStreamKey(authUser);
+    reused = isStreamKeyFormat(prior) && prior === streamKey;
+  } else {
+    streamKey = makeStreamKey();
+  }
+  rememberRegisteredKey(streamKey, { peerId, userId: authUser?.id || null });
   const baseUrl = requestBaseUrl(req);
   res.status(201).json({
     ...getBroadcastUrls(streamKey, baseUrl),
     peerId: peerId || null,
-    message:
-      "OBS: Server = whipServerUrl, Bearer Token = whipBearerToken. Re-register after server restart.",
+    reused,
+    persistent: !!authUser,
+    message: authUser
+      ? reused
+        ? "OBS: same Bearer Token as your account — Start Streaming in OBS."
+        : "OBS: paste Server + Bearer Token once (Settings → Stream → WHIP), then Start Streaming."
+      : "OBS: Server = whipServerUrl, Bearer Token = whipBearerToken.",
   });
 });
 

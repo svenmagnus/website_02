@@ -75,6 +75,12 @@ function runMigrations(database) {
   if (!userCols.includes("lovense_toys")) {
     database.exec(`ALTER TABLE users ADD COLUMN lovense_toys TEXT NOT NULL DEFAULT ''`);
   }
+  if (!userCols.includes("whip_stream_key")) {
+    database.exec(`ALTER TABLE users ADD COLUMN whip_stream_key TEXT`);
+    database.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_whip_stream_key ON users(whip_stream_key) WHERE whip_stream_key IS NOT NULL`
+    );
+  }
   const profileCols = [
     ["nationality", "TEXT NOT NULL DEFAULT ''"],
     ["languages", "TEXT NOT NULL DEFAULT ''"],

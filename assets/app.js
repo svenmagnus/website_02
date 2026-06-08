@@ -194,6 +194,60 @@ window.dualPeerSession = {
   },
 };
 let whipBroadcast = null;
+const WHIP_BROADCAST_CACHE_KEY = "dualpeer-whip-broadcast";
+
+function whipCacheUserKey() {
+  return global.DualPeerAuth?.getSession?.()?.user?.id || "anonymous";
+}
+
+function loadCachedWhipBroadcast() {
+  try {
+    const raw = localStorage.getItem(WHIP_BROADCAST_CACHE_KEY);
+    if (!raw) return null;
+    const all = JSON.parse(raw);
+    const entry = all[whipCacheUserKey()];
+    if (!entry?.streamKey) return null;
+    return entry;
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveCachedWhipBroadcast(data) {
+  if (!data?.streamKey) return;
+  try {
+    const raw = localStorage.getItem(WHIP_BROADCAST_CACHE_KEY);
+    const all = raw ? JSON.parse(raw) : {};
+    all[whipCacheUserKey()] = data;
+    localStorage.setItem(WHIP_BROADCAST_CACHE_KEY, JSON.stringify(all));
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function clearCachedWhipBroadcast(userId = whipCacheUserKey()) {
+  try {
+    const raw = localStorage.getItem(WHIP_BROADCAST_CACHE_KEY);
+    if (!raw) return;
+    const all = JSON.parse(raw);
+    delete all[userId];
+    localStorage.setItem(WHIP_BROADCAST_CACHE_KEY, JSON.stringify(all));
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function restoreWhipBroadcastFromCache() {
+  if (whipBroadcast?.streamKey) return whipBroadcast;
+  const cached = loadCachedWhipBroadcast();
+  if (!cached?.streamKey) return null;
+  whipBroadcast = cached;
+  updateWhipBroadcastUi(
+    "OBS: your saved Bearer Token is shown — configure OBS once, then Start Streaming.",
+    "ok"
+  );
+  return whipBroadcast;
+}
 let whipPollTimer = null;
 
 const LAYOUT_STORAGE_KEY = "dualpeer-layout";
@@ -1272,10 +1326,11 @@ function syncBroadcastModeUi() {
     row.hidden = mode === "whip";
   });
   if (whipPanel) whipPanel.hidden = mode !== "whip";
+  if (mode === "whip") restoreWhipBroadcastFromCache();
   if (hint) {
     hint.textContent =
       mode === "whip"
-        ? "OBS mode: after Start Camera, paste WHIP details into OBS and start streaming. For webcam only: choose Webcam & microphone."
+        ? "OBS mode: paste WHIP details into OBS once, then Start Camera and Start Streaming in OBS. For webcam only: choose Webcam & microphone."
         : "Webcam mode: pick camera and microphone above, then Start Camera — no OBS required. Optional: OBS Virtual Camera as video source.";
   }
 }
@@ -1361,21 +1416,35 @@ async function registerWhipBroadcast(peerId) {
   if (!reachable) {
     throw new Error(whipUnreachableMessage());
   }
-  const resp = await fetch(`${WHIP_API_BASE}/api/broadcast/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ peerId: peerId || "" }),
-  });
-  if (!resp.ok) {
-    throw new Error(
-      `WHIP register failed (${resp.status}). Is the server running and is the Cloudflare tunnel active?`
-    );
+  const body = JSON.stringify({ peerId: peerId || "" });
+  const headers = { "Content-Type": "application/json" };
+  let data;
+  if (global.DualPeerAuth?.isLoggedIn?.() && global.DualPeerAuth?.api) {
+    data = await global.DualPeerAuth.api("/api/broadcast/register", {
+      method: "POST",
+      headers,
+      body,
+    });
+  } else {
+    const resp = await fetch(`${WHIP_API_BASE}/api/broadcast/register`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (!resp.ok) {
+      throw new Error(
+        `WHIP register failed (${resp.status}). Is the server running and is the Cloudflare tunnel active?`
+      );
+    }
+    data = await resp.json();
   }
-  whipBroadcast = await resp.json();
-  updateWhipBroadcastUi(
-    "OBS: paste Server + Bearer Token (Settings → Stream → WHIP), then Start Streaming.",
-    "ok"
-  );
+  whipBroadcast = data;
+  saveCachedWhipBroadcast(data);
+  const message =
+    data.reused || data.persistent
+      ? "OBS: same Bearer Token as before — Start Streaming in OBS."
+      : "OBS: paste Server + Bearer Token once (Settings → Stream → WHIP), then Start Streaming.";
+  updateWhipBroadcastUi(message, "ok");
   return whipBroadcast;
 }
 
@@ -1526,7 +1595,7 @@ async function waitForWhepVideoFrames(stream, videoEl, timeoutMs = 20000) {
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error("OBS video is black — no frames received. Reconnect OBS with a fresh Bearer Token.")),
+      () => reject(new Error("OBS video is black — no frames received. Check OBS is streaming to your WHIP URL.")),
       timeoutMs
     );
     const done = () => {
@@ -1723,7 +1792,6 @@ function hangup() {
   clearTimeout(obsCaptureRetryTimer);
   clearInterval(whipPollTimer);
   whipPollTimer = null;
-  whipBroadcast = null;
   if (localStream?._whepPc) {
     try {
       localStream._whepPc.close();
@@ -4001,6 +4069,7 @@ function initAccessGate() {
   }
 
   global.addEventListener("dualpeer-auth-change", () => {
+    restoreWhipBroadcastFromCache();
     applyAccountStreamingUi();
   });
   global.addEventListener("dualpeer-account-role-change", () => {
@@ -4014,11 +4083,14 @@ function initAccessGate() {
 
 
 async function performAppLogout() {
+  const userId = global.DualPeerAuth?.getSession?.()?.user?.id;
   try {
     sessionStorage.removeItem(SESSION_VIDEO_UNLOCK_KEY);
   } catch (_) {
     /* ignore */
   }
+  whipBroadcast = null;
+  if (userId) clearCachedWhipBroadcast(userId);
   try {
     hangup();
   } catch (_) {
