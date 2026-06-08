@@ -19,14 +19,14 @@
     <!-- Lovense Cam Extension SDK — load order per developer docs -->
     <script src="https://api.lovense-api.com/cam-extension/static/js-sdk/broadcast.js"></script>
     <script>
-      // Match Lovense Developer Dashboard (Pending: use test: + Website Name)
-      window.LOVENSE_SITE_NAME = "test:Tangent-Club";
+      // Match Lovense Developer Dashboard Website Name (Active — no test: prefix)
+      window.LOVENSE_SITE_NAME = "Tangent-Club";
       window.__LOVENSE_MODEL_NAME__ = "model1";
       // true = vibrate until slider 0 (direct motor, no Stream Master reaction time).
       // false = Stream Master token tips (fixed seconds per Basic Level).
       window.DUALPEER_DIRECT_MOTOR = true;
     </script>
-    <script src="assets/lovense-broadcast.js?v=8474"></script>
+    <script src="assets/lovense-broadcast.js?v=8602"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   </head>
   <body>
@@ -741,7 +741,7 @@
           <fieldset class="lovense-setup-card setup-lovense-field">
             <legend>Lovense — before you stream</legend>
             <p class="status-line profile-field-hint">
-              Lovense Connect (PC) for toys; Chrome extension with cam site <code>test:Tangent-Club</code>
+              Lovense Connect (PC) for toys; Chrome extension with cam site <code>Tangent-Club</code>
               (<strong>Live</strong>). Basic Levels in Stream Master do not control sliders here — see
               <a href="anleitung.html#lovense-setup" target="_blank" rel="noopener">user guide</a>.
             </p>
@@ -749,13 +749,13 @@
               <li>
                 <strong>One-time:</strong> Chrome + Lovense Cam Extension. In extension
                 <strong>Settings</strong> (pink toolbar icon or floating menu): Cam Site <strong>+</strong> →
-                <code>test:Tangent-Club</code>, click site → <strong>Live</strong>. Optional: same site in
+                <code>Tangent-Club</code>, click site → <strong>Live</strong>. Optional: same site in
                 <strong>Stream Master</strong>. <a href="https://www.lovense.com/cam-developer" target="_blank" rel="noopener">Developer</a>
                 URL pattern <span id="lovensePatternUrl" class="lovense-url-inline"></span>
               </li>
               <li>
                 <strong>Every session:</strong> Lovense Connect — toys on. Sign in on tangent-club.com, extension
-                <strong>On</strong>, <code>test:Tangent-Club</code> <strong>Live</strong>, open
+                <strong>On</strong>, <code>Tangent-Club</code> <strong>Live</strong>, open
                 <strong>Lovense floating menu</strong> on this tab once.
               </li>
               <li>Open this <strong>Setup</strong> tab — status below must show <strong>Extension ready</strong>.</li>
@@ -1221,7 +1221,7 @@
     <script src="assets/ui-shell.js?v=8483"></script>
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
-    <script src="assets/app.js?v=8597"></script>
+    <script src="assets/app.js?v=8602"></script>
     <script src="assets/auth.js?v=8601"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8597"></script>
