@@ -975,7 +975,8 @@
     const box = document.getElementById("inviteShareResult");
     if (!box || !result?.inviteUrl) return;
     const exampleText =
-      `Hi ${guestName || ""}! Join me on Tangent Club for a private video session.\n` +
+      `Hi ${guestName || ""}! Join me on Tangent Club for a private 1:1 video session.\n` +
+      `Tangent Club works with Lovense toys — we can control each other's vibrations remotely during the call.\n` +
       `Register here: ${result.inviteUrl}\n` +
       `Or open tangent-club.com and enter code: ${result.inviteCode || "????"}`;
     box.hidden = false;

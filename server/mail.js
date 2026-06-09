@@ -230,6 +230,7 @@ export async function sendInviteEmail({
   const text =
     `Dear ${String(guestName || "").trim() || "Guest"},\n\n` +
     `You are invited by ${hostName} to join ${SITE_NAME}.\n\n` +
+    `${SITE_NAME} is a private 1:1 video lounge that works with Lovense toys — your partner can control vibrations remotely during your sessions.\n\n` +
     `Registration (one-time link, valid for 7 days):\n${inviteUrl}\n\n` +
     `If the link does not open — invitation code (4 digits): ${inviteCode}\n` +
     `(enter on the registration page together with your email address)\n\n` +

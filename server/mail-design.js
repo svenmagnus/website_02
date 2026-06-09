@@ -106,7 +106,8 @@ export function themedInviteEmailLayout({
   const discoverHtml =
     `<strong style="font-family:${t.fontHeading};font-size:17px;color:${t.heading};">Discover Tangent Club: Your New Intimate Space.</strong><br><br>` +
     `Ready to take your intimacy to the next level? Connect with your partner for synchronized, real-time adventures, ` +
-    `wherever you both are. Explore your passions together in a private, playful environment.`;
+    `wherever you both are. Tangent Club works with <strong>Lovense toys</strong> — your partner can control vibrations ` +
+    `remotely during private 1:1 video sessions. Explore your passions together in a private, playful environment.`;
 
   return `<!DOCTYPE html>
 <html lang="en">
