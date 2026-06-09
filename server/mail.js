@@ -1,13 +1,7 @@
 import nodemailer from "nodemailer";
 import { createHash } from "node:crypto";
 import { decryptSecret } from "./smtp-crypto.js";
-import {
-  classicEmailLayout,
-  hippieEmailBox,
-  hippieEmailButton,
-  hippieEmailCodeBox,
-  hippieEmailLayout,
-} from "./mail-design.js";
+import { classicEmailLayout, hippieInviteEmailLayout } from "./mail-design.js";
 
 const SMTP_HOST = process.env.SMTP_HOST || "";
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
@@ -224,35 +218,22 @@ export async function sendMail({ to, subject, text, html, userRow, logContext = 
  * @param {{ to: string, inviteUrl: string, hostName: string, inviteCode: string, guestName: string, userRow?: Record<string, unknown>|null }} opts
  */
 export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, guestName, userRow }) {
-  const safeGuestName = escapeHtml(String(guestName || "").trim() || "Guest");
   const subject = `${hostName} invites you to ${SITE_NAME}`;
   const text =
     `Dear ${String(guestName || "").trim() || "Guest"},\n\n` +
-    `you are invited by ${hostName} to join ${SITE_NAME}.\n\n` +
+    `You are invited by ${hostName} to join ${SITE_NAME}.\n\n` +
     `Registration (one-time link, valid for 7 days):\n${inviteUrl}\n\n` +
     `If the link does not open — invitation code (4 digits): ${inviteCode}\n` +
     `(enter on the registration page together with your email address)\n\n` +
     `Best regards,\n${hostName}`;
 
-  const discoverBox = hippieEmailBox(
-    `<strong style="font-family:Georgia,'Palatino Linotype',serif;font-size:17px;color:#4A2C2A;">Discover Tangent Club</strong><br><br>` +
-      `Tangent Club is a private 1:1 video lounge — invite-only, with optional Lovense toy control. ` +
-      `No public gallery: you connect only with people you know.`
-  );
-
-  const html = hippieEmailLayout({
-    title: escapeHtml("you are invited"),
+  const html = hippieInviteEmailLayout({
+    guestName: String(guestName || "").trim() || "Guest",
+    hostName,
+    inviteUrl,
+    inviteCode,
     publicBaseUrl: APP_PUBLIC_URL,
-    bodyHtml:
-      `<p style="margin:0 0 12px;font-size:16px;line-height:1.55;color:#2C1810;">Dear <strong>${safeGuestName}</strong>,</p>` +
-      `<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#6B5348;">` +
-      `you are invited by <strong style="color:#4A2C2A;">${escapeHtml(hostName)}</strong> to join ${escapeHtml(SITE_NAME)}.</p>` +
-      discoverBox +
-      hippieEmailButton(inviteUrl, "Create Account") +
-      `<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:#6B5348;text-align:center;">Or copy this link:<br>` +
-      `<span style="word-break:break-all;color:#4A2C2A;">${escapeHtml(inviteUrl)}</span></p>` +
-      hippieEmailCodeBox("Invitation Code (4 digits, valid 7 days)", escapeHtml(inviteCode)),
-    footerNote: escapeHtml("This link and code are intended only for you and will expire in 7 days."),
+    footerNote: "This link and code are intended only for you and will expire in 7 days.",
   });
 
   const result = await sendMail({
