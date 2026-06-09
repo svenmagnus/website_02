@@ -88,7 +88,7 @@ export function themedInviteEmailLayout({
   inviteCode,
   footerNote = "",
   publicBaseUrl,
-  toysImagePath = "/assets/email/lovense-toys.png",
+  toysImagePath = "/assets/email/lovense-catalog.png",
 }) {
   const resolvedTheme = normalizeAppearanceTheme(themeId);
   const t = getEmailTheme(resolvedTheme);
@@ -156,7 +156,7 @@ export function themedInviteEmailLayout({
                     </div>
                   </td></tr>
                   <tr><td align="center" style="padding-top:4px;">
-                    <img src="${toysUrl}" alt="" width="240" style="max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px;" />
+                    <img src="${toysUrl}" alt="Lovense toys" width="300" style="max-width:100%;height:auto;display:block;margin:0 auto;border-radius:8px;" />
                   </td></tr>
                 </table>
               </td>
