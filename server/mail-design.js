@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const ALLOWED_THEMES = ["cb-dark", "cb-light", "hippie", "neon"];
+
 /** @type {{ themes: Record<string, { label: string, email: Record<string, string> }> }} */
 let designSystem;
 
@@ -15,9 +17,15 @@ function loadDesignSystem() {
   return designSystem;
 }
 
-export function getEmailTheme(themeId = "hippie") {
+export function normalizeAppearanceTheme(raw) {
+  const t = String(raw || "").trim().toLowerCase();
+  return ALLOWED_THEMES.includes(t) ? t : "neon";
+}
+
+export function getEmailTheme(themeId = "neon") {
   const ds = loadDesignSystem();
-  const theme = ds.themes[themeId] || ds.themes.hippie;
+  const id = normalizeAppearanceTheme(themeId);
+  const theme = ds.themes[id] || ds.themes.neon;
   return theme.email;
 }
 
@@ -29,41 +37,65 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-/** Botanical corner line art (inline SVG for email clients). */
-function emailLeafCornerSvg() {
+/** Botanical corner line art (hippie theme). */
+function emailLeafCornerSvg(stroke = "#4A2C2A") {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" aria-hidden="true">
-  <path d="M8 64C8 64 4 40 20 24C36 8 56 12 64 8" stroke="#4A2C2A" stroke-width="1.2" stroke-linecap="round"/>
-  <path d="M12 58C18 42 28 30 48 22" stroke="#4A2C2A" stroke-width="0.9" stroke-linecap="round" opacity="0.7"/>
-  <ellipse cx="22" cy="38" rx="6" ry="10" transform="rotate(-35 22 38)" stroke="#4A2C2A" stroke-width="0.8" fill="none"/>
-  <ellipse cx="38" cy="26" rx="5" ry="8" transform="rotate(-20 38 26)" stroke="#4A2C2A" stroke-width="0.8" fill="none"/>
+  <path d="M8 64C8 64 4 40 20 24C36 8 56 12 64 8" stroke="${stroke}" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M12 58C18 42 28 30 48 22" stroke="${stroke}" stroke-width="0.9" stroke-linecap="round" opacity="0.7"/>
+  <ellipse cx="22" cy="38" rx="6" ry="10" transform="rotate(-35 22 38)" stroke="${stroke}" stroke-width="0.8" fill="none"/>
+  <ellipse cx="38" cy="26" rx="5" ry="8" transform="rotate(-20 38 26)" stroke="${stroke}" stroke-width="0.8" fill="none"/>
 </svg>`;
 }
 
+function emailThemeCorners(themeId, t) {
+  if (themeId === "hippie") {
+    const leaf = emailLeafCornerSvg(t.heading || "#4A2C2A");
+    return {
+      top: `<tr>
+          <td width="50%" style="padding:10px 0 0 10px;vertical-align:top;line-height:0;">${leaf}</td>
+          <td width="50%" style="padding:10px 10px 0 0;vertical-align:top;text-align:right;line-height:0;transform:scaleX(-1);">${leaf}</td>
+        </tr>`,
+      bottom: `<tr>
+          <td colspan="2" style="padding:0 10px 10px 0;text-align:right;line-height:0;opacity:0.85;transform:scaleX(-1);">${leaf}</td>
+        </tr>`,
+    };
+  }
+  const accent = t.accent || "#f97316";
+  return {
+    top: `<tr><td colspan="2" style="height:4px;background:linear-gradient(90deg,${accent},transparent);font-size:0;line-height:0;">&nbsp;</td></tr>`,
+    bottom: "",
+  };
+}
+
 /**
- * Invite email — matches assets/email/hippie-invite-hero.png (hippie banner layout).
+ * Invite email — uses the host's Appearance theme (cb-dark, cb-light, hippie, neon).
  * @param {{
+ *   themeId?: string,
  *   guestName: string,
  *   hostName: string,
  *   inviteUrl: string,
  *   inviteCode: string,
  *   footerNote?: string,
  *   publicBaseUrl: string,
- *   heroImagePath?: string,
+ *   toysImagePath?: string,
  * }} opts
  */
-export function hippieInviteEmailLayout({
+export function themedInviteEmailLayout({
+  themeId = "neon",
   guestName,
   hostName,
   inviteUrl,
   inviteCode,
   footerNote = "",
   publicBaseUrl,
-  heroImagePath = "/assets/email/hippie-invite-hero.png",
+  toysImagePath = "/assets/email/lovense-toys.png",
 }) {
-  const t = getEmailTheme("hippie");
+  const resolvedTheme = normalizeAppearanceTheme(themeId);
+  const t = getEmailTheme(resolvedTheme);
   const base = String(publicBaseUrl || "https://tangent-club.com").replace(/\/$/, "");
-  const heroUrl = `${base}${heroImagePath.startsWith("/") ? heroImagePath : `/${heroImagePath}`}`;
-  const leaf = emailLeafCornerSvg();
+  const toysUrl = `${base}${toysImagePath.startsWith("/") ? toysImagePath : `/${toysImagePath}`}`;
+  const corners = emailThemeCorners(resolvedTheme, t);
+  const borderWidth = resolvedTheme === "hippie" ? "2px" : "1px";
   const safeGuest = escapeHtml(String(guestName || "").trim() || "Guest");
   const safeHost = escapeHtml(hostName);
   const safeUrl = escapeHtml(inviteUrl);
@@ -86,14 +118,11 @@ export function hippieInviteEmailLayout({
 <body style="margin:0;padding:0;background:${t.outerBg};font-family:${t.font};color:${t.text};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${t.outerBg};">
     <tr><td align="center" style="padding:24px 12px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:720px;background:${t.cardBg};border:2px solid ${t.cardBorder};border-radius:${t.radiusLg || t.radius};overflow:hidden;">
-        <tr>
-          <td width="50%" style="padding:10px 0 0 10px;vertical-align:top;line-height:0;">${leaf}</td>
-          <td width="50%" style="padding:10px 10px 0 0;vertical-align:top;text-align:right;line-height:0;transform:scaleX(-1);">${leaf}</td>
-        </tr>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:720px;background:${t.cardBg};border:${borderWidth} solid ${t.cardBorder};border-radius:${t.radiusLg || t.radius};overflow:hidden;">
+        ${corners.top}
         <tr><td colspan="2" style="padding:8px 28px 0;text-align:center;">
           <h1 style="margin:0 0 14px;font-family:${t.fontHeading};font-size:40px;font-weight:700;color:${t.heading};line-height:1.1;">You are invited</h1>
-          <div style="display:inline-block;padding:10px 30px;border:2px solid ${t.cardBorder};border-radius:14px;background:${t.boxBg || t.cardBg};">
+          <div style="display:inline-block;padding:10px 30px;border:${borderWidth} solid ${t.cardBorder};border-radius:14px;background:${t.boxBg || t.cardBg};">
             <span style="font-family:${t.fontHeading};font-size:22px;font-weight:700;color:${t.heading};letter-spacing:0.02em;">Tangent Club</span>
           </div>
         </td></tr>
@@ -105,29 +134,36 @@ export function hippieInviteEmailLayout({
                 <p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:${t.textMuted};">
                   You are invited by <strong style="color:${t.heading};">${safeHost}</strong> to join Tangent Club.
                 </p>
-                <div style="padding:18px 20px;border:2px solid ${t.cardBorder};border-radius:${t.radius};background:${t.boxBg || t.codeBg};line-height:1.55;color:${t.text};font-size:15px;">
+                <div style="padding:18px 20px;border:${borderWidth} solid ${t.cardBorder};border-radius:${t.radius};background:${t.boxBg || t.codeBg};line-height:1.55;color:${t.text};font-size:15px;">
                   ${discoverHtml}
                 </div>
                 <p style="margin:16px 0 0;font-size:12px;line-height:1.5;color:${t.textMuted};">${safeFooter}</p>
               </td>
-              <td valign="top" style="padding:0 8px 0 0;width:42%;text-align:center;background:${t.cardBg} url('${heroUrl}') no-repeat right center;background-size:220px auto;">
-                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 14px;"><tr><td align="center" style="border-radius:14px;background:${t.accent};">
-                  <a href="${safeHref}" style="display:inline-block;padding:14px 28px;font-family:${t.font};font-size:16px;font-weight:600;color:${t.accentText};text-decoration:none;border-radius:14px;">Create Account</a>
-                </td></tr></table>
-                <p style="margin:0 0 14px;font-size:13px;line-height:1.45;color:${t.textMuted};word-break:break-all;">
-                  <a href="${safeHref}" style="color:${t.heading};">${safeUrl}</a>
-                </p>
-                <div style="padding:14px 16px;border:1px solid ${t.cardBorder};border-radius:${t.radius};background:${t.codeBg};text-align:center;">
-                  <div style="font-size:13px;color:${t.textMuted};margin-bottom:8px;">Invitation Code (4 digits, 7 days):</div>
-                  <div style="font-family:${t.fontHeading};font-size:28px;letter-spacing:0.2em;color:${t.heading};font-weight:700;">${safeCode}</div>
-                </div>
+              <td valign="top" style="padding:0 8px 0 0;width:42%;text-align:center;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 auto;">
+                  <tr><td align="center" style="padding-bottom:14px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" style="border-radius:14px;background:${t.accent};">
+                      <a href="${safeHref}" style="display:inline-block;padding:14px 28px;font-family:${t.font};font-size:16px;font-weight:600;color:${t.accentText};text-decoration:none;border-radius:14px;">Create Account</a>
+                    </td></tr></table>
+                  </td></tr>
+                  <tr><td align="center" style="padding-bottom:16px;font-size:13px;line-height:1.45;color:${t.textMuted};word-break:break-all;">
+                    <a href="${safeHref}" style="color:${t.heading};">${safeUrl}</a>
+                  </td></tr>
+                  <tr><td align="center" style="padding-bottom:20px;">
+                    <div style="padding:14px 16px;border:1px solid ${t.cardBorder};border-radius:${t.radius};background:${t.codeBg};text-align:center;">
+                      <div style="font-size:13px;color:${t.textMuted};margin-bottom:8px;">Invitation Code (4 digits, 7 days):</div>
+                      <div style="font-family:${t.fontHeading};font-size:28px;letter-spacing:0.2em;color:${t.heading};font-weight:700;">${safeCode}</div>
+                    </div>
+                  </td></tr>
+                  <tr><td align="center" style="padding-top:4px;">
+                    <img src="${toysUrl}" alt="" width="240" style="max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px;" />
+                  </td></tr>
+                </table>
               </td>
             </tr>
           </table>
         </td></tr>
-        <tr>
-          <td colspan="2" style="padding:0 10px 10px 0;text-align:right;line-height:0;opacity:0.85;transform:scaleX(-1);">${leaf}</td>
-        </tr>
+        ${corners.bottom}
       </table>
     </td></tr>
   </table>
@@ -135,9 +171,13 @@ export function hippieInviteEmailLayout({
 </html>`;
 }
 
+/** @deprecated Use themedInviteEmailLayout */
+export function hippieInviteEmailLayout(opts) {
+  return themedInviteEmailLayout({ ...opts, themeId: "hippie" });
+}
+
 /**
  * Hippie-style email shell (generic transactional).
- * @param {{ title: string, bodyHtml: string, footerNote?: string, publicBaseUrl: string, heroImagePath?: string }} opts
  */
 export function hippieEmailLayout({
   title,
@@ -149,7 +189,7 @@ export function hippieEmailLayout({
   const t = getEmailTheme("hippie");
   const base = String(publicBaseUrl || "https://tangent-club.com").replace(/\/$/, "");
   const heroUrl = `${base}${heroImagePath.startsWith("/") ? heroImagePath : `/${heroImagePath}`}`;
-  const leaf = emailLeafCornerSvg();
+  const leaf = emailLeafCornerSvg(t.heading || "#4A2C2A");
 
   return `<!DOCTYPE html>
 <html lang="en">

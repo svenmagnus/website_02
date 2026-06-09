@@ -42,8 +42,11 @@
         "accent": "#f97316",
         "accentText": "#ffffff",
         "codeBg": "#12121a",
+        "boxBg": "#16161e",
         "radius": "12px",
-        "font": "'Segoe UI', system-ui, sans-serif"
+        "radiusLg": "16px",
+        "font": "'Segoe UI', system-ui, sans-serif",
+        "fontHeading": "'Segoe UI', system-ui, sans-serif"
       }
     },
     "cb-light": {
@@ -85,8 +88,11 @@
         "accent": "#ff4500",
         "accentText": "#ffffff",
         "codeBg": "#f0f0f0",
+        "boxBg": "#fafafa",
         "radius": "12px",
-        "font": "'Segoe UI', system-ui, sans-serif"
+        "radiusLg": "16px",
+        "font": "'Segoe UI', system-ui, sans-serif",
+        "fontHeading": "'Segoe UI', system-ui, sans-serif"
       }
     },
     "neon": {
@@ -128,8 +134,11 @@
         "accent": "#ff2bd6",
         "accentText": "#ffffff",
         "codeBg": "#0f0318",
+        "boxBg": "#1a0c2e",
         "radius": "12px",
-        "font": "'Segoe UI', system-ui, sans-serif"
+        "radiusLg": "18px",
+        "font": "'Segoe UI', system-ui, sans-serif",
+        "fontHeading": "'Segoe UI', system-ui, sans-serif"
       }
     },
     "hippie": {

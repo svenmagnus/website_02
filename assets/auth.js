@@ -117,6 +117,7 @@
       isBanned: Boolean(user.isBanned),
       banReason: user.banReason || "",
       bannedAt: user.bannedAt || null,
+      appearanceTheme: user.appearanceTheme || "neon",
     };
   }
 
@@ -501,6 +502,11 @@
     const payload = { guestName };
     const trimmedEmail = String(email || "").trim();
     if (trimmedEmail) payload.email = trimmedEmail;
+    const theme =
+      global.dualPeerTheme?.read?.() ||
+      document.documentElement.getAttribute("data-theme") ||
+      "neon";
+    payload.appearanceTheme = theme;
     return api("/api/invites", {
       method: "POST",
       body: JSON.stringify(payload),

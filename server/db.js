@@ -81,6 +81,9 @@ function runMigrations(database) {
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_whip_stream_key ON users(whip_stream_key) WHERE whip_stream_key IS NOT NULL`
     );
   }
+  if (!userCols.includes("appearance_theme")) {
+    database.exec(`ALTER TABLE users ADD COLUMN appearance_theme TEXT NOT NULL DEFAULT 'neon'`);
+  }
   const profileCols = [
     ["nationality", "TEXT NOT NULL DEFAULT ''"],
     ["languages", "TEXT NOT NULL DEFAULT ''"],

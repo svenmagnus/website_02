@@ -95,6 +95,9 @@
     syncThemeSegmentedControls(t);
 
     document.dispatchEvent(new CustomEvent("dualpeer-theme-change", { detail: { theme: t } }));
+    if (!opts.skipProfileSync && global.DualPeerAuth?.isLoggedIn?.() && global.DualPeerAuth?.updateProfile) {
+      global.DualPeerAuth.updateProfile({ appearanceTheme: t }).catch(() => {});
+    }
     return t;
   }
 

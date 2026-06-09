@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { createHash } from "node:crypto";
 import { decryptSecret } from "./smtp-crypto.js";
-import { classicEmailLayout, hippieInviteEmailLayout } from "./mail-design.js";
+import { classicEmailLayout, normalizeAppearanceTheme, themedInviteEmailLayout } from "./mail-design.js";
 
 const SMTP_HOST = process.env.SMTP_HOST || "";
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
@@ -217,7 +217,15 @@ export async function sendMail({ to, subject, text, html, userRow, logContext = 
 /**
  * @param {{ to: string, inviteUrl: string, hostName: string, inviteCode: string, guestName: string, userRow?: Record<string, unknown>|null }} opts
  */
-export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, guestName, userRow }) {
+export async function sendInviteEmail({
+  to,
+  inviteUrl,
+  hostName,
+  inviteCode,
+  guestName,
+  userRow,
+  appearanceTheme,
+}) {
   const subject = `${hostName} invites you to ${SITE_NAME}`;
   const text =
     `Dear ${String(guestName || "").trim() || "Guest"},\n\n` +
@@ -227,7 +235,12 @@ export async function sendInviteEmail({ to, inviteUrl, hostName, inviteCode, gue
     `(enter on the registration page together with your email address)\n\n` +
     `Best regards,\n${hostName}`;
 
-  const html = hippieInviteEmailLayout({
+  const themeId = normalizeAppearanceTheme(
+    appearanceTheme || userRow?.appearance_theme || "neon"
+  );
+
+  const html = themedInviteEmailLayout({
+    themeId,
     guestName: String(guestName || "").trim() || "Guest",
     hostName,
     inviteUrl,

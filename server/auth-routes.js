@@ -26,6 +26,7 @@ import {
   withMailTimeout,
   resolveSmtpSecure,
 } from "./mail.js";
+import { normalizeAppearanceTheme } from "./mail-design.js";
 
 const BCRYPT_ROUNDS = 12;
 const SESSION_DAYS = 30;
@@ -260,6 +261,7 @@ function rowToProfile(row) {
     avatarUrl: avatarUrlForUser(row),
     chatColors: chatColorsFromRow(row),
     playModeSound: playModeSoundFromRow(row),
+    appearanceTheme: normalizeAppearanceTheme(row.appearance_theme || "neon"),
     ...banFieldsForProfile(row),
   };
 }
@@ -882,9 +884,13 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     req.body?.playModeSound != null
       ? normalizePlayModeSoundInput(req.body.playModeSound)
       : current.playModeSound;
+  const appearanceTheme =
+    req.body?.appearanceTheme != null
+      ? normalizeAppearanceTheme(req.body.appearanceTheme)
+      : current.appearanceTheme;
 
   db.prepare(
-    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, custom_menus_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?, chat_colors_json = ?, play_mode_sound = ?
+    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, custom_menus_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?, chat_colors_json = ?, play_mode_sound = ?, appearance_theme = ?
      WHERE id = ?`
   ).run(
     displayName,
@@ -903,6 +909,7 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     location,
     chatColors ? JSON.stringify(chatColors) : null,
     playModeSound,
+    appearanceTheme,
     req.authUser.id
   );
 
@@ -1028,6 +1035,15 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
   const hostName = req.authUser.display_name || req.authUser.username;
 
   const hostRow = db.prepare("SELECT * FROM users WHERE id = ?").get(req.authUser.id);
+  const appearanceTheme = normalizeAppearanceTheme(
+    req.body?.appearanceTheme || hostRow?.appearance_theme || "neon"
+  );
+  if (req.body?.appearanceTheme != null) {
+    db.prepare("UPDATE users SET appearance_theme = ? WHERE id = ?").run(
+      appearanceTheme,
+      req.authUser.id
+    );
+  }
 
   let mailResult = { sent: false, devMode: !email };
   if (email) {
@@ -1040,6 +1056,7 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
           inviteCode,
           guestName,
           userRow: hostRow,
+          appearanceTheme,
         })
       );
     } catch (err) {
