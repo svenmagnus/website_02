@@ -3682,6 +3682,10 @@ footer {
   min-width: 0;
 }
 
+.member-pool-add-row {
+  margin-top: 0.35rem;
+}
+
 .setup-model-pool-field {
   margin: 0.75rem 0;
   padding: 0.75rem;

@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8607" />
+    <link rel="stylesheet" href="assets/styles.css?v=8608" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -820,19 +820,6 @@
               <button type="button" class="secondary" id="btnClearActiveMembers">Clear partner</button>
             </div>
             <p class="status-line" id="setupActiveMembersStatus" hidden></p>
-            <div class="row setup-add-model-row">
-              <label for="setupAddModelUsername">Add to Member Pool</label>
-              <input
-                type="text"
-                id="setupAddModelUsername"
-                class="admin-input"
-                maxlength="32"
-                placeholder="e.g. Limagno"
-                autocomplete="username"
-              />
-              <button type="button" class="secondary" id="btnAddModelToPool">Add to pool</button>
-            </div>
-            <p class="status-line" id="setupAddModelStatus" hidden></p>
             <div class="setup-partner-session-row">
               <div id="setupModelPoolList" class="model-pool-grid setup-partner-card-slot"></div>
               <div class="setup-partner-instant-col" id="setupPartnerInstantRow" hidden>
@@ -1032,6 +1019,21 @@
               Everyone you have shared sessions or chat with. <strong>Double-click</strong> to add them to
               <strong>Current Chat Partner</strong> (Setup, left). <strong>Online</strong> only while they are signed in now.
             </p>
+            <div class="row setup-add-model-row member-pool-add-row">
+              <label for="setupAddModelUsername"
+                >Add to member pool (Enter the correct username of registered users here)</label
+              >
+              <input
+                type="text"
+                id="setupAddModelUsername"
+                class="admin-input"
+                maxlength="32"
+                placeholder="e.g. Limagno"
+                autocomplete="username"
+              />
+              <button type="button" class="secondary" id="btnAddModelToPool">Add to pool</button>
+            </div>
+            <p class="status-line" id="setupAddModelStatus" hidden></p>
             <div id="modelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="modelPoolStatus">Sign in to load your member pool.</p>
           </div>
