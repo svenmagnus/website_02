@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8601" />
+    <link rel="stylesheet" href="assets/styles.css?v=8607" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -763,8 +763,8 @@
                 extension <strong>Live</strong>).
               </li>
               <li>
-                <strong>Partner for this session</strong> — add or pick your partner. <strong>Session with</strong> →
-                <strong>New session</strong> → <strong>Start instant session</strong>.
+                <strong>Partner for this session</strong> — pick your partner, then
+                <strong>Start instant session</strong> next to their card.
               </li>
               <li>
                 Partner clicks <strong>Join</strong> next to Instant Live, then <strong>Start Camera</strong> or
@@ -833,15 +833,22 @@
               <button type="button" class="secondary" id="btnAddModelToPool">Add to pool</button>
             </div>
             <p class="status-line" id="setupAddModelStatus" hidden></p>
-            <div id="setupModelPoolList" class="model-pool-grid"></div>
+            <div class="setup-partner-session-row">
+              <div id="setupModelPoolList" class="model-pool-grid setup-partner-card-slot"></div>
+              <div class="setup-partner-instant-col" id="setupPartnerInstantRow" hidden>
+                <button type="button" class="primary setup-instant-session-btn" id="btnStartInstantSession">
+                  <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                  Start instant session
+                </button>
+                <p class="status-line setup-partner-instant-status" id="setupPartnerInstantStatus" hidden></p>
+              </div>
+            </div>
             <p class="status-line" id="setupModelPoolStatus"></p>
           </fieldset>
-          <fieldset class="setup-sessions-field" id="setupSessionsField" hidden>
-            <legend>Sessions &amp; calendar</legend>
-            <div id="setupMeetingMount"></div>
-          </fieldset>
+          <fieldset class="setup-camera-field" id="setupCameraField">
+            <legend>Camera connections</legend>
           <p class="status-line setup-session-actions-hint">
-            Order: <strong>Partner for this session</strong> → <strong>New session</strong> (instant) → partner clicks
+            Order: <strong>Partner for this session</strong> → <strong>Start instant session</strong> → partner clicks
             <strong>Join</strong> → <strong>Start Camera</strong> or <strong>Share Cam</strong> (glows when partner is live).
           </p>
           <div class="row setup-session-actions">
@@ -926,7 +933,7 @@
           <div class="peer-id-help-box" id="peerIdHelpBox" hidden>
             <h3 class="peer-id-help-title">How the Session ID works</h3>
             <ol class="peer-id-help-list">
-              <li>Create a session (menu above), then click <strong>Start Camera</strong>.</li>
+              <li>Click <strong>Start instant session</strong> next to your partner, then <strong>Start Camera</strong>.</li>
               <li>Your <strong>Session ID</strong> appears below — it is also sent in <strong>Messages</strong>.</li>
               <li>Your partner clicks <strong>Join</strong>, then <strong>Share Cam</strong> (Session ID fills in automatically when possible).</li>
             </ol>
@@ -946,6 +953,11 @@
           <p class="lovense-hint" id="lovenseToyStatus"></p>
           <p class="lovense-hint lovense-url-hint" id="lovenseUrlHint"></p>
           <p class="status-line pip-native-msg" id="pipNativeMsg" role="status"></p>
+          </fieldset>
+          <fieldset class="setup-sessions-field" id="setupSessionsField" hidden>
+            <legend>Sessions &amp; calendar</legend>
+            <div id="setupMeetingMount"></div>
+          </fieldset>
           </div>
 
         </div>
@@ -1198,10 +1210,6 @@
               New session ▾
             </button>
             <div class="meeting-menu js-meeting-menu" hidden role="menu">
-              <button type="button" role="menuitem" data-meeting-action="instant">
-                <i class="bi bi-lightning-charge" aria-hidden="true"></i>
-                Start instant session
-              </button>
               <button type="button" role="menuitem" data-meeting-action="later">
                 <i class="bi bi-clock" aria-hidden="true"></i>
                 Schedule session for later
@@ -1229,7 +1237,7 @@
     <script src="assets/app.js?v=8604"></script>
     <script src="assets/auth.js?v=8601"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8606"></script>
+    <script src="assets/social.js?v=8607"></script>
     <script src="assets/member-profile.js?v=8596"></script>
   </body>
 </html>

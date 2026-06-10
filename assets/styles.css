@@ -3150,7 +3150,8 @@ footer {
 }
 
 .profile-sessions-field,
-.setup-sessions-field {
+.setup-sessions-field,
+.setup-camera-field {
   margin: 0 0 1.25rem;
   padding: 0.85rem 1rem;
   border: 1px solid var(--border);
@@ -3158,9 +3159,41 @@ footer {
 }
 
 .profile-sessions-field legend,
-.setup-sessions-field legend {
+.setup-sessions-field legend,
+.setup-camera-field legend {
   font-weight: 600;
   padding: 0 0.35rem;
+}
+
+.setup-partner-session-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0;
+}
+
+.setup-partner-card-slot {
+  flex: 1 1 12rem;
+  max-width: 100%;
+}
+
+.setup-partner-instant-col {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: center;
+  min-width: 10rem;
+}
+
+.setup-instant-session-btn {
+  white-space: nowrap;
+}
+
+.setup-partner-instant-status {
+  margin: 0;
+  font-size: 0.78rem;
 }
 
 .meeting-calendar-row {

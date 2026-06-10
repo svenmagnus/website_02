@@ -1450,6 +1450,63 @@
 
   let meetingCreateInFlight = false;
 
+  function setPartnerInstantStatus(msg, cls = "ok") {
+    const el = document.getElementById("setupPartnerInstantStatus");
+    if (!el) return;
+    if (!msg) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.className = `status-line setup-partner-instant-status ${cls}`;
+    el.textContent = msg;
+  }
+
+  function updatePartnerInstantRow() {
+    const row = document.getElementById("setupPartnerInstantRow");
+    const btn = document.getElementById("btnStartInstantSession");
+    if (!row || !btn) return;
+    const partnerId = getCoupledPartnerId();
+    row.hidden = !partnerId;
+    btn.disabled = !partnerId || meetingCreateInFlight;
+  }
+
+  async function startInstantSessionForPartner(partnerId) {
+    const id = String(partnerId || "").trim();
+    if (!id) {
+      setPartnerInstantStatus("Select a partner for this session first.", "err");
+      return;
+    }
+    if (meetingCreateInFlight) return;
+    meetingCreateInFlight = true;
+    const btn = document.getElementById("btnStartInstantSession");
+    if (btn) btn.disabled = true;
+    try {
+      const meeting = await createMeeting({
+        mode: "instant",
+        partnerUserId: id,
+        syncGoogle: state.calendar.connected,
+      });
+      const msg = global.DualPeerAuth?.isAccountHost?.()
+        ? "Instant session — click Start Camera to share your Session ID."
+        : "Instant session — click Join next to Instant Live, then Share Cam when ready.";
+      setPartnerInstantStatus(msg, "ok");
+      setMeetingStatusOnAll(msg, "ok");
+      if (global.DualPeerAuth?.isAccountHost?.()) {
+        document.getElementById("btnStartHost")?.focus();
+        state._pendingMeetingId = meeting?.id;
+      }
+    } catch (err) {
+      const errMsg = err?.message || "Could not start instant session.";
+      setPartnerInstantStatus(errMsg, "err");
+      setMeetingStatusOnAll(errMsg, "err");
+    } finally {
+      meetingCreateInFlight = false;
+      updatePartnerInstantRow();
+    }
+  }
+
   async function createMeeting(payload) {
     const data = await api("/api/social/meetings", {
       method: "POST",
@@ -1619,24 +1676,7 @@
           meetingCreateInFlight = true;
           const scheduleEl = block.querySelector(".js-meeting-schedule-start");
           try {
-            if (action === "instant") {
-              const meeting = await createMeeting({
-                mode: "instant",
-                partnerUserId: partnerId,
-                syncGoogle: state.calendar.connected,
-              });
-              setMeetingStatus(
-                block,
-                global.DualPeerAuth?.isAccountHost?.()
-                  ? "Instant session — click Start Camera to share your Session ID."
-                  : "Instant session — click Join next to Instant Live, then Share Cam when ready.",
-                "ok"
-              );
-              if (global.DualPeerAuth?.isAccountHost?.()) {
-                document.getElementById("btnStartHost")?.focus();
-                state._pendingMeetingId = meeting?.id;
-              }
-            } else if (action === "later") {
+            if (action === "later") {
               const startVal = scheduleEl?.value;
               const startMs = startVal ? new Date(startVal).getTime() : Date.now() + 3600000;
               await createMeeting({
@@ -1808,6 +1848,8 @@
         status.className = "status-line";
         status.textContent = "No partner selected — double-click someone in Member Pool (right).";
       }
+      setPartnerInstantStatus("");
+      updatePartnerInstantRow();
       return;
     }
     state.activeMembers = [partner];
@@ -1823,6 +1865,7 @@
         onRemove: (id) => removeActiveMember(id),
       })
     );
+    updatePartnerInstantRow();
   }
 
   async function refreshMembersWorkspace() {
@@ -2013,6 +2056,14 @@
         st.className = "status-line ok";
         st.textContent = "Partner and chat cleared — pick from Member Pool (right).";
       }
+      setPartnerInstantStatus("");
+      updatePartnerInstantRow();
+    });
+  }
+
+  function initPartnerInstantSession() {
+    document.getElementById("btnStartInstantSession")?.addEventListener("click", () => {
+      startInstantSessionForPartner(getCoupledPartnerId());
     });
   }
 
@@ -2040,6 +2091,7 @@
     initMeetingBlocks();
     initAddToModelPool();
     initMembersToolbar();
+    initPartnerInstantSession();
     initLiveChatToolbar();
     initHeaderChatSend();
     handleCalendarRedirect();
