@@ -823,9 +823,14 @@
             <div class="setup-partner-session-row">
               <div id="setupModelPoolList" class="model-pool-grid setup-partner-card-slot"></div>
               <div class="setup-partner-instant-col" id="setupPartnerInstantRow" hidden>
-                <button type="button" class="primary setup-instant-session-btn" id="btnStartInstantSession">
+                <button
+                  type="button"
+                  class="primary setup-instant-session-btn"
+                  id="btnStartInstantSession"
+                  data-session-action="start"
+                >
                   <i class="bi bi-lightning-charge" aria-hidden="true"></i>
-                  Start instant session
+                  <span class="setup-instant-session-label">Start instant session</span>
                 </button>
                 <p class="status-line setup-partner-instant-status" id="setupPartnerInstantStatus" hidden></p>
               </div>
@@ -1239,7 +1244,7 @@
     <script src="assets/app.js?v=8604"></script>
     <script src="assets/auth.js?v=8601"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8607"></script>
+    <script src="assets/social.js?v=8608"></script>
     <script src="assets/member-profile.js?v=8596"></script>
   </body>
 </html>

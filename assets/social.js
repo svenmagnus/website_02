@@ -1061,6 +1061,7 @@
         : "Joined — Play Mode is ready. Share Cam when your partner goes live.",
       "ok"
     );
+    updatePartnerInstantRow();
     return meeting;
   }
 
@@ -1394,6 +1395,7 @@
         list.appendChild(row);
       }
     });
+    updatePartnerInstantRow();
   }
 
   function updateCalendarUi() {
@@ -1450,6 +1452,45 @@
 
   let meetingCreateInFlight = false;
 
+  function findActiveInstantSessionWithPartner(partnerId) {
+    const id = String(partnerId || getCoupledPartnerId() || "").trim();
+    const uid = getSessionUserId();
+    if (!id || !uid) return null;
+    return (
+      state.meetings.find((m) => {
+        if (m.mode !== "instant" || m.status !== "live") return false;
+        const hostId = m.host?.id;
+        const guestId = m.guest?.id;
+        if (!hostId || !guestId) return false;
+        const involvesUs = hostId === uid || guestId === uid;
+        const involvesPartner = hostId === id || guestId === id;
+        return involvesUs && involvesPartner;
+      }) || null
+    );
+  }
+
+  function setInstantSessionButtonMode(active) {
+    const btn = document.getElementById("btnStartInstantSession");
+    if (!btn) return;
+    const icon = btn.querySelector("i");
+    const label = btn.querySelector(".setup-instant-session-label");
+    if (active) {
+      btn.dataset.sessionAction = "stop";
+      btn.classList.remove("primary");
+      btn.classList.add("secondary");
+      if (icon) icon.className = "bi bi-stop-circle";
+      if (label) label.textContent = "Stop current session";
+      btn.title = "End the instant session for you and your partner";
+    } else {
+      btn.dataset.sessionAction = "start";
+      btn.classList.add("primary");
+      btn.classList.remove("secondary");
+      if (icon) icon.className = "bi bi-lightning-charge";
+      if (label) label.textContent = "Start instant session";
+      btn.title = "Start an instant session with your partner";
+    }
+  }
+
   function setPartnerInstantStatus(msg, cls = "ok") {
     const el = document.getElementById("setupPartnerInstantStatus");
     if (!el) return;
@@ -1468,8 +1509,44 @@
     const btn = document.getElementById("btnStartInstantSession");
     if (!row || !btn) return;
     const partnerId = getCoupledPartnerId();
+    const active = partnerId ? findActiveInstantSessionWithPartner(partnerId) : null;
     row.hidden = !partnerId;
     btn.disabled = !partnerId || meetingCreateInFlight;
+    setInstantSessionButtonMode(Boolean(active));
+  }
+
+  async function stopCurrentInstantSession(meeting) {
+    const active = meeting || findActiveInstantSessionWithPartner(getCoupledPartnerId());
+    if (!active?.id) {
+      setPartnerInstantStatus("No active instant session to stop.", "err");
+      return;
+    }
+    if (meetingCreateInFlight) return;
+    if (!window.confirm("Stop the current session for you and your partner?")) return;
+    meetingCreateInFlight = true;
+    const btn = document.getElementById("btnStartInstantSession");
+    if (btn) btn.disabled = true;
+    try {
+      if (global.appSessionRole?.()) {
+        document.getElementById("btnHangup")?.click();
+      }
+      await deleteMeeting(active.id);
+      state._pendingMeetingId = null;
+      if (state.sessionJoinedMeetingId === active.id) {
+        state.sessionJoinedMeetingId = null;
+        global.MemberProfile?.setPartnerProfile?.(null);
+      }
+      setPartnerInstantStatus("Session stopped for both partners.", "ok");
+      setMeetingStatusOnAll("Session stopped for both partners.", "ok");
+      broadcastMeetingsChanged();
+    } catch (err) {
+      const errMsg = err?.message || "Could not stop session.";
+      setPartnerInstantStatus(errMsg, "err");
+      setMeetingStatusOnAll(errMsg, "err");
+    } finally {
+      meetingCreateInFlight = false;
+      updatePartnerInstantRow();
+    }
   }
 
   async function startInstantSessionForPartner(partnerId) {
@@ -2063,7 +2140,12 @@
 
   function initPartnerInstantSession() {
     document.getElementById("btnStartInstantSession")?.addEventListener("click", () => {
-      startInstantSessionForPartner(getCoupledPartnerId());
+      const partnerId = getCoupledPartnerId();
+      if (findActiveInstantSessionWithPartner(partnerId)) {
+        stopCurrentInstantSession();
+        return;
+      }
+      startInstantSessionForPartner(partnerId);
     });
   }
 
