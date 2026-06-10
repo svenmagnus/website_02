@@ -1130,12 +1130,12 @@
           } else if (email) {
             msg = result.platformEmailConfigured
               ? "Email could not be sent — copy the link and code below."
-              : "Email delivery is not configured on the server — copy the link and code below.";
+              : "Automatic email is not enabled yet — copy the link and code below. You do not need any mail settings in your account.";
           } else {
-            msg = "Invite created — copy the link and code below (e.g. Instagram DM).";
+            msg = "Invitation ready — copy the link and code below (e.g. Instagram DM).";
           }
           if (status) {
-            status.className = "status-line ok";
+            status.className = result.emailSent ? "status-line ok" : "status-line";
             status.textContent = msg;
           }
           const mailSetupBtn = document.getElementById("inviteModalMailSetup");

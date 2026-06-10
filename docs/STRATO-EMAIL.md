@@ -1,6 +1,22 @@
-# Strato E-Mail im Profil (pro Host)
+# E-Mail für Einladungen
 
-Jeder eingeloggte Host kann **eigenes Strato-Postfach** unter **Profil → E-Mail-Versand** hinterlegen. Einladungen und (bei Einladung) Bestätigungs-Mails laufen dann über **sein** Konto — nicht über einen zentralen Server-Schlüssel.
+## Einfach (empfohlen): einmal Server-SMTP
+
+**Alle Mitglieder** (nicht nur Admins) können Einladungen per E-Mail versenden, sobald in `server/.env` auf dem VPS **ein** Postfach eingetragen ist (z. B. `noreply@tangent-club.com` bei Strato):
+
+```env
+SMTP_HOST=smtp.strato.de
+SMTP_PORT=465
+SMTP_USER=noreply@tangent-club.com
+SMTP_PASS=...
+SMTP_FROM=noreply@tangent-club.com
+```
+
+Kein individuelles Setup pro User nötig. Ohne SMTP: E-Mail-Feld leer lassen und Link + Code kopieren (Instagram, WhatsApp).
+
+## Optional: Strato im Admin-Profil (pro Host)
+
+Nur für **Administratoren** unter **E-Mail server (SMTP)** — eigenes Postfach als Fallback, wenn kein Server-SMTP gesetzt ist.
 
 ## Strato eintragen
 
