@@ -920,7 +920,7 @@
     if (inviteBtn) {
       const show = canManageInvites();
       inviteBtn.hidden = !show;
-      inviteBtn.title = show ? "Invite a model by email" : "";
+      inviteBtn.title = show ? "Send or create an invitation" : "";
     }
 
     if (roleEl) {
@@ -1113,7 +1113,7 @@
         sendBtn.disabled = true;
         if (status) {
           status.className = "status-line";
-          status.textContent = email ? "Sending…" : "Creating invite…";
+          status.textContent = email ? "Sending invitation…" : "Creating invitation…";
         }
         if (shareBox) {
           shareBox.hidden = true;
@@ -1128,7 +1128,9 @@
           if (result.emailSent) {
             msg = `Invite email sent to ${email}.`;
           } else if (email) {
-            msg = "Email could not be sent — copy the link and code below.";
+            msg = result.platformEmailConfigured
+              ? "Email could not be sent — copy the link and code below."
+              : "Email delivery is not configured on the server — copy the link and code below.";
           } else {
             msg = "Invite created — copy the link and code below (e.g. Instagram DM).";
           }
@@ -1138,7 +1140,8 @@
           }
           const mailSetupBtn = document.getElementById("inviteModalMailSetup");
           if (mailSetupBtn) {
-            mailSetupBtn.hidden = Boolean(result.emailSent || !email);
+            mailSetupBtn.hidden =
+              Boolean(result.emailSent || !email) || !canAccessMailSettings();
           }
           renderInviteShareResult(result, guestName);
           if (emailInput instanceof HTMLInputElement) emailInput.value = "";

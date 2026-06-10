@@ -209,6 +209,7 @@ export function linkInviteHostToGuest(db, hostUserId, guestUserId, guestName) {
   );
 
   ensureModelPoolEntry(db, hostUserId, guestUserId);
+  ensureSessionMemberPair(db, hostUserId, guestUserId);
 
   return { threadId: thread.id, hostUserId, guestUserId };
 }

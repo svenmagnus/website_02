@@ -78,6 +78,11 @@ export function resolveMailConfig(userRow) {
   return getUserMailConfig(userRow) || getGlobalMailConfig();
 }
 
+/** Invite emails: platform SMTP first so any member can send (not only admins with personal SMTP). */
+export function resolveInviteMailConfig(userRow) {
+  return getGlobalMailConfig() || getUserMailConfig(userRow);
+}
+
 export function isSmtpConfiguredForUser(userRow) {
   return Boolean(resolveMailConfig(userRow));
 }
@@ -250,14 +255,12 @@ export async function sendInviteEmail({
     footerNote: "This link and code are intended only for you and will expire in 7 days.",
   });
 
-  const result = await sendMail({
-    to,
-    subject,
-    text,
-    html,
-    userRow,
-    logContext: "invite",
-  });
+  const mailConfig = resolveInviteMailConfig(userRow);
+  if (!mailConfig) {
+    console.log(`[mail] No SMTP for invite — not sent to ${to}`);
+    return { sent: false, devMode: true, source: null };
+  }
+  const result = await deliverMailWithConfig(mailConfig, { to, subject, text, html });
 
   if (result.devMode) {
     console.log(

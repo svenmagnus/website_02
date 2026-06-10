@@ -474,7 +474,7 @@ function resolveInvite({ inviteToken, inviteCode, email }) {
   if (byEmailCode) return byEmailCode;
 
   const byCode = findActiveInviteByCodeOnly(normalizedCode);
-  if (byCode && isManualInviteEmail(byCode.email)) return byCode;
+  if (byCode) return byCode;
 
   return null;
 }
@@ -1077,6 +1077,7 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
     inviteCode,
     manualShare: !email,
     emailSent: Boolean(email && mailResult.sent),
+    platformEmailConfigured: isSmtpConfigured(),
     smtpConfigured: isSmtpConfiguredForUser(hostRow),
     mailSource: mailResult.source || null,
     expiresAt,
