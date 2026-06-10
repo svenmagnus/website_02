@@ -185,6 +185,23 @@
     return sel?.value?.trim() || null;
   }
 
+  function findActiveInstantSessionWithPartner(partnerId) {
+    const id = String(partnerId || getCoupledPartnerId() || "").trim();
+    const uid = getSessionUserId();
+    if (!id || !uid) return null;
+    return (
+      state.meetings.find((m) => {
+        if (m.mode !== "instant" || m.status !== "live") return false;
+        const hostId = m.host?.id;
+        const guestId = m.guest?.id;
+        if (!hostId || !guestId) return false;
+        const involvesUs = hostId === uid || guestId === uid;
+        const involvesPartner = hostId === id || guestId === id;
+        return involvesUs && involvesPartner;
+      }) || null
+    );
+  }
+
   function coupleSessionWithPartner(partnerId, { addToMembers = true } = {}) {
     const id = String(partnerId || "").trim();
     const previousId = state.sessionPartnerId;
@@ -419,8 +436,9 @@
   }
 
   function buildMemberCard(m, { variant, onRemove, onActivate, onSelect, selected } = {}) {
+    const sessionLive = Boolean(findActiveInstantSessionWithPartner(m.id));
     const card = document.createElement("div");
-    card.className = "model-card" + (m.signedIn ? " is-signed-in" : "");
+    card.className = "model-card" + (m.signedIn ? " is-signed-in" : "") + (sessionLive ? " is-session-live" : "");
     if (variant === "pool") {
       card.classList.add("model-card--pool");
       card.title = "Double-click to set as Current Chat Partner";
@@ -454,9 +472,19 @@
 
     const head = document.createElement("div");
     head.className = "model-card-head";
+    const nameRow = document.createElement("div");
+    nameRow.className = "model-card-name-row";
     const name = document.createElement("strong");
     name.textContent = m.displayName || m.username || "Member";
-    head.appendChild(name);
+    nameRow.appendChild(name);
+    if (sessionLive) {
+      const liveBadge = document.createElement("span");
+      liveBadge.className = "model-live-session-badge";
+      liveBadge.textContent = "Live";
+      liveBadge.title = "Instant session active";
+      nameRow.appendChild(liveBadge);
+    }
+    head.appendChild(nameRow);
     if (m.signedIn) {
       const badge = document.createElement("span");
       badge.className = "model-signed-in-badge";
@@ -479,7 +507,12 @@
     card.appendChild(head);
 
     const meta = document.createElement("span");
-    meta.textContent = m.signedIn ? "Online now" : "Offline";
+    if (sessionLive) {
+      meta.className = "model-live-session-meta";
+      meta.textContent = "Live session";
+    } else {
+      meta.textContent = m.signedIn ? "Online now" : "Offline";
+    }
     card.appendChild(meta);
 
     if (variant === "pool" && onActivate) {
@@ -1395,7 +1428,8 @@
         list.appendChild(row);
       }
     });
-    updatePartnerInstantRow();
+    renderActiveMembersPanel();
+    renderContactPoolPanel();
   }
 
   function updateCalendarUi() {
@@ -1451,23 +1485,6 @@
   }
 
   let meetingCreateInFlight = false;
-
-  function findActiveInstantSessionWithPartner(partnerId) {
-    const id = String(partnerId || getCoupledPartnerId() || "").trim();
-    const uid = getSessionUserId();
-    if (!id || !uid) return null;
-    return (
-      state.meetings.find((m) => {
-        if (m.mode !== "instant" || m.status !== "live") return false;
-        const hostId = m.host?.id;
-        const guestId = m.guest?.id;
-        if (!hostId || !guestId) return false;
-        const involvesUs = hostId === uid || guestId === uid;
-        const involvesPartner = hostId === id || guestId === id;
-        return involvesUs && involvesPartner;
-      }) || null
-    );
-  }
 
   function setInstantSessionButtonMode(active) {
     const btn = document.getElementById("btnStartInstantSession");
