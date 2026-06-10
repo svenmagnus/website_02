@@ -1747,6 +1747,38 @@ video {
   color: var(--accent);
 }
 
+.video-ctrl-audio-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  pointer-events: auto;
+}
+
+.video-volume-slider {
+  width: 4.75rem;
+  height: 0.3rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  accent-color: var(--accent);
+  cursor: pointer;
+  pointer-events: auto;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.85));
+}
+
+.video-volume-slider:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.video-volume-slider:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.45);
+}
+
 .video-ctrl-icon {
   font-size: 1.2rem;
   line-height: 1;

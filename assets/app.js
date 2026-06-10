@@ -138,6 +138,7 @@ const els = {
   localVideoIcon: $("#localVideoIcon"),
   remoteToggleMuteBtn: $("#remoteToggleMuteBtn"),
   remoteToggleVideoBtn: $("#remoteToggleVideoBtn"),
+  remoteVolumeSlider: $("#remoteVolumeSlider"),
   remoteMuteIcon: $("#remoteMuteIcon"),
   remoteVideoIcon: $("#remoteVideoIcon"),
   localVideoControls: document.querySelector('.video-media-overlay[data-panel="local"]'),
@@ -3672,6 +3673,7 @@ function onRemoteStream(remoteStream) {
   if (els.remoteVideo) {
     els.remoteVideo.srcObject = remoteStream;
     els.remoteVideo.muted = false;
+    applyRemotePlaybackVolume(getStoredRemoteVolume());
     bindVideoOverlayRefresh(els.remoteVideo);
     bindStreamTrackRefresh(remoteStream);
     const playPromise = els.remoteVideo.play();
@@ -4250,6 +4252,30 @@ function setRemoteControlsEnabled(enabled) {
   }
   if (els.remoteToggleMuteBtn) els.remoteToggleMuteBtn.disabled = !enabled;
   if (els.remoteToggleVideoBtn) els.remoteToggleVideoBtn.disabled = !enabled;
+  if (els.remoteVolumeSlider) els.remoteVolumeSlider.disabled = !enabled;
+}
+
+const REMOTE_VOLUME_STORAGE_KEY = "dualpeer_remote_playback_volume";
+
+function getStoredRemoteVolume() {
+  try {
+    const v = parseFloat(localStorage.getItem(REMOTE_VOLUME_STORAGE_KEY));
+    if (Number.isFinite(v) && v >= 0 && v <= 1) return v;
+  } catch (_) {
+    /* ignore */
+  }
+  return 1;
+}
+
+function applyRemotePlaybackVolume(volume) {
+  const v = Math.min(1, Math.max(0, Number(volume)));
+  if (els.remoteVideo) els.remoteVideo.volume = v;
+  if (els.remoteVolumeSlider) els.remoteVolumeSlider.value = String(Math.round(v * 100));
+  try {
+    localStorage.setItem(REMOTE_VOLUME_STORAGE_KEY, String(v));
+  } catch (_) {
+    /* ignore */
+  }
 }
 
 function resetLocalMediaUi() {
@@ -4280,6 +4306,7 @@ function resetRemoteMediaUi() {
     els.remoteVideo.muted = false;
     els.remoteVideo.style.opacity = "1";
     delete els.remoteVideo.dataset.videoHidden;
+    applyRemotePlaybackVolume(getStoredRemoteVolume());
   }
   setIconState(els.remoteMuteIcon, MEDIA_ICON.micOn, MEDIA_ICON.micOff, false);
   setIconState(els.remoteVideoIcon, MEDIA_ICON.camOn, MEDIA_ICON.camOff, false);
@@ -4408,7 +4435,11 @@ function toggleLocalVideo() {
 
 function toggleRemotePlaybackAudio() {
   if (!els.remoteVideo?.srcObject) return false;
+  const willUnmute = els.remoteVideo.muted;
   els.remoteVideo.muted = !els.remoteVideo.muted;
+  if (willUnmute && els.remoteVideo.volume === 0) {
+    applyRemotePlaybackVolume(0.5);
+  }
   syncRemoteMediaUi();
   return true;
 }
@@ -4438,6 +4469,21 @@ function initVideoOverlayControls() {
   if (els.remoteToggleMuteBtn) {
     els.remoteToggleMuteBtn.addEventListener("click", () => {
       toggleRemotePlaybackAudio();
+    });
+  }
+
+  if (els.remoteVolumeSlider) {
+    applyRemotePlaybackVolume(getStoredRemoteVolume());
+    els.remoteVolumeSlider.addEventListener("input", () => {
+      const pct = Number(els.remoteVolumeSlider.value);
+      applyRemotePlaybackVolume(pct / 100);
+      if (!els.remoteVideo?.srcObject) return;
+      if (pct > 0 && els.remoteVideo.muted) {
+        els.remoteVideo.muted = false;
+      } else if (pct === 0) {
+        els.remoteVideo.muted = true;
+      }
+      syncRemoteMediaUi();
     });
   }
 
