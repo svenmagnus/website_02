@@ -564,28 +564,21 @@
   }
 
   function openMailSettingsModal() {
-    if (!isLoggedIn()) {
-      return;
-    }
-    if (!canAccessMailSettings()) {
-      return;
-    }
-    if (global.dualPeerUi?.openAuthModal) {
-      global.dualPeerUi.openAuthModal("mailSettingsModal");
-    } else {
-      const modal = document.getElementById("mailSettingsModal");
-      if (modal) modal.hidden = false;
-      if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
-    }
-    loadProfileMailSettings();
+    if (!canAccessMailSettings()) return;
+    if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
+    window.location.href = "settings.html#email-server";
   }
 
   function closeMailSettingsModal() {
-    if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
-    else {
-      const modal = document.getElementById("mailSettingsModal");
-      if (modal) modal.hidden = true;
-    }
+    /* SMTP settings live on settings.html — kept for API compatibility. */
+  }
+
+  function updateSettingsMailSection() {
+    const section = document.getElementById("settingsMailSection");
+    if (!section) return;
+    const show = canAccessMailSettings();
+    section.hidden = !show;
+    if (show) loadProfileMailSettings();
   }
 
   function fillMailForm(mail) {
@@ -727,39 +720,13 @@
 
   function initProfileMailForm() {
     const form = document.getElementById("profileMailForm");
-    const modal = document.getElementById("mailSettingsModal");
-    const closeBtn = document.getElementById("mailSettingsModalClose");
-    const menuBtn = document.getElementById("btnMailSettings");
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
 
-    if (closeBtn) {
-      closeBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        closeMailSettingsModal();
-      });
-    }
-    if (menuBtn) {
-      menuBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
-        openMailSettingsModal();
-      });
-    }
     if (inviteMailSetup) {
       inviteMailSetup.addEventListener("click", () => {
         const inviteModal = document.getElementById("inviteModal");
         if (inviteModal) inviteModal.hidden = true;
         openMailSettingsModal();
-      });
-    }
-    if (modal) {
-      modal.addEventListener("click", (e) => {
-        if (e.target === modal) {
-          e.stopPropagation();
-          closeMailSettingsModal();
-        }
       });
     }
 
@@ -905,7 +872,6 @@
     const loggedIn = isLoggedIn();
     const session = getSession();
     const inviteBtn = document.getElementById("btnInviteByEmail");
-    const mailBtn = document.getElementById("btnMailSettings");
     const adminUsersBtn = document.getElementById("btnAdminUsers");
     const adminUsersFooterLink = document.getElementById("footerAdminUsersLink");
     const roleEl = document.getElementById("accountRoleLabel") || document.querySelector(".account-role");
@@ -913,7 +879,6 @@
     const premiumSetupHint = document.getElementById("premiumSetupHint");
     const premiumSetupBtn = document.getElementById("btnPremiumFromSetup");
 
-    if (mailBtn) mailBtn.hidden = !canAccessMailSettings();
     if (adminUsersBtn) adminUsersBtn.hidden = !canAccessMailSettings();
     if (adminUsersFooterLink) adminUsersFooterLink.hidden = !canAccessMailSettings();
 
@@ -964,6 +929,7 @@
     if (premiumBtn) premiumBtn.hidden = !isPremium();
 
     updateHeaderRoleBadge();
+    updateSettingsMailSection();
     global.dispatchEvent(new CustomEvent("dualpeer-account-role-change"));
 
     if (loggedIn && session?.user && global.dualPeerUi?.setProfileName) {
@@ -2003,6 +1969,7 @@
 
   async function bootstrap() {
     updateAccountMenuAuthState();
+    updateSettingsMailSection();
     let hasSiteAccess = false;
     const tokenAtStart = getSession()?.token;
     if (tokenAtStart) {

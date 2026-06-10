@@ -702,8 +702,60 @@ button.auth-model-card {
   min-width: 4.5rem;
 }
 
+.password-input-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.password-input-wrap input {
+  flex: 1;
+  min-width: 0;
+}
+
+.password-toggle-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.password-toggle-btn:hover,
+.password-toggle-btn:focus-visible {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  outline: none;
+}
+
+.password-toggle-btn[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.profile-form .password-input-wrap,
+.settings-mail-form .password-input-wrap {
+  margin-top: 0.15rem;
+}
+
+.login-overlay-row .password-input-wrap {
+  flex: 1;
+  min-width: 140px;
+}
+
 .login-overlay-row input[type="password"],
-.login-overlay-row input[type="text"] {
+.login-overlay-row input[type="text"],
+.login-overlay-row .password-input-wrap input {
   flex: 1;
   min-width: 140px;
   padding: 0.5rem 0.65rem;

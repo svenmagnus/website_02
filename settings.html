@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8483" />
+    <link rel="stylesheet" href="assets/styles.css?v=8611" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -143,6 +143,82 @@
             </fieldset>
           </section>
 
+          <section class="settings-section" id="settingsMailSection" hidden>
+            <h2 id="email-server">Email server (SMTP)</h2>
+            <p class="settings-hint" id="profileMailHint">
+              Administrator only — outgoing mail for platform invites (e.g. Strato mailbox). Normal members use the
+              shared server; you do not need personal SMTP settings.
+            </p>
+            <p class="status-line" id="profileMailStatus"></p>
+            <form id="profileMailForm" class="profile-form settings-mail-form">
+              <p class="status-line profile-preset-heading">Strato template</p>
+              <button type="button" class="secondary" id="btnStratoMailPreset">Fill Strato values</button>
+              <div class="row">
+                <label for="mailOutHost">Outgoing server (SMTP)</label>
+                <input type="text" id="mailOutHost" placeholder="smtp.strato.de" autocomplete="off" />
+              </div>
+              <div class="row profile-mail-port-row">
+                <label for="mailOutPort">Port</label>
+                <input type="number" id="mailOutPort" min="1" max="65535" value="465" />
+                <label class="technique-check profile-mail-secure-check">
+                  <input type="checkbox" id="mailOutSecure" checked />
+                  <span>SSL/TLS (465)</span>
+                </label>
+              </div>
+              <div class="row">
+                <label for="mailOutUser">Email / username</label>
+                <input type="email" id="mailOutUser" placeholder="your-name@your-domain.de" autocomplete="username" />
+              </div>
+              <div class="row">
+                <label for="mailOutFrom">Sender address</label>
+                <input type="email" id="mailOutFrom" placeholder="same as above" autocomplete="off" />
+              </div>
+              <div class="row">
+                <label for="mailOutPassword">Mailbox password</label>
+                <div class="password-input-wrap">
+                  <input
+                    type="password"
+                    id="mailOutPassword"
+                    autocomplete="new-password"
+                    placeholder="Mailbox password"
+                    spellcheck="false"
+                  />
+                  <button
+                    type="button"
+                    class="password-toggle-btn"
+                    data-password-toggle
+                    aria-controls="mailOutPassword"
+                    aria-label="Show password"
+                    aria-pressed="false"
+                  >
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                  </button>
+                </div>
+                <p class="profile-field-hint" id="mailPasswordHint"></p>
+              </div>
+              <details class="profile-mail-incoming">
+                <summary>Incoming server (IMAP) — optional</summary>
+                <div class="row">
+                  <label for="mailInHost">Incoming server</label>
+                  <input type="text" id="mailInHost" placeholder="imap.strato.de" autocomplete="off" />
+                </div>
+                <div class="row">
+                  <label for="mailInPort">Port</label>
+                  <input type="number" id="mailInPort" min="1" max="65535" value="993" />
+                </div>
+                <div class="row">
+                  <label for="mailInUser">Username</label>
+                  <input type="email" id="mailInUser" placeholder="usually same as SMTP" autocomplete="off" />
+                </div>
+              </details>
+              <div class="row profile-mail-actions">
+                <button type="submit" class="primary">Save SMTP settings</button>
+                <button type="button" class="secondary" id="btnMailTest">Test email</button>
+              </div>
+              <p class="status-line" id="profileMailSaveStatus" hidden></p>
+            </form>
+          </section>
+
           <section class="settings-section settings-section-muted">
             <h2>Preferences</h2>
             <p class="settings-hint">More options will be added here — checkboxes for your likes and limits.</p>
@@ -173,10 +249,15 @@
       Settings — preferences are stored locally in this browser only.
     </footer>
 
-    <script src="assets/ui-shell.js?v=8483"></script>
+    <script src="assets/api-config.js?v=8611"></script>
+    <script src="assets/ui-shell.js?v=8611"></script>
+    <script src="assets/auth.js?v=8611"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         if (window.dualPeerUi) window.dualPeerUi.initSettingsPage();
+        if (location.hash === "#email-server") {
+          document.getElementById("email-server")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       });
     </script>
   </body>

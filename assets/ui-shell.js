@@ -168,7 +168,27 @@
     refreshProfileAvatars();
   }
 
-  const AUTH_MODAL_IDS = ["mailSettingsModal", "inviteModal", "premiumLoginModal", "adminUsersModal"];
+  const AUTH_MODAL_IDS = ["inviteModal", "premiumLoginModal", "adminUsersModal"];
+
+  function initPasswordToggles(root = document) {
+    root.querySelectorAll("[data-password-toggle]").forEach((btn) => {
+      if (!(btn instanceof HTMLButtonElement) || btn.dataset.passwordToggleBound === "1") return;
+      btn.dataset.passwordToggleBound = "1";
+      const targetId = btn.getAttribute("aria-controls");
+      const input = targetId ? document.getElementById(targetId) : null;
+      if (!(input instanceof HTMLInputElement)) return;
+      const icon = btn.querySelector("i");
+      const showLabel = "Show password";
+      const hideLabel = "Hide password";
+      btn.addEventListener("click", () => {
+        const reveal = input.type === "password";
+        input.type = reveal ? "text" : "password";
+        btn.setAttribute("aria-label", reveal ? hideLabel : showLabel);
+        btn.setAttribute("aria-pressed", reveal ? "true" : "false");
+        if (icon) icon.className = reveal ? "bi bi-eye-slash" : "bi bi-eye";
+      });
+    });
+  }
 
   function setModalVisible(el, visible) {
     if (!el) return;
@@ -282,6 +302,7 @@
 
     applyTheme(getSavedTheme(), { skipStorage: true });
     initAccountMenu();
+    initPasswordToggles();
     initThemeSegmentedControls();
 
     document.querySelectorAll('input[name="appearanceTheme"]').forEach((el) => {
@@ -311,6 +332,7 @@
   function initShell() {
     applyTheme(getSavedTheme(), { skipStorage: true });
     initAccountMenu();
+    initPasswordToggles();
   }
 
   global.dualPeerUi = {
@@ -319,6 +341,7 @@
     initShell,
     initSettingsPage,
     initThemeSegmentedControls,
+    initPasswordToggles,
     setProfileName,
     getProfileName,
     closeAccountMenu,
