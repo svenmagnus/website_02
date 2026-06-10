@@ -90,12 +90,24 @@
     }
   }
 
+  function singleSessionPartnerFromList(list) {
+    const normalized = (list || []).map(normalizeContact).filter(Boolean);
+    if (!normalized.length) return null;
+    if (normalized.length === 1) return normalized[0];
+    return (
+      (state.sessionPartnerId && normalized.find((m) => m.id === state.sessionPartnerId)) ||
+      normalized[normalized.length - 1] ||
+      normalized[0]
+    );
+  }
+
   function saveActiveMembersToStorage(list) {
     const uid = getSessionUserId();
     if (!uid) return;
     try {
+      const partner = singleSessionPartnerFromList(list);
       const all = JSON.parse(localStorage.getItem(ACTIVE_MEMBERS_KEY) || "{}");
-      all[uid] = list;
+      all[uid] = partner ? [partner] : [];
       localStorage.setItem(ACTIVE_MEMBERS_KEY, JSON.stringify(all));
     } catch (_) {
       /* ignore */
@@ -103,21 +115,25 @@
   }
 
   function applyActiveMembersFromServer(list) {
-    state.activeMembers = (list || []).map(normalizeContact).filter(Boolean);
+    const partner = singleSessionPartnerFromList(list);
+    state.activeMembers = partner ? [partner] : [];
     saveActiveMembersToStorage(state.activeMembers);
-    if (!state.sessionPartnerId || !state.activeMembers.some((m) => m.id === state.sessionPartnerId)) {
-      state.sessionPartnerId = state.activeMembers[0]?.id || null;
-      saveSessionPartnerIdToStorage(state.sessionPartnerId);
+    if (!state.activeMembers.length) {
+      state.sessionPartnerId = null;
+      saveSessionPartnerIdToStorage(null);
+    } else if (state.sessionPartnerId && !state.activeMembers.some((m) => m.id === state.sessionPartnerId)) {
+      state.sessionPartnerId = null;
+      saveSessionPartnerIdToStorage(null);
     }
     renderActiveMembersPanel();
   }
 
-  async function syncSessionMemberAdd(memberUserId) {
+  async function syncSessionMemberReplace(memberUserId) {
     const id = String(memberUserId || "").trim();
     if (!id || !isLoggedIn()) return false;
     const data = await api("/api/social/session-members", {
       method: "POST",
-      body: JSON.stringify({ memberUserId: id }),
+      body: JSON.stringify({ memberUserId: id, replace: true }),
     });
     applyActiveMembersFromServer(data.activeMembers);
     return true;
@@ -171,6 +187,7 @@
 
   function coupleSessionWithPartner(partnerId, { addToMembers = true } = {}) {
     const id = String(partnerId || "").trim();
+    const previousId = state.sessionPartnerId;
     if (!id) {
       state.sessionPartnerId = null;
       saveSessionPartnerIdToStorage(null);
@@ -185,9 +202,11 @@
       return;
     }
 
-    if (addToMembers && !state.activeMembers.some((m) => m.id === id)) {
+    const hasOnlyThisPartner =
+      state.activeMembers.length === 1 && state.activeMembers[0]?.id === id;
+    if (!hasOnlyThisPartner) {
       if (isLoggedIn()) {
-        syncSessionMemberAdd(id).catch((err) => {
+        syncSessionMemberReplace(id).catch((err) => {
           console.warn("[social] session member sync failed:", err);
         });
       } else {
@@ -195,10 +214,14 @@
           state.contactPool.find((c) => c.id === id) ||
           state.threads.find((t) => t.partner?.id === id)?.partner;
         if (contact) {
-          state.activeMembers = [...state.activeMembers, normalizeContact(contact)];
+          state.activeMembers = [normalizeContact(contact)];
           saveActiveMembersToStorage(state.activeMembers);
         }
       }
+    }
+
+    if (previousId && previousId !== id) {
+      clearLiveChat({ deleteServer: true }).catch(() => {});
     }
 
     state.sessionPartnerId = id;
@@ -301,15 +324,20 @@
   async function addActiveMember(raw) {
     const contact = normalizeContact(raw);
     if (!contact) return false;
+    const previousId = state.sessionPartnerId;
+    const isSwitch = previousId && previousId !== contact.id;
     try {
+      if (isSwitch) {
+        await clearLiveChat({ deleteServer: true });
+      }
       if (isLoggedIn()) {
-        await syncSessionMemberAdd(contact.id);
-      } else if (!state.activeMembers.some((m) => m.id === contact.id)) {
-        state.activeMembers = [...state.activeMembers, contact];
+        await syncSessionMemberReplace(contact.id);
+      } else {
+        state.activeMembers = [contact];
         saveActiveMembersToStorage(state.activeMembers);
-        renderActiveMembersPanel();
       }
       coupleSessionWithPartner(contact.id, { addToMembers: false });
+      await selectPartnerById(contact.id);
       return true;
     } catch (err) {
       console.warn("[social] add active member failed:", err);
@@ -395,7 +423,7 @@
     card.className = "model-card" + (m.signedIn ? " is-signed-in" : "");
     if (variant === "pool") {
       card.classList.add("model-card--pool");
-      card.title = "Double-click to add to Members";
+      card.title = "Double-click to set as Current Chat Partner";
     }
     if (variant === "active") {
       card.classList.add("model-card--active");
@@ -439,7 +467,7 @@
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.className = "model-card-remove-btn";
-      removeBtn.title = "Remove from Members";
+      removeBtn.title = "Remove partner for this session";
       removeBtn.setAttribute("aria-label", `Remove ${name.textContent}`);
       removeBtn.textContent = "×";
       removeBtn.addEventListener("click", (e) => {
@@ -809,15 +837,26 @@
       state.threads = threads;
       setContactPool(data.contacts || []);
       const serverMembers = (data.activeMembers || []).map(normalizeContact).filter(Boolean);
-      state.activeMembers = serverMembers.length
-        ? serverMembers
-        : loadActiveMembersFromStorage().map(normalizeContact).filter(Boolean);
-      saveActiveMembersToStorage(state.activeMembers);
+      const storedMembers = loadActiveMembersFromStorage().map(normalizeContact).filter(Boolean);
+      const initialMembers = serverMembers.length ? serverMembers : storedMembers;
+      applyActiveMembersFromServer(initialMembers);
+      if (serverMembers.length > 1 && isLoggedIn()) {
+        const keepId =
+          loadSessionPartnerIdFromStorage() ||
+          state.sessionPartnerId ||
+          serverMembers[serverMembers.length - 1]?.id;
+        if (keepId) {
+          await syncSessionMemberReplace(keepId);
+        }
+      }
       const storedPartnerId = loadSessionPartnerIdFromStorage();
-      state.sessionPartnerId =
-        storedPartnerId && state.activeMembers.some((m) => m.id === storedPartnerId)
-          ? storedPartnerId
-          : state.activeMembers[0]?.id || null;
+      if (storedPartnerId && state.activeMembers.some((m) => m.id === storedPartnerId)) {
+        state.sessionPartnerId = storedPartnerId;
+        saveSessionPartnerIdToStorage(storedPartnerId);
+      } else if (!state.sessionPartnerId && state.activeMembers[0]) {
+        state.sessionPartnerId = state.activeMembers[0].id;
+        saveSessionPartnerIdToStorage(state.sessionPartnerId);
+      }
 
       const activeThread = pickActiveThread(threads);
       if (activeThread) {
@@ -1729,7 +1768,7 @@
     }
     if (status) {
       status.className = "status-line ok";
-      status.textContent = `${state.contactPool.length} contact${state.contactPool.length === 1 ? "" : "s"} · double-click to add`;
+      status.textContent = `${state.contactPool.length} contact${state.contactPool.length === 1 ? "" : "s"} · double-click to set as Current Chat Partner`;
     }
     for (const m of state.contactPool) {
       root.appendChild(
@@ -1742,7 +1781,7 @@
               if (st) {
                 st.hidden = false;
                 st.className = "status-line ok";
-                st.textContent = `${contact.displayName} added to Members — they will see you there too.`;
+                st.textContent = `${contact.displayName} is now your Current Chat Partner — they will see you there too.`;
               }
             });
           },
@@ -1751,34 +1790,39 @@
     }
   }
 
+  function getActiveSessionPartner() {
+    const partner = singleSessionPartnerFromList(state.activeMembers);
+    if (!partner) return null;
+    const poolEntry = state.contactPool.find((c) => c.id === partner.id);
+    return poolEntry ? { ...partner, signedIn: poolEntry.signedIn } : partner;
+  }
+
   function renderActiveMembersPanel() {
     const root = document.getElementById("setupModelPoolList");
     const status = document.getElementById("setupModelPoolStatus");
     if (!root) return;
     root.replaceChildren();
-    if (!state.activeMembers.length) {
+    const partner = getActiveSessionPartner();
+    if (!partner) {
       if (status) {
         status.className = "status-line";
-        status.textContent = "No members selected — double-click someone in Member Pool (right).";
+        status.textContent = "No partner selected — double-click someone in Member Pool (right).";
       }
       return;
     }
+    state.activeMembers = [partner];
     if (status) {
       status.className = "status-line ok";
-      status.textContent = `${state.activeMembers.length} member${state.activeMembers.length === 1 ? "" : "s"} for this session.`;
+      status.textContent = `Partner for this session: ${partner.displayName || partner.username}.`;
     }
-    for (const m of state.activeMembers) {
-      const poolEntry = state.contactPool.find((c) => c.id === m.id);
-      const merged = poolEntry ? { ...m, signedIn: poolEntry.signedIn } : m;
-      root.appendChild(
-        buildMemberCard(merged, {
-          variant: "active",
-          selected: merged.id === state.sessionPartnerId,
-          onSelect: (member) => coupleSessionWithPartner(member.id, { addToMembers: false }),
-          onRemove: (id) => removeActiveMember(id),
-        })
-      );
-    }
+    root.appendChild(
+      buildMemberCard(partner, {
+        variant: "active",
+        selected: true,
+        onSelect: (member) => coupleSessionWithPartner(member.id, { addToMembers: true }),
+        onRemove: (id) => removeActiveMember(id),
+      })
+    );
   }
 
   async function refreshMembersWorkspace() {
@@ -1790,7 +1834,7 @@
     if (st) {
       st.hidden = false;
       st.className = "status-line ok";
-      st.textContent = "Members cleared — pick from Member Pool (right).";
+      st.textContent = "Partner cleared — pick from Member Pool (right).";
     }
   }
 
@@ -1967,7 +2011,7 @@
       if (st) {
         st.hidden = false;
         st.className = "status-line ok";
-        st.textContent = "Members and chat cleared — pick from Member Pool (right).";
+        st.textContent = "Partner and chat cleared — pick from Member Pool (right).";
       }
     });
   }

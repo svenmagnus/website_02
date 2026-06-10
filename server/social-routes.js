@@ -249,7 +249,8 @@ function listSessionMembers(db, uid) {
        FROM session_members sm
        JOIN users u ON u.id = sm.member_user_id
        WHERE sm.user_id = ?
-       ORDER BY sm.created_at ASC`
+       ORDER BY sm.created_at DESC
+       LIMIT 1`
     )
     .all(uid);
   return rows.map((row) => ({
@@ -555,6 +556,10 @@ socialRouter.post("/social/session-members", requireAuth, (req, res) => {
   const target = db.prepare("SELECT id FROM users WHERE id = ?").get(memberUserId);
   if (!target) {
     return res.status(404).json({ ok: false, error: "member_not_found" });
+  }
+  const replace = req.body?.replace !== false;
+  if (replace) {
+    db.prepare("DELETE FROM session_members WHERE user_id = ?").run(uid);
   }
   ensureSessionMemberPair(db, uid, memberUserId);
   ensureModelPoolEntry(db, uid, memberUserId);

@@ -763,7 +763,7 @@
                 extension <strong>Live</strong>).
               </li>
               <li>
-                <strong>Members</strong> — add or pick your partner. <strong>Session with</strong> →
+                <strong>Partner for this session</strong> — add or pick your partner. <strong>Session with</strong> →
                 <strong>New session</strong> → <strong>Start instant session</strong>.
               </li>
               <li>
@@ -811,13 +811,13 @@
             </p>
           </div>
           <fieldset class="setup-model-pool-field" id="setupModelPoolField" hidden>
-            <legend>Members</legend>
+            <legend>Partner for this session</legend>
             <p class="status-line profile-field-hint">
-              Partners for <strong>this session</strong> — double-click from <strong>Member Pool</strong> (right),
-              click a card here, or pick under <strong>Session with</strong> (always synced). Removing a member clears the chat.
+              <strong>Partner for this session</strong> — double-click from <strong>Member Pool</strong> (right),
+              click a card here, or pick under <strong>Session with</strong> (always synced). Removing the partner clears the chat.
             </p>
             <div class="row members-toolbar-row">
-              <button type="button" class="secondary" id="btnClearActiveMembers">Clear list</button>
+              <button type="button" class="secondary" id="btnClearActiveMembers">Clear partner</button>
             </div>
             <p class="status-line" id="setupActiveMembersStatus" hidden></p>
             <div class="row setup-add-model-row">
@@ -841,7 +841,7 @@
             <div id="setupMeetingMount"></div>
           </fieldset>
           <p class="status-line setup-session-actions-hint">
-            Order: <strong>Members</strong> → <strong>New session</strong> (instant) → partner clicks
+            Order: <strong>Partner for this session</strong> → <strong>New session</strong> (instant) → partner clicks
             <strong>Join</strong> → <strong>Start Camera</strong> or <strong>Share Cam</strong> (glows when partner is live).
           </p>
           <div class="row setup-session-actions">
@@ -1018,7 +1018,7 @@
             <h2 class="panel-tab-title">Member Pool</h2>
             <p class="status-line" style="margin: 0 0 0.5rem">
               Everyone you have shared sessions or chat with. <strong>Double-click</strong> to add them to
-              <strong>Members</strong> (Setup, left). <strong>Online</strong> only while they are signed in now.
+              <strong>Current Chat Partner</strong> (Setup, left). <strong>Online</strong> only while they are signed in now.
             </p>
             <div id="modelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="modelPoolStatus">Sign in to load your member pool.</p>
@@ -1229,7 +1229,7 @@
     <script src="assets/app.js?v=8604"></script>
     <script src="assets/auth.js?v=8601"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8597"></script>
+    <script src="assets/social.js?v=8606"></script>
     <script src="assets/member-profile.js?v=8596"></script>
   </body>
 </html>
