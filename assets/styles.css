@@ -777,6 +777,12 @@ button.auth-model-card {
   width: 100%;
 }
 
+.auth-forgot-row {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  text-align: right;
+}
+
 .login-overlay-row input[type="text"],
 .login-overlay-row input[type="email"] {
   width: 100%;

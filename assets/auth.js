@@ -414,6 +414,37 @@
     return api(`/api/auth/verify-email/${encodeURIComponent(token)}`);
   }
 
+  function parsePasswordResetIdentifier(raw) {
+    const value = String(raw ?? "").trim();
+    if (!value) return null;
+    if (value.includes("@")) return { email: value };
+    return { username: value };
+  }
+
+  async function requestPasswordReset(identifier) {
+    const payload = parsePasswordResetIdentifier(identifier);
+    if (!payload) {
+      const err = new Error("Enter your email or username.");
+      err.code = "identifier_required";
+      throw err;
+    }
+    return api("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function validateResetToken(token) {
+    return api(`/api/auth/reset-password/${encodeURIComponent(token)}`);
+  }
+
+  async function resetPasswordWithToken(token, password) {
+    return api("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    });
+  }
+
   async function logout() {
     try {
       if (isLoggedIn()) {
@@ -1712,6 +1743,156 @@
       });
   }
 
+  function initForgotPasswordPage() {
+    const form = document.getElementById("forgotPasswordForm");
+    if (!form) return;
+
+    const identifierEl = document.getElementById("forgotIdentifier");
+    const errEl = document.getElementById("forgotPasswordError");
+    const statusEl = document.getElementById("forgotPasswordStatus");
+    const devEl = document.getElementById("forgotPasswordDevLink");
+    const submitBtn = document.getElementById("forgotPasswordSubmit");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (errEl) {
+        errEl.hidden = true;
+        errEl.textContent = "";
+      }
+      if (statusEl) {
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+        statusEl.className = "status-line";
+      }
+      if (devEl) {
+        devEl.hidden = true;
+        devEl.textContent = "";
+      }
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        const result = await requestPasswordReset(identifierEl?.value);
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.className = "status-line ok";
+          statusEl.textContent =
+            result.message ||
+            "If an account exists for that email or username, we sent password reset instructions.";
+        }
+        if (devEl && result.devResetUrl) {
+          devEl.hidden = false;
+          devEl.className = "status-line ok";
+          devEl.innerHTML = `Dev reset link: <a href="${result.devResetUrl}">${result.devResetUrl}</a>`;
+        }
+        form.querySelectorAll("input").forEach((input) => {
+          input.disabled = true;
+        });
+        if (submitBtn) submitBtn.hidden = true;
+      } catch (err) {
+        if (errEl) {
+          errEl.hidden = false;
+          const map = {
+            identifier_required: "Enter your email or username.",
+            network_error: apiUnreachableMessage(resolveApiBase()),
+            api_not_configured: apiUnreachableMessage(""),
+          };
+          errEl.textContent = map[err.code] || err.message || "Request failed.";
+        }
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
+  function initResetPasswordPage() {
+    const form = document.getElementById("resetPasswordForm");
+    const statusEl = document.getElementById("resetPasswordStatus");
+    const introEl = document.getElementById("resetPasswordIntro");
+    const successEl = document.getElementById("resetPasswordSuccess");
+    if (!statusEl) return;
+
+    const token = new URLSearchParams(location.search).get("token") || "";
+    if (!token) {
+      statusEl.className = "status-line err";
+      statusEl.textContent = "No reset token in the link. Request a new one below.";
+      return;
+    }
+
+    validateResetToken(token)
+      .then((data) => {
+        if (introEl) {
+          introEl.hidden = false;
+          introEl.className = "status-line ok";
+          introEl.textContent = data.username
+            ? `Set a new password for “${data.username}”.`
+            : "Set a new password for your account.";
+        }
+        if (form) form.hidden = false;
+        statusEl.textContent = "";
+        statusEl.className = "status-line";
+
+        form?.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const errEl = document.getElementById("resetPasswordError");
+          const submitBtn = document.getElementById("resetPasswordSubmit");
+          const newEl = document.getElementById("resetPasswordNew");
+          const confirmEl = document.getElementById("resetPasswordConfirm");
+          const password = String(newEl?.value || "");
+          const confirm = String(confirmEl?.value || "");
+
+          if (errEl) {
+            errEl.hidden = true;
+            errEl.textContent = "";
+          }
+          if (password.length < 8) {
+            if (errEl) {
+              errEl.hidden = false;
+              errEl.textContent = "Password must be at least 8 characters.";
+            }
+            return;
+          }
+          if (password !== confirm) {
+            if (errEl) {
+              errEl.hidden = false;
+              errEl.textContent = "Passwords do not match.";
+            }
+            return;
+          }
+          if (submitBtn) submitBtn.disabled = true;
+
+          try {
+            const result = await resetPasswordWithToken(token, password);
+            if (form) form.hidden = true;
+            if (introEl) introEl.hidden = true;
+            statusEl.className = "status-line ok";
+            statusEl.textContent = result.message || "Password updated.";
+            if (successEl) successEl.hidden = false;
+          } catch (err) {
+            if (submitBtn) submitBtn.disabled = false;
+            const map = {
+              reset_not_found: "This reset link is invalid or was already used.",
+              reset_expired: "This reset link has expired. Request a new one.",
+              invalid_password: "Password must be at least 8 characters.",
+              account_banned: "This account has been banned.",
+              network_error: apiUnreachableMessage(resolveApiBase()),
+              api_not_configured: apiUnreachableMessage(""),
+            };
+            if (errEl) {
+              errEl.hidden = false;
+              errEl.textContent = map[err.code] || err.message || "Reset failed.";
+            }
+          }
+        });
+      })
+      .catch((err) => {
+        const map = {
+          reset_not_found: "This reset link is invalid or was already used.",
+          reset_expired: "This reset link has expired. Request a new one below.",
+        };
+        statusEl.className = "status-line err";
+        statusEl.textContent = map[err.code] || err.message || "Reset link invalid.";
+      });
+  }
+
   function initRegisterPage() {
     const form = document.getElementById("registerForm");
     if (!form) return;
@@ -2031,6 +2212,8 @@
     initWelcomeRedirect();
     initRegisterPage();
     initVerifyEmailPage();
+    initForgotPasswordPage();
+    initResetPasswordPage();
     initProfileMailForm();
     initAdminUsersModal();
     bootstrap();
@@ -2055,6 +2238,9 @@
     register,
     resendVerification,
     verifyEmail,
+    requestPasswordReset,
+    validateResetToken,
+    resetPasswordWithToken,
     logout,
     fetchProfile,
     updateProfile,

@@ -18,6 +18,7 @@ import {
   sendInviteEmail,
   sendRegistrationConfirmationEmail,
   sendVerificationEmail,
+  sendPasswordResetEmail,
   sendTestEmail,
   STRATO_MAIL_PRESET,
   verifySmtpConnection,
@@ -32,6 +33,7 @@ const BCRYPT_ROUNDS = 12;
 const SESSION_DAYS = 30;
 const INVITE_DAYS = 7;
 const VERIFY_HOURS = 48;
+const RESET_HOURS = 24;
 /** Host/dev bypass when no invite row (4 digits). Override: DEV_INVITE_CODE in .env */
 const DEV_INVITE_CODE = String(process.env.DEV_INVITE_CODE || "1234").trim();
 /** Skip verification emails — accounts are active immediately (dev/small deployments). */
@@ -39,6 +41,9 @@ const SKIP_EMAIL_VERIFY = /^(1|true|yes)$/i.test(String(process.env.SKIP_EMAIL_V
 /** Return confirm link in API + server log when mail did not send (dev troubleshooting). */
 const DEV_EXPOSE_VERIFY_URL = /^(1|true|yes)$/i.test(
   String(process.env.DEV_EXPOSE_VERIFY_URL || "")
+);
+const DEV_EXPOSE_RESET_URL = /^(1|true|yes)$/i.test(
+  String(process.env.DEV_EXPOSE_RESET_URL || process.env.DEV_EXPOSE_VERIFY_URL || "")
 );
 /**
  * Dev-only instant login (skip bcrypt). Disable on public servers: DEV_LOGIN_FALLBACK=0 in .env
@@ -156,6 +161,59 @@ function inviteExpiry() {
 
 function verifyExpiry() {
   return nowMs() + VERIFY_HOURS * 60 * 60 * 1000;
+}
+
+function resetExpiry() {
+  return nowMs() + RESET_HOURS * 60 * 60 * 1000;
+}
+
+const PASSWORD_RESET_GENERIC_MESSAGE =
+  "If an account exists for that email or username, we sent password reset instructions.";
+
+function findUserForPasswordReset({ email, username }) {
+  const db = getDb();
+  const byUsername = username
+    ? db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(username)
+    : null;
+  if (byUsername) return byUsername;
+  const byEmail = email
+    ? db.prepare("SELECT * FROM users WHERE LOWER(email) = LOWER(?)").get(email)
+    : null;
+  return byEmail || null;
+}
+
+async function createPasswordResetToken(userId) {
+  const db = getDb();
+  const token = randomBytes(32).toString("hex");
+  const createdAt = nowMs();
+  const expiresAt = resetExpiry();
+  db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?").run(userId);
+  db.prepare(
+    "INSERT INTO password_reset_tokens (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)"
+  ).run(token, userId, expiresAt, createdAt);
+  return token;
+}
+
+async function sendUserPasswordResetEmail(user) {
+  const token = await createPasswordResetToken(user.id);
+  const resetUrl = `${getAppPublicUrl()}/reset-password.html?token=${encodeURIComponent(token)}`;
+  const mailResult = await sendPasswordResetEmail({
+    to: user.email,
+    resetUrl,
+    username: user.username,
+    userRow: user,
+  });
+  return { resetUrl, mailResult };
+}
+
+function clearPasswordResetForUser(userId) {
+  const db = getDb();
+  db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?").run(userId);
+}
+
+function revokeAllSessionsForUser(userId) {
+  const db = getDb();
+  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
 }
 
 function parseBearer(req) {
@@ -527,6 +585,98 @@ authRouter.get("/auth/invite/:token", (req, res) => {
     manualInvite: isManualInviteEmail(invite.email),
     expiresAt: invite.expires_at,
     hostName: host?.display_name || host?.username || "Host",
+  });
+});
+
+authRouter.post("/auth/forgot-password", async (req, res) => {
+  const email = validateEmail(req.body?.email);
+  const username = validateUsername(req.body?.username);
+  if (!email && !username) {
+    return res.status(400).json({ ok: false, error: "identifier_required" });
+  }
+
+  try {
+    const user = findUserForPasswordReset({ email, username });
+    let devResetUrl;
+    if (user && user.email && !isUserBanned(user)) {
+      const { resetUrl, mailResult } = await sendUserPasswordResetEmail(user);
+      if (!mailResult.sent && (DEV_EXPOSE_RESET_URL || mailResult.devMode)) {
+        devResetUrl = resetUrl;
+        console.log(`[auth] Password reset link for ${user.username}:\n  ${resetUrl}`);
+      }
+    }
+    res.json({
+      ok: true,
+      message: PASSWORD_RESET_GENERIC_MESSAGE,
+      devResetUrl,
+    });
+  } catch (err) {
+    console.error("[auth] forgot-password failed:", err);
+    res.json({
+      ok: true,
+      message: PASSWORD_RESET_GENERIC_MESSAGE,
+    });
+  }
+});
+
+authRouter.get("/auth/reset-password/:token", (req, res) => {
+  const { token } = req.params;
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM password_reset_tokens WHERE token = ?").get(token);
+  if (!row) {
+    return res.status(404).json({ ok: false, error: "reset_not_found" });
+  }
+  if (row.expires_at < nowMs()) {
+    db.prepare("DELETE FROM password_reset_tokens WHERE token = ?").run(token);
+    return res.status(410).json({ ok: false, error: "reset_expired" });
+  }
+  const user = db.prepare("SELECT username FROM users WHERE id = ?").get(row.user_id);
+  res.json({
+    ok: true,
+    username: user?.username || null,
+    expiresAt: row.expires_at,
+  });
+});
+
+authRouter.post("/auth/reset-password", async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  const password = validatePassword(req.body?.password);
+  if (!token) {
+    return res.status(400).json({ ok: false, error: "reset_token_required" });
+  }
+  if (!password) {
+    return res.status(400).json({ ok: false, error: "invalid_password" });
+  }
+
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM password_reset_tokens WHERE token = ?").get(token);
+  if (!row) {
+    return res.status(404).json({ ok: false, error: "reset_not_found" });
+  }
+  if (row.expires_at < nowMs()) {
+    db.prepare("DELETE FROM password_reset_tokens WHERE token = ?").run(token);
+    return res.status(410).json({ ok: false, error: "reset_expired" });
+  }
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(row.user_id);
+  if (!user) {
+    db.prepare("DELETE FROM password_reset_tokens WHERE token = ?").run(token);
+    return res.status(404).json({ ok: false, error: "reset_not_found" });
+  }
+  if (isUserBanned(user)) {
+    return res.status(403).json({ ok: false, error: "account_banned" });
+  }
+
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, user.id);
+  clearPasswordResetForUser(user.id);
+  revokeAllSessionsForUser(user.id);
+  db.prepare("DELETE FROM email_verifications WHERE user_id = ?").run(user.id);
+
+  res.json({
+    ok: true,
+    message: "Password updated. You can sign in with your new password.",
+    username: user.username,
   });
 });
 

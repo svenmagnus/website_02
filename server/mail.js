@@ -369,6 +369,39 @@ export async function sendRegistrationConfirmationEmail({
   return result;
 }
 
+/**
+ * @param {{ to: string, resetUrl: string, username: string, userRow?: Record<string, unknown>|null }} opts
+ */
+export async function sendPasswordResetEmail({ to, resetUrl, username, userRow }) {
+  const subject = `Reset your ${SITE_NAME} password`;
+  const text =
+    `Hello ${username},\n\n` +
+    `we received a request to reset your password. Open this link to choose a new password:\n\n${resetUrl}\n\n` +
+    `The link is valid for 24 hours. If you did not request this, you can ignore this email.\n\n${SITE_NAME}`;
+
+  const html = emailLayout({
+    title: "Reset password",
+    bodyHtml:
+      `<p style="line-height:1.55;color:#c8c8d0;">Hello <strong style="color:#fff;">${escapeHtml(username)}</strong>,</p>` +
+      `<p style="line-height:1.55;color:#c8c8d0;">Click below to set a new password for your account:</p>` +
+      `<p style="margin:20px 0;"><a href="${escapeHtml(resetUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Reset password</a></p>` +
+      `<p style="font-size:13px;color:#888;word-break:break-all;">${escapeHtml(resetUrl)}</p>` +
+      `<p style="font-size:13px;color:#888;line-height:1.5;">If you did not request a reset, ignore this message — your password stays unchanged.</p>`,
+    footerNote: "Link valid for 24 hours.",
+  });
+
+  const config = getGlobalMailConfig() || getUserMailConfig(userRow);
+  if (!config) {
+    console.log(`[mail] No SMTP for password reset — not sent to ${to}`);
+    return { sent: false, devMode: true, source: null };
+  }
+  const result = await deliverMailWithConfig(config, { to, subject, text, html });
+  if (result.devMode) {
+    console.log(`[mail] Password reset (manual) for ${to}:\n  ${resetUrl}`);
+  }
+  return result;
+}
+
 export async function sendVerificationEmail({ to, verifyUrl, username, userRow }) {
   const subject = `Bitte bestätige dein ${SITE_NAME}-Konto`;
   const text =
