@@ -3110,6 +3110,69 @@ footer {
   flex: 1 1 12rem;
 }
 
+.setup-quick-guide {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+}
+
+.setup-quick-guide-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.setup-quick-guide-intro {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.setup-quick-guide-steps {
+  margin: 0 0 0.85rem;
+  padding-left: 1.2rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.setup-quick-guide-steps li + li {
+  margin-top: 0.55rem;
+}
+
+.setup-quick-guide-subtitle {
+  margin: 0 0 0.35rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.setup-quick-guide-optional {
+  margin: 0 0 0.65rem;
+  padding-left: 1.2rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.setup-quick-guide-actions {
+  margin-bottom: 0.65rem;
+}
+
+.setup-quick-guide-tip {
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 0 6px 6px 0;
+}
+
+.setup-quick-guide-tip a {
+  font-weight: 600;
+}
+
 .tangent-about-box {
   margin: 0 0 1rem;
   padding: 0.85rem 1rem;
