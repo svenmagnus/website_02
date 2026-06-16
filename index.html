@@ -693,9 +693,8 @@
 
           <div class="panel-tab-panel" data-panel-tab-panel="stream" hidden>
             <h2 class="panel-tab-title">Live session</h2>
-            <p class="status-line stream-tab-hint">Connection details are in the Setup tab while you stream.</p>
+            <p class="status-line stream-tab-hint">Connection details are in the Setup tab while you stream. Use <strong>Stop Camera</strong>, <strong>Stop Micro</strong>, or <strong>Stop current session</strong> there.</p>
             <div class="row stream-tab-actions">
-              <button type="button" id="btnHangupStream">Disconnect</button>
               <button type="button" class="secondary" id="btnOpenSetupTab">Open Setup</button>
             </div>
             <p class="status-line" id="streamStatusHost">Your camera: not started yet.</p>
@@ -809,9 +808,9 @@
             <legend>Camera connections</legend>
           <p class="status-line setup-session-actions-hint">
             Order: <strong>Partner for this session</strong> → <strong>Start instant session</strong> → partner clicks
-            <strong>Join</strong> → <strong>Start Camera</strong> (glows when partner is live). Use <strong>Stop Camera</strong>
-            to pause video without ending the session. Then <strong>Start Micro</strong>
-            (audio) if you want to speak.
+            <strong>Join</strong> → <strong>Start Camera</strong> / <strong>Start Micro</strong> (pink when ready).
+            <strong>Stop Camera</strong> or <strong>Stop Micro</strong> pauses video or audio for your partner without ending the session.
+            Use <strong>Stop current session</strong> to end for both.
           </p>
           <div class="row setup-session-actions">
             <button type="button" class="secondary" id="btnStartHost" disabled title="Start Camera (video)">
@@ -820,7 +819,6 @@
             <button type="button" class="secondary" id="btnConnect" disabled title="Start Micro (enable microphone/audio)">
               Start Micro
             </button>
-            <button type="button" id="btnHangup">Disconnect</button>
           </div>
           <div class="row media-source-row">
             <label for="broadcastMode">Broadcast</label>
@@ -1211,10 +1209,10 @@
     <script src="assets/ui-shell.js?v=8611"></script>
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
-    <script src="assets/app.js?v=8615"></script>
+    <script src="assets/app.js?v=8616"></script>
     <script src="assets/auth.js?v=8612"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8611"></script>
+    <script src="assets/social.js?v=8612"></script>
     <script src="assets/member-profile.js?v=8596"></script>
   </body>
 </html>

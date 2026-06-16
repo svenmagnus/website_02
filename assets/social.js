@@ -1592,7 +1592,7 @@
     if (btn) btn.disabled = true;
     try {
       if (global.appSessionRole?.()) {
-        document.getElementById("btnHangup")?.click();
+        global.DualPeerConnect?.hangup?.();
       }
       await deleteMeeting(active.id);
       state._pendingMeetingId = null;

@@ -884,6 +884,7 @@ function setVideoPlaceholderVisible(ph, visible) {
 /** True when the video element is actually showing a camera/stream feed. */
 function isVideoFeedActive(videoEl) {
   if (!videoEl?.srcObject) return false;
+  if (videoEl === els.remoteVideo && videoEl.dataset.partnerCameraOff === "1") return false;
 
   if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
     return true;
@@ -1250,13 +1251,13 @@ function replaceTracksInPeerConnection(stream) {
 function getLocalVideoSender() {
   const pc = mediaConn?.peerConnection;
   if (pc) {
-    const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-    if (sender) {
-      cachedLocalVideoSender = sender;
-      return sender;
-    }
     if (cachedLocalVideoSender && pc.getSenders().includes(cachedLocalVideoSender)) {
       return cachedLocalVideoSender;
+    }
+    const senderWithVideo = pc.getSenders().find((s) => s.track?.kind === "video");
+    if (senderWithVideo) {
+      cachedLocalVideoSender = senderWithVideo;
+      return senderWithVideo;
     }
     const transceiver = pc.getTransceivers?.().find(
       (t) =>
@@ -1425,33 +1426,12 @@ async function enableLocalCameraPublishing() {
 }
 
 async function disableLocalCameraPublishing() {
-  if (getBroadcastMode() === "whip") {
-    const stream = getActiveLocalStream();
-    stream?.getVideoTracks().forEach((track) => {
-      track.enabled = false;
-    });
-    if (stream) replaceTracksInPeerConnection(stream);
-    syncLocalMediaUi();
-    syncStartCameraButtonUi();
-    refreshVideoOverlays();
-    if (dataConn?.open) {
-      sendDataChannelMessage({ type: "camera_state", enabled: false, ts: Date.now() });
-    }
-    updateConnectionUi();
-    return true;
-  }
-
   const stream = getActiveLocalStream();
-  const videoTrack = stream?.getVideoTracks().find((track) => track.readyState === "live");
-  const sender = getLocalVideoSender();
-  if (sender) {
-    await sender.replaceTrack(null).catch(() => {});
-  }
-  if (videoTrack) {
-    videoTrack.enabled = false;
-    videoTrack.stop();
-    stream.removeTrack(videoTrack);
-  }
+  stream?.getVideoTracks().forEach((track) => {
+    if (track.readyState === "live") {
+      track.enabled = false;
+    }
+  });
 
   if (dataConn?.open) {
     sendDataChannelMessage({ type: "camera_state", enabled: false, ts: Date.now() });
@@ -2006,6 +1986,82 @@ function clearLiveChatDom() {
 function endSessionChat() {
   clearLiveChatDom();
   global.DualPeerSocial?.clearChatAfterSession?.().catch(() => {});
+}
+
+function setPartnerRemotePlaybackActive(active) {
+  if (!els.remoteVideo) return;
+  if (active) {
+    els.remoteVideo.dataset.partnerCameraOff = "0";
+    els.remoteVideo.style.opacity = "1";
+  } else {
+    els.remoteVideo.dataset.partnerCameraOff = "1";
+    els.remoteVideo.style.opacity = "0";
+  }
+}
+
+function resetPeerMediaState({ keepInstantSession = true } = {}) {
+  if (mediaConn) {
+    try {
+      mediaConn.close();
+    } catch (_) {
+      /* ignore */
+    }
+    mediaConn = null;
+  }
+  if (dataConn) {
+    try {
+      dataConn.close();
+    } catch (_) {
+      /* ignore */
+    }
+    dataConn = null;
+  }
+  if (peer) {
+    try {
+      peer.destroy();
+    } catch (_) {
+      /* ignore */
+    }
+    peer = null;
+  }
+  sessionRole = null;
+  cachedLocalVideoSender = null;
+  notifySessionRole();
+
+  const stream = getActiveLocalStream();
+  if (stream) {
+    stream.getVideoTracks().forEach((track) => {
+      track.enabled = false;
+    });
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = false;
+    });
+    micWantedEnabled = false;
+  }
+
+  els.remoteVideo.srcObject = null;
+  if (els.remoteVideo) {
+    els.remoteVideo.muted = true;
+    delete els.remoteVideo.dataset.videoHidden;
+    setPartnerRemotePlaybackActive(false);
+  }
+  refreshVideoOverlays();
+  resetRemoteMediaUi();
+  syncLocalMediaUi();
+  syncStartCameraButtonUi();
+  syncStartMicroButtonUi();
+  updateConnectionUi();
+  global.DualPeerSocial?.updateSessionActionHighlight?.();
+  if (keepInstantSession) {
+    global.DualPeerSocial?.applyHostPeerIdFromMeetings?.();
+  }
+}
+
+function handlePartnerMediaDisconnected() {
+  if (!peer && !sessionRole && !mediaConn) return;
+  resetPeerMediaState({ keepInstantSession: true });
+  setStatus(els.statusGuest, "Partner disconnected — click Start Camera to reconnect.", "");
+  setStatus(els.statusHost, "Partner disconnected — click Start Camera to reconnect.", "");
 }
 
 function hangup() {
@@ -3322,13 +3378,15 @@ function handleIncomingDataMessage(raw) {
   }
   if (data.type === "session_end") {
     endSessionChat();
+    handlePartnerMediaDisconnected();
     return;
   }
   if (data.type === "camera_state") {
+    setPartnerRemotePlaybackActive(!!data.enabled);
     scheduleOverlayRefreshBurst();
     syncRemoteMediaUi();
     updateConnectionUi();
-    if (els.remoteVideo?.srcObject) {
+    if (data.enabled && els.remoteVideo?.srcObject) {
       const playPromise = els.remoteVideo.play();
       if (playPromise?.catch) playPromise.catch(() => {});
     }
@@ -3389,6 +3447,7 @@ global.DualPeerConnect = {
   prepareHostCall: () => ensurePeerSession({ asGuest: false, acquireMedia: false }),
   joinPartnerCall: (remoteId) =>
     ensurePeerSession({ asGuest: true, remoteId, acquireMedia: false }),
+  hangup,
 };
 
 function relayChatToPeer(text, sender) {
@@ -3980,6 +4039,7 @@ function onRemoteStream(remoteStream) {
   if (els.remoteVideo) {
     els.remoteVideo.srcObject = remoteStream;
     els.remoteVideo.muted = false;
+    setPartnerRemotePlaybackActive(true);
     applyRemotePlaybackVolume(getStoredRemoteVolume());
     bindVideoOverlayRefresh(els.remoteVideo);
     bindStreamTrackRefresh(remoteStream);
@@ -3999,11 +4059,8 @@ function bindMediaCallHandlers(call) {
   mediaConn = call;
   call.on("stream", onRemoteStream);
   call.on("close", () => {
-    els.remoteVideo.srcObject = null;
-    refreshVideoOverlays();
-    resetRemoteMediaUi();
-    updateConnectionUi();
-    global.DualPeerSocial?.updateSessionActionHighlight?.();
+    if (!peer && !sessionRole) return;
+    handlePartnerMediaDisconnected();
   });
   setTimeout(() => cacheLocalVideoSender(), 300);
 }
@@ -4193,7 +4250,7 @@ els.btnConnect.addEventListener("click", async () => {
   }
 });
 
-els.btnHangup.addEventListener("click", () => hangup());
+els.btnHangup?.addEventListener("click", () => hangup());
 const btnHangupStream = document.getElementById("btnHangupStream");
 if (btnHangupStream) btnHangupStream.addEventListener("click", () => hangup());
 
