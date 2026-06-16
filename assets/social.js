@@ -1079,6 +1079,7 @@
     applyHostPeerIdFromMeetings(meeting.hostPeerId);
     updateSessionActionHighlight();
     updateMeetingPanels();
+    tryAutoJoinPartnerCall(meeting.hostPeerId);
     global.dispatchEvent(
       new CustomEvent("dualpeer-session-joined", { detail: { meeting } })
     );
@@ -1090,8 +1091,8 @@
     }
     setMeetingStatusOnAll(
       meeting.hostPeerId
-        ? "Joined — Play Mode is ready. Click Start Camera to connect video."
-        : "Joined — Play Mode is ready. Start Camera when your partner goes live.",
+        ? "Joined — connected. Click Start Camera or Start Micro when ready."
+        : "Joined — waiting for partner Session ID, then camera/audio go live instantly.",
       "ok"
     );
     updatePartnerInstantRow();
@@ -1120,20 +1121,77 @@
     return Boolean(state.sessionJoinedMeetingId);
   }
 
+  function isActiveInstantSession() {
+    const partnerId = getCoupledPartnerId();
+    return Boolean(
+      isSessionJoined() ||
+        findActiveInstantSessionWithPartner(partnerId) ||
+        findMyPendingProviderMeeting() ||
+        findPartnerLiveMeeting()
+    );
+  }
+
+  function tryAutoJoinPartnerCall(remoteId) {
+    const peerId = String(remoteId || "").trim();
+    if (!peerId || global.appHasPeerConnection?.()) return;
+    if (!isActiveInstantSession() && !isSessionJoined()) return;
+    global.DualPeerConnect?.joinPartnerCall?.(peerId).catch(() => {});
+  }
+
+  function tryPrepareHostCall() {
+    if (global.appHasPeerConnection?.()) return;
+    if (!findMyPendingProviderMeeting() && !findActiveInstantSessionWithPartner(getCoupledPartnerId())) {
+      return;
+    }
+    global.DualPeerConnect?.prepareHostCall?.().catch(() => {});
+  }
+
   function updateSessionActionHighlight() {
     const startBtn = document.getElementById("btnStartHost");
     const joinBtn = document.getElementById("btnConnect");
     if (!startBtn || !joinBtn) return;
 
-    const role = global.appSessionRole?.();
-    const inCall = role === "host" || role === "guest";
-    const partnerLive = !inCall ? findPartnerLiveMeeting() : null;
-    const myTurnToStart = !inCall ? findMyPendingProviderMeeting() : null;
+    const inCall = global.appSessionRole?.() === "host" || global.appSessionRole?.() === "guest";
+    const instantActive = isActiveInstantSession();
+    const cameraOn = global.appLocalCameraActive?.() ?? false;
+    const micOn = global.appLocalMicEnabled?.() ?? false;
+    const peerUp = global.appHasPeerConnection?.() ?? inCall;
 
     startBtn.classList.remove("primary", "secondary", "session-action-glow");
     joinBtn.classList.remove("primary", "secondary", "session-action-glow");
 
-    if (inCall) return;
+    if (instantActive || inCall) {
+      if (!cameraOn) {
+        startBtn.classList.add("primary", "session-action-glow");
+      } else {
+        startBtn.classList.add("secondary");
+      }
+
+      if (peerUp && !micOn) {
+        joinBtn.classList.add("primary", "session-action-glow");
+      } else {
+        joinBtn.classList.add("secondary");
+      }
+
+      if (!startBtn.disabled) {
+        startBtn.title = cameraOn
+          ? "Stop Camera (session stays connected)"
+          : peerUp
+            ? "Start Camera — your partner sees video immediately"
+            : "Start Camera (video + Session ID)";
+      }
+      if (!joinBtn.disabled) {
+        joinBtn.title = micOn
+          ? "Stop Micro (mute microphone/audio)"
+          : peerUp
+            ? "Start Micro — your partner hears you immediately"
+            : "Start Micro (enable microphone/audio)";
+      }
+      return;
+    }
+
+    const partnerLive = findPartnerLiveMeeting();
+    const myTurnToStart = findMyPendingProviderMeeting();
 
     if (partnerLive) {
       startBtn.classList.add("primary", "session-action-glow");
@@ -1141,14 +1199,11 @@
       if (!startBtn.disabled) {
         startBtn.title = "Partner is live — click Start Camera to connect video";
       }
-      if (!startBtn.disabled) {
-        joinBtn.title = "Start Micro (enable microphone/audio)";
-      }
       return;
     }
 
     if (myTurnToStart) {
-      startBtn.classList.add("primary");
+      startBtn.classList.add("primary", "session-action-glow");
       joinBtn.classList.add("secondary");
       if (!startBtn.disabled) {
         startBtn.title = "Start Camera (video + Session ID)";
@@ -1186,10 +1241,11 @@
       peerIn.dispatchEvent(new Event("input", { bubbles: true }));
       const guestStatus = document.getElementById("statusGuest");
       if (guestStatus && !global.appSessionRole?.()) {
-        guestStatus.textContent = "Session ID ready — click Start Camera.";
+        guestStatus.textContent = "Session ID ready — connecting to partner …";
         guestStatus.className = "status-line ok";
       }
     }
+    tryAutoJoinPartnerCall(peerId);
     updateSessionActionHighlight();
   }
 
@@ -1334,37 +1390,52 @@
       .replace(/>/g, "&gt;");
   }
 
+  function formatMeetingScheduleWhen(scheduledStartAt) {
+    const start = Number(scheduledStartAt);
+    if (!Number.isFinite(start)) return "—";
+    return new Date(start).toLocaleString(undefined, {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function listUpcomingScheduledMeetings(meetings) {
+    const now = Date.now();
+    return (meetings || [])
+      .filter((m) => {
+        if (m.mode !== "scheduled") return false;
+        if (m.status === "completed" || m.status === "cancelled") return false;
+        const start = Number(m.scheduledStartAt);
+        return Number.isFinite(start) && start > now;
+      })
+      .sort((a, b) => Number(a.scheduledStartAt) - Number(b.scheduledStartAt));
+  }
+
   function updateMeetingPanels() {
     document.querySelectorAll(".js-meeting-list").forEach((list) => {
       list.replaceChildren();
-      if (!state.meetings.length) {
-        list.innerHTML = '<p class="status-line">No sessions yet.</p>';
+      const upcoming = listUpcomingScheduledMeetings(state.meetings);
+      if (!upcoming.length) {
+        list.innerHTML = '<p class="status-line">No upcoming sessions scheduled.</p>';
         return;
       }
-      for (const m of state.meetings.slice(0, 8)) {
+      for (const m of upcoming.slice(0, 12)) {
         const row = document.createElement("div");
         row.className = "meeting-list-item";
         const body = document.createElement("div");
         body.className = "meeting-list-item-body";
         const partner = m.isHost ? m.guest : m.host;
-        const when = m.scheduledStartAt
-          ? new Date(m.scheduledStartAt).toLocaleString(undefined, {
-              dateStyle: "short",
-              timeStyle: "short",
-            })
-          : "—";
-        const statusLabel =
-          m.mode === "instant" && m.status === "live"
-            ? "Instant Live"
-            : m.status === "live" && !String(m.hostPeerId || "").trim()
-              ? "live · ready to resume"
-              : m.status;
+        const when = formatMeetingScheduleWhen(m.scheduledStartAt);
         body.innerHTML =
-          `<strong>${m.mode === "instant" ? "Instant" : "Scheduled"}</strong> · ${statusLabel}` +
-          (partner ? ` · ${escapeHtml(partner.displayName)}` : "") +
-          (m.mode === "scheduled" ? `<br><span class="status-line">${when}</span>` : "") +
-          (m.hostPeerId ? `<br><code class="meeting-peer-id">${escapeHtml(m.hostPeerId)}</code>` : "") +
-          (m.googleEventId ? `<br><span class="status-line ok">Google Calendar synced</span>` : "");
+          `<div class="meeting-list-when">${escapeHtml(when)}</div>` +
+          `<div class="meeting-list-meta">` +
+          (partner ? `with ${escapeHtml(partner.displayName)}` : "Scheduled session") +
+          `</div>` +
+          (m.googleEventId ? `<span class="status-line ok">Google Calendar synced</span>` : "");
         if (m.calendarUrl) {
           const cal = document.createElement("a");
           cal.href = m.calendarUrl;
@@ -1378,32 +1449,6 @@
         row.appendChild(body);
         const actions = document.createElement("div");
         actions.className = "meeting-list-item-actions";
-        const inCall = global.appSessionRole?.();
-        const showJoin =
-          !m.isHost && m.mode === "instant" && m.status === "live" && !inCall;
-        if (showJoin) {
-          if (state.sessionJoinedMeetingId === m.id) {
-            const joined = document.createElement("span");
-            joined.className = "meeting-joined-badge";
-            joined.textContent = "Joined";
-            actions.appendChild(joined);
-          } else {
-            const joinBtn = document.createElement("button");
-            joinBtn.type = "button";
-            joinBtn.className = "meeting-join-btn primary";
-            joinBtn.textContent = "Join";
-            joinBtn.title = "Join session and open Play Mode";
-            joinBtn.addEventListener("click", async (e) => {
-              e.stopPropagation();
-              try {
-                await joinInstantMeeting(m);
-              } catch (err) {
-                setMeetingStatusOnAll(err.message || "Could not join session.", "err");
-              }
-            });
-            actions.appendChild(joinBtn);
-          }
-        }
         const delBtn = document.createElement("button");
         delBtn.type = "button";
         delBtn.className = "meeting-delete-btn";
@@ -1430,6 +1475,7 @@
     });
     renderActiveMembersPanel();
     renderContactPoolPanel();
+    updateSessionActionHighlight();
   }
 
   function updateCalendarUi() {
@@ -1530,6 +1576,7 @@
     row.hidden = !partnerId;
     btn.disabled = !partnerId || meetingCreateInFlight;
     setInstantSessionButtonMode(Boolean(active));
+    updateSessionActionHighlight();
   }
 
   async function stopCurrentInstantSession(meeting) {
@@ -1583,14 +1630,13 @@
         syncGoogle: state.calendar.connected,
       });
       const msg = global.DualPeerAuth?.isAccountHost?.()
-        ? "Instant session — click Start Camera to share your Session ID."
-        : "Instant session — click Join next to Instant Live, then Start Camera when ready.";
+        ? "Instant session — Start Camera and Start Micro glow pink when ready."
+        : "Instant session — click Join, then Start Camera / Start Micro (pink).";
       setPartnerInstantStatus(msg, "ok");
       setMeetingStatusOnAll(msg, "ok");
-      if (global.DualPeerAuth?.isAccountHost?.()) {
-        document.getElementById("btnStartHost")?.focus();
-        state._pendingMeetingId = meeting?.id;
-      }
+      document.getElementById("btnStartHost")?.focus();
+      state._pendingMeetingId = meeting?.id;
+      tryPrepareHostCall();
     } catch (err) {
       const errMsg = err?.message || "Could not start instant session.";
       setPartnerInstantStatus(errMsg, "err");
@@ -2202,6 +2248,7 @@
     });
     global.addEventListener("dualpeer-session-joined", () => {
       refreshPartnerPlaybookIfNeeded().catch(() => {});
+      updateSessionActionHighlight();
     });
     global.addEventListener("dualpeer-partner-profile", (e) => {
       const profile = e.detail?.profile;

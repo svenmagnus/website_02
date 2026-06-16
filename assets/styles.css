@@ -3475,6 +3475,20 @@ footer {
   min-width: 0;
 }
 
+.meeting-list-when {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+}
+
+.meeting-list-meta {
+  margin-top: 0.15rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
 .meeting-list-item-actions {
   display: flex;
   flex-shrink: 0;
