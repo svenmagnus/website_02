@@ -906,9 +906,7 @@
     const adminUsersBtn = document.getElementById("btnAdminUsers");
     const adminUsersFooterLink = document.getElementById("footerAdminUsersLink");
     const roleEl = document.getElementById("accountRoleLabel") || document.querySelector(".account-role");
-    const premiumSetupRow = document.getElementById("premiumSetupRow");
-    const premiumSetupHint = document.getElementById("premiumSetupHint");
-    const premiumSetupBtn = document.getElementById("btnPremiumFromSetup");
+    const premiumMenuBtn = document.getElementById("btnPremiumFromMenu");
 
     if (adminUsersBtn) adminUsersBtn.hidden = !canAccessMailSettings();
     if (adminUsersFooterLink) adminUsersFooterLink.hidden = !canAccessMailSettings();
@@ -938,20 +936,9 @@
     document.body.classList.toggle("account-host", loggedIn && isAccountHost());
     document.body.classList.toggle("account-guest", loggedIn && isAccountGuest());
 
-    if (premiumSetupRow) {
-      premiumSetupRow.hidden = !(loggedIn && !isPremium());
-    }
-    if (premiumSetupBtn instanceof HTMLButtonElement) {
-      premiumSetupBtn.disabled = false;
-      premiumSetupBtn.title = "";
-    }
-    if (premiumSetupHint) {
-      if (loggedIn && !isPremium()) {
-        premiumSetupHint.textContent =
-          "Premium (coming soon) will unlock extended model pool and booking tools.";
-      } else {
-        premiumSetupHint.textContent = "";
-      }
+    if (premiumMenuBtn) {
+      premiumMenuBtn.hidden = !(loggedIn && !isPremium() && !isAccountGuest());
+      premiumMenuBtn.title = "Premium (coming soon) — extended model pool and booking tools.";
     }
 
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
@@ -1172,16 +1159,17 @@
   function initPremiumLoginModal() {
     const modal = document.getElementById("premiumLoginModal");
     const closeBtn = document.getElementById("premiumLoginModalClose");
-    const setupBtn = document.getElementById("btnPremiumFromSetup");
+    const menuBtn = document.getElementById("btnPremiumFromMenu");
     const headerPremiumBtn = document.getElementById("headerPremiumBtn");
     if (closeBtn) closeBtn.addEventListener("click", closePremiumLoginModal);
-    if (setupBtn) {
-      setupBtn.addEventListener("click", () => {
-        if (isAccountGuest()) return;
+    if (menuBtn) {
+      menuBtn.addEventListener("click", () => {
+        if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
         if (!isLoggedIn()) {
-          document.getElementById("accessUsername")?.focus();
+          openPremiumLoginModal();
           return;
         }
+        if (isAccountGuest()) return;
       });
     }
     if (modal) {

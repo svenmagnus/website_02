@@ -2185,7 +2185,7 @@ function updateDataConnStatus() {
 function updateConnectionUi() {
   updatePeerConnectionStatus();
   updateDataConnStatus();
-  syncStreamTabStatus();
+  if (global.MemberProfile?.refreshAccountMini) MemberProfile.refreshAccountMini();
 }
 
 function setPeerStatus(msg, cls) {
@@ -3217,23 +3217,6 @@ function scheduleChatColorResync() {
 function shareMemberProfileOverDataChannel() {
   if (!global.MemberProfile?.shareProfileOverDataChannel) return;
   MemberProfile.shareProfileOverDataChannel((payload) => sendDataChannelMessage(payload));
-}
-
-function isLiveSessionActive() {
-  return !!(sessionRole && (dataConn?.open || hasRemoteVideo()));
-}
-
-function syncStreamTabStatus() {
-  const hostEl = document.getElementById("streamStatusHost");
-  const guestEl = document.getElementById("streamStatusGuest");
-  const dataEl = document.getElementById("streamStatusData");
-  if (hostEl && els.statusHost) hostEl.textContent = els.statusHost.textContent;
-  if (guestEl && els.statusGuest) guestEl.textContent = els.statusGuest.textContent;
-  if (dataEl && els.statusData) dataEl.textContent = els.statusData.textContent;
-  if (global.MemberProfile?.maybeAutoStreamTab) {
-    MemberProfile.maybeAutoStreamTab(isLiveSessionActive());
-  }
-  if (global.MemberProfile?.refreshAccountMini) MemberProfile.refreshAccountMini();
 }
 
 function handleIncomingChatPayload(data) {
@@ -4417,7 +4400,7 @@ function updateLovensePatternUrl() {
 function initLovenseLazyBoot() {
   const trigger = (e) => {
     const hit = e.target?.closest?.(
-      '[data-panel-tab="setup"], [data-panel-tab="stream"], [data-remote-tab="toys"], #localToyTestList, .local-test-card, #btnLovenseRetry'
+      '[data-panel-tab="setup"], [data-panel-tab="about"], [data-remote-tab="toys"], #localToyTestList, .local-test-card, #btnLovenseRetry'
     );
     if (hit) ensureLovenseInitialized();
   };

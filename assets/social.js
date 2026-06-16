@@ -2155,13 +2155,11 @@
     const btn = document.getElementById("btnHeaderChat");
     const setupSessions = document.getElementById("setupSessionsField");
     const setupModelPool = document.getElementById("setupModelPoolField");
-    const aboutBox = document.getElementById("tangentAboutBox");
     const loggedIn = isLoggedIn();
     if (btn) {
       btn.disabled = !loggedIn;
       btn.hidden = false;
     }
-    if (aboutBox) aboutBox.hidden = false;
     if (setupSessions) setupSessions.hidden = !loggedIn;
     if (setupModelPool) setupModelPool.hidden = !loggedIn;
     if (loggedIn) {

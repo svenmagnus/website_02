@@ -453,12 +453,6 @@
     setTabInGroup(root, tabId || "techniques", "data-remote-tab", "data-remote-tab-panel");
   }
 
-  function maybeAutoStreamTab(isLive) {
-    if (userPinnedTab) return;
-    if (isLive) setPanelTab("stream");
-    else if (getActivePanelTab() === "stream") setPanelTab("setup");
-  }
-
   function readPlayPrefsFromForm() {
     const pick = (name) => {
       const ids = [];
@@ -1307,10 +1301,6 @@
         renderTechniqueChecklist();
       });
     }
-    const openSetup = document.getElementById("btnOpenSetupTab");
-    if (openSetup) {
-      openSetup.addEventListener("click", () => setPanelTab("setup", { userAction: true }));
-    }
   }
 
   function initRemoteTabs() {
@@ -1536,7 +1526,6 @@
     refreshWelcomeBanner,
     dismissWelcomeBanner,
     setRemoteTab,
-    maybeAutoStreamTab,
     getChatSenderName,
     requestTechnique,
     addCustomTechnique,

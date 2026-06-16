@@ -366,6 +366,10 @@
                 </button>
               </div>
             </div>
+            <button type="button" class="account-dropdown-item" id="btnPremiumFromMenu" hidden role="menuitem">
+              <i class="bi bi-star-fill" aria-hidden="true"></i>
+              <span>Become Premium</span>
+            </button>
             <div class="account-dropdown-divider" role="separator"></div>
             <button type="button" class="account-dropdown-item account-dropdown-danger" id="accountLogoutBtn" role="menuitem">
               <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
@@ -515,8 +519,8 @@
             <button type="button" class="panel-tab" role="tab" data-panel-tab="setup" aria-selected="false">
               Setup
             </button>
-            <button type="button" class="panel-tab" role="tab" data-panel-tab="stream" aria-selected="false">
-              Stream
+            <button type="button" class="panel-tab" role="tab" data-panel-tab="about" aria-selected="false">
+              About Tangent-Club
             </button>
           </div>
 
@@ -681,7 +685,7 @@
                   placeholder="e.g. Lush 3, Edge 2 …"
                 ></textarea>
                 <p class="status-line profile-field-hint">
-                  Info for your partner. Control toys via the Lovense Cam Extension in Setup / Stream.
+                  Info for your partner. Control toys via the Lovense Cam Extension in Setup.
                 </p>
               </div>
             </form>
@@ -691,16 +695,18 @@
             </div>
           </div>
 
-          <div class="panel-tab-panel" data-panel-tab-panel="stream" hidden>
-            <h2 class="panel-tab-title">Live session</h2>
-            <p class="status-line stream-tab-hint">Connection details are in the Setup tab while you stream. Use <strong>Stop Camera</strong>, <strong>Stop Micro</strong>, or <strong>Stop current session</strong> there.</p>
-            <div class="row stream-tab-actions">
-              <button type="button" class="secondary" id="btnOpenSetupTab">Open Setup</button>
+          <div class="panel-tab-panel" data-panel-tab-panel="about" hidden>
+            <h2 class="panel-tab-title">About Tangent-Club</h2>
+            <div class="tangent-about-box" id="tangentAboutBox">
+              <h3 class="tangent-about-title">What is Tangent Club?</h3>
+              <p class="status-line tangent-about-text">
+                A <strong>private 1:1 video lounge</strong> — not a public cam site. You connect only with people you
+                invite (or who invited you). One partner <strong>starts the camera</strong>; the other <strong>joins the
+                session</strong>. Optional <strong>Lovense</strong> toy control and technique requests make it
+                interactive — but there is no public gallery, tipping room, or anonymous browsing like on typical adult
+                platforms.
+              </p>
             </div>
-            <p class="status-line" id="streamStatusHost">Your camera: not started yet.</p>
-            <p class="status-line" id="streamStatusGuest">Partner stream: not connected yet.</p>
-            <p class="status-line" id="streamStatusData">Data channel: disconnected.</p>
-            <p class="status-line" data-partner-technique-summary>Partner: not connected</p>
           </div>
 
           <div class="panel-tab-panel" data-panel-tab-panel="setup" hidden>
@@ -747,16 +753,6 @@
               </a>
             </div>
           </fieldset>
-          <div class="tangent-about-box" id="tangentAboutBox">
-            <h3 class="tangent-about-title">What is Tangent Club?</h3>
-            <p class="status-line tangent-about-text">
-              A <strong>private 1:1 video lounge</strong> — not a public cam site. You connect only with people you
-              invite (or who invited you). One partner <strong>starts the camera</strong>; the other <strong>joins the
-              session</strong> with the shared Session ID. Optional <strong>Lovense</strong> toy control and technique
-              requests make it interactive — but there is no public gallery, tipping room, or anonymous browsing like on
-              typical adult platforms.
-            </p>
-          </div>
           <p class="status-line setup-flow-hint" id="guestHostHint" hidden></p>
           <p class="status-line setup-flow-hint">
             <strong>Start as host:</strong> (1) Sign in on the start screen → (2) Choose broadcast
@@ -768,15 +764,6 @@
               <strong>Start Camera</strong> (video) and optionally <strong>Start Micro</strong> (audio).</span
             >
           </p>
-          <div class="row premium-setup-row" id="premiumSetupRow">
-            <button type="button" class="secondary premium-setup-btn" id="btnPremiumFromSetup">
-              <i class="bi bi-star-fill" aria-hidden="true"></i>
-              Become Premium
-            </button>
-            <p class="status-line profile-field-hint" id="premiumSetupHint">
-              Sign in to join a session. Invited? Use the account from your email.
-            </p>
-          </div>
           <fieldset class="setup-model-pool-field" id="setupModelPoolField" hidden>
             <legend>Partner for this session</legend>
             <p class="status-line profile-field-hint">
@@ -1200,10 +1187,10 @@
     <script src="assets/ui-shell.js?v=8611"></script>
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
-    <script src="assets/app.js?v=8617"></script>
-    <script src="assets/auth.js?v=8612"></script>
+    <script src="assets/app.js?v=8618"></script>
+    <script src="assets/auth.js?v=8613"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8613"></script>
-    <script src="assets/member-profile.js?v=8596"></script>
+    <script src="assets/social.js?v=8614"></script>
+    <script src="assets/member-profile.js?v=8597"></script>
   </body>
 </html>
