@@ -249,52 +249,76 @@
         </section>
 
         <section class="manual-section">
-          <h2>5. Advanced: Multi-Streaming &amp; OBS</h2>
+          <h2>5. Advanced: Multi-Streaming &amp; Parallel Sessions (Recommended)</h2>
           <p class="status-line">
-            If you want to use advanced camera features or stream to multiple platforms simultaneously (e.g., Tangent Club
-            and Chaturbate parallel), the standard browser extension will block you. Use one of these two methods:
+            If you want to use advanced camera features or broadcast on public cam sites (e.g., Chaturbate, Stripchat)
+            while simultaneously hosting a private 1:1 session on Tangent Club, you can easily combine both worlds without
+            overloading your computer.
           </p>
 
-          <h3 class="manual-subheading">Option 1: Lovense Stream Master (Recommended)</h3>
+          <h3 class="manual-subheading">The Smart Setup: Stream Master (OBS) + Virtual Camera</h3>
           <p class="status-line">
-            This is a modified OBS Studio created by Lovense to handle multi-platform toy integration.
+            Instead of sending multiple heavy server streams (RTMP/WHIP) at the same time, you use OBS to broadcast to the
+            public sites and the OBS Virtual Camera to feed your video directly into Tangent Club via your browser.
           </p>
           <ul>
             <li>
-              <strong>How it works:</strong> Install <strong>Stream Master</strong>, log in, and pair your toys.
+              <strong>Advantage 1 (Performance):</strong> Your Mac/PC only has to encode and process the video feed once. This
+              saves massive CPU power and bandwidth.
             </li>
             <li>
-              <strong>Setup:</strong> Use the built-in &ldquo;Multiple Output&rdquo; function to enter the RTMP server
-              data/keys for Chaturbate and Tangent Club.
+              <strong>Advantage 2 (Toy Control):</strong> Since Tangent Club receives your stream as a &ldquo;webcam&rdquo;
+              feed through the browser, the Lovense Chrome extension remains fully active. Your partner can control your toys
+              directly in real time, while public viewers can still trigger your toys via automated tips.
             </li>
             <li>
-              <strong>Advantage:</strong> Includes a unified ChatBox to aggregate signals and chats from different
-              platforms.
+              <strong>Audio note:</strong> The Virtual Camera transmits <strong>video only</strong>. Click
+              <strong>Start Micro</strong> in Tangent Club so your partner can hear you. (If you use
+              <strong>OBS Studio (WHIP)</strong> instead, audio comes from OBS — keep the browser microphone off to avoid
+              echoes.)
             </li>
           </ul>
 
-          <h3 class="manual-subheading">Option 2: OBS Studio with &ldquo;Multiple RTMP&rdquo; Plugin</h3>
-          <p class="status-line">
-            If you already use standard OBS Studio to feed video into Tangent Club via WHIP/WHEP:
+          <h3 class="manual-subheading">Step-by-Step Configuration</h3>
+          <ol>
+            <li>
+              <strong>Set Up Public Streaming in OBS</strong><br />
+              Configure your stream for Chaturbate (or use the Multiple Output plugin if adding Stripchat) inside Lovense
+              Stream Master (OBS). Click <strong>Start Streaming</strong> (or <strong>Start All</strong>) to take your
+              public show live.
+            </li>
+            <li>
+              <strong>Activate the Virtual Camera</strong><br />
+              In the bottom-right control panel of Stream Master, click <strong>Start Virtual Camera</strong>.
+              <br /><br />
+              <span aria-hidden="true">💡</span> <strong>Pro Tip for Privacy:</strong> If you do not want your Tangent Club
+              partner to see your public overlays, chat boxes, or the Lovense Video Feedback source on your screen, click
+              the gear icon next to <strong>Start Virtual Camera</strong>. Change the Output Type from
+              &ldquo;Program&rdquo; to &ldquo;Source&rdquo; and select your raw camera feed (Lovense Webcam 2) from the
+              dropdown. Click <strong>Save</strong>.
+            </li>
+            <li>
+              <strong>Connect to Tangent Club</strong><br />
+              Open Google Chrome, log into tangent-club.com, and go to <strong>Setup → Connection &amp; broadcast</strong>.
+              Under <strong>Broadcast</strong>, keep <strong>Webcam &amp; microphone (no OBS)</strong> selected. In the
+              <strong>Video source</strong> dropdown, choose <strong>Lovense OBS Virtual Camera (OBS)</strong>, click the
+              pink <strong>Start Camera</strong> button, then <strong>Start Micro</strong> for your voice.
+            </li>
+            <li>
+              <strong>Verify Toy Integration</strong><br />
+              Keep your public streaming tabs open in Chrome. The Lovense extension can monitor multiple cam-site tabs, but
+              Chrome&rsquo;s <strong>Memory Saver</strong> may freeze background tabs after a while — disable it for your cam
+              sites or keep those tabs active. Triggers from Chaturbate/Stripchat tokens and direct slider movements from
+              your Tangent Club partner can run in parallel; Lovense applies a <strong>Highest Level Wins</strong> rule when
+              signals overlap.
+            </li>
+          </ol>
+          <p class="status-line profile-field-hint">
+            <strong>Advanced alternative:</strong> Under <strong>Broadcast</strong>, you can still choose
+            <strong>OBS Studio (WHIP)</strong> and paste the Server URL and Bearer Token into OBS. Virtual Camera is the
+            recommended default for cam models who also stream publicly — simpler setup and full Lovense extension support in
+            the browser.
           </p>
-          <ul>
-            <li>
-              <strong>Video Setup:</strong> Install the free <strong>Multiple RTMP outputs</strong> plugin for OBS to send
-              your video feed to Chaturbate and Tangent Club simultaneously.
-            </li>
-            <li>
-              <strong>Tangent Club Connection:</strong> In the Tangent Club <strong>Setup</strong> tab under broadcast,
-              select <strong>OBS Studio (WHIP)</strong>. Copy the <em>OBS Server (WHIP)</em> URL and <em>Bearer Token</em>
-              into OBS (<em>Settings → Stream → Service: WHIP</em>), then click <em>Start Streaming</em> in OBS. Host
-              clicks <em>Start Camera</em> on the site to pull the feed.
-            </li>
-            <li>
-              <strong>Toy Setup:</strong> Install the <strong>Lovense OBS Toolset</strong>. Since the browser extension can
-              only track one active site, toy control will run primarily via Chaturbate (for automated tips). For Tangent
-              Club, triggers must either be mirrored manually via the Lovense Web Dashboard or integrated directly into
-              the backend using the Lovense Developer API.
-            </li>
-          </ul>
         </section>
 
         <section class="manual-section">
