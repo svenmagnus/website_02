@@ -1296,6 +1296,33 @@ function getOutboundMediaStream() {
   return getActiveLocalStream() || new MediaStream();
 }
 
+async function ensureOutboundMediaForPeer({ startLive = false } = {}) {
+  if (getBroadcastMode() === "whip") {
+    return getOutboundMediaStream();
+  }
+
+  if (!getActiveLocalStream()) {
+    await startSessionMedia();
+  }
+
+  const stream = getActiveLocalStream();
+  if (!stream) return getOutboundMediaStream();
+
+  if (!startLive) {
+    stream.getVideoTracks().forEach((track) => {
+      track.enabled = false;
+    });
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = false;
+    });
+    micWantedEnabled = false;
+    refreshVideoOverlays();
+    syncLocalMediaUi();
+  }
+
+  return stream;
+}
+
 function isRemoteVideoPublishing() {
   const stream = els.remoteVideo?.srcObject;
   if (!(stream instanceof MediaStream)) return false;
@@ -1377,7 +1404,9 @@ async function enableLocalCameraPublishing() {
   attachLocalVideoStream(stream);
   const sender = getLocalVideoSender();
   if (sender) {
-    await sender.replaceTrack(videoTrack).catch(() => {});
+    if (sender.track !== videoTrack) {
+      await sender.replaceTrack(videoTrack).catch(() => {});
+    }
     cachedLocalVideoSender = sender;
   } else if (mediaConn?.peerConnection) {
     mediaConn.peerConnection.addTrack(videoTrack, stream);
@@ -3926,6 +3955,7 @@ function bindRemoteStreamTrackEvents(remoteStream) {
     scheduleOverlayRefreshBurst();
     syncRemoteMediaUi();
     updateConnectionUi();
+    global.DualPeerSocial?.updateSessionActionHighlight?.();
     const playPromise = els.remoteVideo?.play();
     if (playPromise?.catch) playPromise.catch(() => {});
   };
@@ -4023,11 +4053,16 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
     setupPeerHandlers();
 
     if (startAsGuest) {
-      if (acquireMedia) {
-        await startSessionMedia();
+      let stream = getOutboundMediaStream();
+      if (whipMode) {
+        if (acquireMedia) {
+          await startSessionMedia();
+          stream = getActiveLocalStream() || stream;
+        }
+      } else {
+        stream = await ensureOutboundMediaForPeer({ startLive: acquireMedia });
       }
 
-      const stream = acquireMedia ? getActiveLocalStream() : getOutboundMediaStream();
       const call = peer.call(remote, stream);
       if (call) bindMediaCallHandlers(call);
 
@@ -4041,8 +4076,8 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
         "ok"
       );
     } else {
-      if (acquireMedia) {
-        if (whipMode) {
+      if (whipMode) {
+        if (acquireMedia) {
           await registerWhipBroadcast(peer.id);
           setStatus(
             els.statusHost,
@@ -4050,9 +4085,9 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
             "ok"
           );
           await startWhipSessionMedia();
-        } else {
-          await startSessionMedia();
         }
+      } else {
+        await ensureOutboundMediaForPeer({ startLive: acquireMedia });
       }
       await publishHostPeerIdToGuest(peer.id);
       setStatus(
@@ -4091,8 +4126,21 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
 
 function setupPeerHandlers() {
   peer.on("call", (call) => {
-    call.answer(getOutboundMediaStream());
-    bindMediaCallHandlers(call);
+    void (async () => {
+      let stream = getActiveLocalStream();
+      if (getBroadcastMode() !== "whip" && !stream) {
+        try {
+          stream = await ensureOutboundMediaForPeer({ startLive: false });
+        } catch (err) {
+          setStatus(els.statusHost, String(err.message || err), "err");
+          stream = getOutboundMediaStream();
+        }
+      } else {
+        stream = stream || getOutboundMediaStream();
+      }
+      call.answer(stream);
+      bindMediaCallHandlers(call);
+    })();
   });
 
   peer.on("connection", (conn) => {
