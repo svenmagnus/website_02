@@ -202,12 +202,19 @@
     );
   }
 
+  function clearPartnerPlaybookState() {
+    state.sessionJoinedMeetingId = null;
+    resetPartnerPlaybookCache();
+    global.MemberProfile?.setPartnerProfile?.(null);
+  }
+
   function coupleSessionWithPartner(partnerId, { addToMembers = true } = {}) {
     const id = String(partnerId || "").trim();
     const previousId = state.sessionPartnerId;
     if (!id) {
       state.sessionPartnerId = null;
       saveSessionPartnerIdToStorage(null);
+      clearPartnerPlaybookState();
       couplingPartner = true;
       document.querySelectorAll(".js-meeting-partner-select").forEach((sel) => {
         if (sel instanceof HTMLSelectElement) sel.value = "";
@@ -395,6 +402,7 @@
     }
     state.activeMembers = [];
     state.sessionPartnerId = null;
+    clearPartnerPlaybookState();
     if (clearStorage) clearActiveMembersStorage();
     else saveSessionPartnerIdToStorage(null);
     renderActiveMembersPanel();
@@ -404,6 +412,8 @@
     });
     couplingPartner = false;
     if (clearChat) clearLiveChat({ deleteServer: true }).catch(() => {});
+    updateSessionActionHighlight();
+    updatePartnerInstantRow();
   }
 
   function applyPartnerChatColors(partner) {
@@ -792,9 +802,7 @@
     }
 
     resetPartnerPlaybookCache();
-    if (global.MemberProfile?.setPartnerProfile) {
-      global.MemberProfile.setPartnerProfile(null);
-    }
+    clearPartnerPlaybookState();
 
     if (broadcast) broadcastChatClear();
   }
@@ -948,9 +956,8 @@
   }
 
   async function handleRemoteSessionEnded() {
-    state.sessionJoinedMeetingId = null;
     state._pendingMeetingId = null;
-    global.MemberProfile?.setPartnerProfile?.(null);
+    clearPartnerPlaybookState();
     removeInstantSessionWithPartnerFromLocal();
     setContactPool(state.contactPool);
     renderActiveMembersPanel();
@@ -969,8 +976,7 @@
     if (!state.sessionJoinedMeetingId) return;
     const meeting = state.meetings.find((m) => m.id === state.sessionJoinedMeetingId);
     if (!meeting || meeting.status !== "live" || meeting.mode !== "instant") {
-      state.sessionJoinedMeetingId = null;
-      global.MemberProfile?.setPartnerProfile?.(null);
+      clearPartnerPlaybookState();
       updateMeetingPanels();
       updatePartnerInstantRow();
       updateSessionActionHighlight();
@@ -1629,8 +1635,7 @@
       }
       await deleteMeeting(active.id);
       state._pendingMeetingId = null;
-      state.sessionJoinedMeetingId = null;
-      global.MemberProfile?.setPartnerProfile?.(null);
+      clearPartnerPlaybookState();
       setPartnerInstantStatus("Session stopped for both partners.", "ok");
       setMeetingStatusOnAll("Session stopped for both partners.", "ok");
       broadcastMeetingsChanged();
