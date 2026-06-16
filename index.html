@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8612" />
+    <link rel="stylesheet" href="assets/styles.css?v=8613" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -890,27 +890,18 @@
             Webcam mode: pick camera and microphone above (or “Default”), then Start Camera (video) — audio stays muted until Start Micro.
           </p>
           <p class="status-line" id="mediaSourceStatus" hidden></p>
-          <div class="peer-id-help-box" id="peerIdHelpBox" hidden>
-            <h3 class="peer-id-help-title">How the Session ID works</h3>
-            <ol class="peer-id-help-list">
-              <li>Click <strong>Start instant session</strong> next to your partner, then <strong>Start Camera</strong>.</li>
-              <li>Your <strong>Session ID</strong> appears below — it is also sent in <strong>Messages</strong>.</li>
-              <li>Your partner clicks <strong>Join</strong>, then <strong>Start Camera</strong> (audio is optional via <strong>Start Micro</strong>).</li>
-            </ol>
-          </div>
-          <div class="row">
+          <div hidden aria-hidden="true">
             <label for="peerIdIn">Partner Session ID</label>
-            <input type="text" id="peerIdIn" placeholder="Filled automatically when partner is live …" autocomplete="off" />
+            <input type="text" id="peerIdIn" placeholder="Filled automatically when partner is live …" autocomplete="off" tabindex="-1" />
           </div>
           <p class="status-line" id="statusHost">Your camera: not started yet.</p>
           <p class="status-line" id="statusGuest">Partner stream: not connected yet.</p>
           <p class="status-line" id="statusData">Data channel: disconnected.</p>
-          <div>
-            <span class="status-line">Your current Peer ID:</span>
+          <details class="peer-id-disclosure">
+            <summary class="peer-id-disclosure-summary">Current Peer ID</summary>
             <div class="peer-id-box" id="peerIdOut">—</div>
-          </div>
+          </details>
           <p class="lovense-hint" id="lovenseStatus">Lovense: open Setup or Remote Control (Toys) to connect.</p>
-          <p class="lovense-hint" id="lovenseToyStatus"></p>
           <p class="lovense-hint lovense-url-hint" id="lovenseUrlHint"></p>
           <p class="status-line pip-native-msg" id="pipNativeMsg" role="status"></p>
           </fieldset>
@@ -1209,10 +1200,10 @@
     <script src="assets/ui-shell.js?v=8611"></script>
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
-    <script src="assets/app.js?v=8616"></script>
+    <script src="assets/app.js?v=8617"></script>
     <script src="assets/auth.js?v=8612"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8612"></script>
+    <script src="assets/social.js?v=8613"></script>
     <script src="assets/member-profile.js?v=8596"></script>
   </body>
 </html>

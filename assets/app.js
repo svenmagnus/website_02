@@ -154,7 +154,6 @@ const els = {
   chatInput: $("#chat-input"),
   chatSend: $("#chat-send"),
   lovenseStatus: $("#lovenseStatus"),
-  lovenseToyStatus: $("#lovenseToyStatus"),
   lovenseSetupHint: $("#lovenseSetupHint"),
   localToyTestList: $("#localToyTestList"),
   lovenseUrlHint: $("#lovenseUrlHint"),
@@ -3657,11 +3656,6 @@ function onLovenseReady(detail) {
       `Extension ready${ver ? ` (v${ver})` : ""} — Site: ${window.dualPeerLovense?.getSiteName?.() || "Tangent-Club"}. ` +
         formatLovenseMotorStatus(detail)
     );
-    if (els.lovenseToyStatus) {
-      els.lovenseToyStatus.textContent = formatLovenseToys(
-        (detail && detail.toys) || window.dualPeerLovense?.toys
-      );
-    }
     broadcastLocalToyInventory();
     renderLocalToyTestPanel({ force: true });
   });
@@ -3682,7 +3676,6 @@ function onLovenseError(detail) {
 }
 
 function onLovenseToys(toys) {
-  if (els.lovenseToyStatus) els.lovenseToyStatus.textContent = formatLovenseToys(toys);
   broadcastLocalToyInventory();
   renderLocalToyTestPanel();
 }

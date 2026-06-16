@@ -1370,15 +1370,12 @@
 
   function updateSetupHints() {
     const hostHint = document.getElementById("guestHostHint");
-    const peerHelp = document.getElementById("peerIdHelpBox");
     if (hostHint && state.inviteHost) {
       hostHint.hidden = false;
       hostHint.innerHTML =
         `Your host: <strong>${escapeHtml(state.inviteHost.displayName)}</strong> (@${escapeHtml(state.inviteHost.username)}). ` +
-        `Use <strong>Messages</strong> in the header to chat. ` +
-        `When your partner starts the camera, the <strong>Session ID</strong> is filled in automatically below.`;
+        `Use <strong>Messages</strong> in the header to chat.`;
     }
-    if (peerHelp) peerHelp.hidden = false;
 
     applyHostPeerIdFromMeetings();
   }
@@ -2159,13 +2156,11 @@
     const setupSessions = document.getElementById("setupSessionsField");
     const setupModelPool = document.getElementById("setupModelPoolField");
     const aboutBox = document.getElementById("tangentAboutBox");
-    const peerHelp = document.getElementById("peerIdHelpBox");
     const loggedIn = isLoggedIn();
     if (btn) {
       btn.disabled = !loggedIn;
       btn.hidden = false;
     }
-    if (peerHelp) peerHelp.hidden = !loggedIn;
     if (aboutBox) aboutBox.hidden = false;
     if (setupSessions) setupSessions.hidden = !loggedIn;
     if (setupModelPool) setupModelPool.hidden = !loggedIn;
