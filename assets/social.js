@@ -1090,8 +1090,8 @@
     }
     setMeetingStatusOnAll(
       meeting.hostPeerId
-        ? "Joined — Play Mode is ready. Click Share Cam to connect video."
-        : "Joined — Play Mode is ready. Share Cam when your partner goes live.",
+        ? "Joined — Play Mode is ready. Click Start Camera to connect video."
+        : "Joined — Play Mode is ready. Start Camera when your partner goes live.",
       "ok"
     );
     updatePartnerInstantRow();
@@ -1136,13 +1136,13 @@
     if (inCall) return;
 
     if (partnerLive) {
-      joinBtn.classList.add("primary", "session-action-glow");
-      startBtn.classList.add("secondary");
-      if (!joinBtn.disabled) {
-        joinBtn.title = "Partner is live — click Share Cam to connect video";
+      startBtn.classList.add("primary", "session-action-glow");
+      joinBtn.classList.add("secondary");
+      if (!startBtn.disabled) {
+        startBtn.title = "Partner is live — click Start Camera to connect video";
       }
       if (!startBtn.disabled) {
-        startBtn.title = "Start your own camera (partner is already live)";
+        joinBtn.title = "Start Micro (enable microphone/audio)";
       }
       return;
     }
@@ -1151,7 +1151,7 @@
       startBtn.classList.add("primary");
       joinBtn.classList.add("secondary");
       if (!startBtn.disabled) {
-        startBtn.title = "Start your camera and share a Session ID";
+        startBtn.title = "Start Camera (video + Session ID)";
       }
       return;
     }
@@ -1159,10 +1159,10 @@
     startBtn.classList.add("secondary");
     joinBtn.classList.add("secondary");
     if (!startBtn.disabled) {
-      startBtn.title = "Start your camera and share a Session ID";
+      startBtn.title = "Start Camera (video + Session ID)";
     }
     if (!joinBtn.disabled) {
-      joinBtn.title = "Share your camera with your partner's session";
+      joinBtn.title = "Start Micro (enable microphone/audio)";
     }
   }
 
@@ -1186,7 +1186,7 @@
       peerIn.dispatchEvent(new Event("input", { bubbles: true }));
       const guestStatus = document.getElementById("statusGuest");
       if (guestStatus && !global.appSessionRole?.()) {
-        guestStatus.textContent = "Session ID ready — click Share Cam.";
+        guestStatus.textContent = "Session ID ready — click Start Camera.";
         guestStatus.className = "status-line ok";
       }
     }
@@ -1584,7 +1584,7 @@
       });
       const msg = global.DualPeerAuth?.isAccountHost?.()
         ? "Instant session — click Start Camera to share your Session ID."
-        : "Instant session — click Join next to Instant Live, then Share Cam when ready.";
+        : "Instant session — click Join next to Instant Live, then Start Camera when ready.";
       setPartnerInstantStatus(msg, "ok");
       setMeetingStatusOnAll(msg, "ok");
       if (global.DualPeerAuth?.isAccountHost?.()) {

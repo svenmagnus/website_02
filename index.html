@@ -160,7 +160,7 @@
         <h2 id="premiumLoginModalTitle">Sign in to your account</h2>
         <p class="login-overlay-hint">
           Same username and password as on the start screen. All members are models — invite others or join their
-          session with Join, then Start Camera / Share Cam.
+          session with Join, then Start Camera / Start Micro (audio).
         </p>
         <p class="status-line ok" id="loginVerifiedBanner" hidden></p>
         <form id="memberLoginForm">
@@ -390,7 +390,8 @@
             <video id="localVideo" autoplay playsinline muted></video>
             <div id="localPulse" class="toy-pulse" aria-hidden="true"></div>
             <div id="localPlaceholder" class="video-placeholder is-visible" aria-hidden="false">
-              Use <strong>Join</strong>, then <strong>Start Camera</strong> or <strong>Share Cam</strong> in Setup.
+              Use <strong>Join</strong>, then <strong>Start Camera</strong> (video) in Setup. Start <strong>Micro</strong>
+              (audio) when you want to talk.
             </div>
             <div class="video-media-overlay" data-panel="local" aria-label="Your video controls">
               <button
@@ -733,8 +734,8 @@
                 <strong>Start instant session</strong> next to their card.
               </li>
               <li>
-                Partner clicks <strong>Join</strong> next to Instant Live, then <strong>Start Camera</strong> or
-                <strong>Share Cam</strong> (glows orange when partner is live).
+                Partner clicks <strong>Join</strong> next to Instant Live, then <strong>Start Camera</strong> (glows orange
+                when partner is live) — <strong>Start Micro</strong> enables audio.
               </li>
             </ol>
             <div class="row lovense-setup-actions">
@@ -760,11 +761,12 @@
           <p class="status-line setup-flow-hint" id="guestHostHint" hidden></p>
           <p class="status-line setup-flow-hint">
             <strong>Start as host:</strong> (1) Sign in on the start screen → (2) Choose broadcast
-            <strong>Webcam &amp; microphone</strong> for normal streaming without OBS → (3) Pick camera/mic →
-            <strong>Start Camera</strong>. For OBS scenes: broadcast <strong>OBS (WHIP)</strong>.
+            <strong>Webcam &amp; microphone</strong> for normal streaming without OBS → (3) Pick camera/mic device →
+            <strong>Start Camera</strong> (video). Audio stays muted until <strong>Start Micro</strong>. For OBS
+            scenes: broadcast <strong>OBS (WHIP)</strong>.
             <span class="setup-flow-hint-member"
               >Invite models from the account menu. Partner joins via <strong>Join</strong>, then either side can
-              <strong>Start Camera</strong> or <strong>Share Cam</strong>.</span
+              <strong>Start Camera</strong> (video) and optionally <strong>Start Micro</strong> (audio).</span
             >
           </p>
           <div class="row premium-setup-row" id="premiumSetupRow">
@@ -807,14 +809,15 @@
             <legend>Camera connections</legend>
           <p class="status-line setup-session-actions-hint">
             Order: <strong>Partner for this session</strong> → <strong>Start instant session</strong> → partner clicks
-            <strong>Join</strong> → <strong>Start Camera</strong> or <strong>Share Cam</strong> (glows when partner is live).
+            <strong>Join</strong> → <strong>Start Camera</strong> (glows when partner is live). Then <strong>Start Micro</strong>
+            (audio) if you want to speak.
           </p>
           <div class="row setup-session-actions">
             <button type="button" class="secondary" id="btnStartHost" disabled title="Start your camera and share a Session ID">
               Start Camera
             </button>
-            <button type="button" class="secondary" id="btnConnect" disabled title="Share your camera with your partner's session">
-              Share Cam
+            <button type="button" class="secondary" id="btnConnect" disabled title="Start Micro (enable microphone/audio)">
+              Start Micro
             </button>
             <button type="button" id="btnHangup">Disconnect</button>
           </div>
@@ -885,7 +888,7 @@
             </select>
           </div>
           <p class="status-line media-source-hint" id="mediaSourceHint">
-            Webcam mode: pick camera and microphone above (or “Default”), then Start Camera — no OBS required.
+            Webcam mode: pick camera and microphone above (or “Default”), then Start Camera (video) — audio stays muted until Start Micro.
           </p>
           <p class="status-line" id="mediaSourceStatus" hidden></p>
           <div class="peer-id-help-box" id="peerIdHelpBox" hidden>
@@ -893,7 +896,7 @@
             <ol class="peer-id-help-list">
               <li>Click <strong>Start instant session</strong> next to your partner, then <strong>Start Camera</strong>.</li>
               <li>Your <strong>Session ID</strong> appears below — it is also sent in <strong>Messages</strong>.</li>
-              <li>Your partner clicks <strong>Join</strong>, then <strong>Share Cam</strong> (Session ID fills in automatically when possible).</li>
+              <li>Your partner clicks <strong>Join</strong>, then <strong>Start Camera</strong> (audio is optional via <strong>Start Micro</strong>).</li>
             </ol>
           </div>
           <div class="row">

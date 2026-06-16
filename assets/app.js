@@ -179,6 +179,7 @@ let camExtensionInstance = null;
 let lovenseReady = false;
 /** @type {"host"|"guest"|null} */
 let sessionRole = null;
+let micWantedEnabled = false;
 
 function notifySessionRole() {
   window.dispatchEvent(
@@ -1112,6 +1113,13 @@ async function acquireUserMediaStream() {
         }
       }
 
+        // Start Camera should not send microphone audio by default
+        // (prevents nasty feedback when both computers enable mic).
+        stream.getAudioTracks().forEach((track) => {
+          // eslint-disable-next-line no-param-reassign
+          track.enabled = !!micWantedEnabled;
+        });
+
       setObsVideoWrapFlag(isObs);
       if (isObs) {
         setMediaSourceStatus(
@@ -1637,6 +1645,14 @@ async function startWhipSessionMedia() {
 
   localStream = await subscribeWhepStream(whipBroadcast.whepUrl);
   window.localStream = localStream;
+
+  // Start Camera should not send microphone audio by default
+  // (incl. OBS scenes where OBS provides audio).
+  localStream.getAudioTracks().forEach((track) => {
+    // eslint-disable-next-line no-param-reassign
+    track.enabled = !!micWantedEnabled;
+  });
+
   attachLocalVideoStream(localStream);
   updateWhipBroadcastUi("WHEP connected — waiting for OBS video frames…", "ok");
   await waitForWhepVideoFrames(localStream, els.localVideo);
@@ -3713,114 +3729,120 @@ function setupPeerHandlers() {
 
 els.btnStartHost.addEventListener("click", async () => {
   hangup();
-  sessionRole = "host";
+  micWantedEnabled = false;
+
+  const remoteId = (els.peerIdIn.value || "").trim();
+  const startAsGuest = Boolean(remoteId);
+
+  sessionRole = startAsGuest ? "guest" : "host";
   notifySessionRole();
+
   const whipMode = getBroadcastMode() === "whip";
 
   try {
     peer = new Peer(undefined, PEER_OPTIONS);
 
-    peer.on("open", async (id) => {
-      els.peerIdOut.textContent = id;
-      setupPeerHandlers();
-      els.btnStartHost.disabled = true;
-      publishHostPeerIdToGuest(id);
-
-      try {
-        if (whipMode) {
-          await registerWhipBroadcast(id);
-          setStatus(
-            els.statusHost,
-            "Paste WHIP URL into OBS and click Start Streaming. Waiting for OBS…",
-            "ok"
-          );
-          await startWhipSessionMedia();
-        } else {
-          await startSessionMedia();
+    if (startAsGuest) {
+      if (global.DualPeerSocial?.checkConnectAvailable) {
+        try {
+          const check = await global.DualPeerSocial.checkConnectAvailable({ hostPeerId: remoteId });
+          if (!check?.available) {
+            setStatus(
+              els.statusGuest,
+              check?.message || "Your partner is in another session. Please try again later.",
+              "err"
+            );
+            return;
+          }
+        } catch (err) {
+          if (err?.status === 409 || err?.code === "provider_busy") {
+            setStatus(
+              els.statusGuest,
+              err.message || "Your partner is in another session. Please try again later.",
+              "err"
+            );
+            return;
+          }
         }
-        setStatus(els.statusHost, "Waiting for incoming connection … share Peer ID with partner.", "ok");
-      } catch (err) {
-        setStatus(els.statusHost, String(err.message || err), "err");
-        els.btnStartHost.disabled = !videoAccessUnlocked;
       }
-    });
+
+      peer.on("open", async (myId) => {
+        els.peerIdOut.textContent = myId;
+        setupPeerHandlers();
+
+        try {
+          // capture local media (video + mic disabled by default)
+          await startSessionMedia();
+        } catch (err) {
+          setStatus(els.statusGuest, String(err.message || err), "err");
+          return;
+        }
+
+        const stream = getActiveLocalStream();
+        const call = stream ? peer.call(remoteId, stream) : null;
+        if (call) {
+          mediaConn = call;
+          call.on("stream", onRemoteStream);
+          call.on("close", () => {
+            els.remoteVideo.srcObject = null;
+            refreshVideoOverlays();
+            resetRemoteMediaUi();
+            updateConnectionUi();
+          });
+        }
+
+        const conn = peer.connect(remoteId, { reliable: true, serialization: "json" });
+        setupDataConnection(conn);
+
+        updateConnectionUi();
+        els.btnStartHost.disabled = true;
+        syncStartMicroButtonUi();
+      });
+    } else {
+      peer.on("open", async (id) => {
+        els.peerIdOut.textContent = id;
+        setupPeerHandlers();
+        els.btnStartHost.disabled = true;
+        publishHostPeerIdToGuest(id);
+
+        try {
+          if (whipMode) {
+            await registerWhipBroadcast(id);
+            setStatus(
+              els.statusHost,
+              "Paste WHIP URL into OBS and click Start Streaming. Waiting for OBS…",
+              "ok"
+            );
+            await startWhipSessionMedia();
+          } else {
+            await startSessionMedia();
+          }
+          setStatus(els.statusHost, "Waiting for incoming connection … share Peer ID with partner.", "ok");
+        } catch (err) {
+          setStatus(els.statusHost, String(err.message || err), "err");
+          els.btnStartHost.disabled = !videoAccessUnlocked;
+        }
+      });
+    }
 
     peer.on("error", (err) => {
-      setStatus(els.statusHost, String(err.message || err), "err");
+      setStatus(
+        sessionRole === "host" ? els.statusHost : els.statusGuest,
+        String(err.message || err),
+        "err"
+      );
     });
   } catch (e) {
-    setStatus(els.statusHost, "Media access: " + formatMediaAccessError(e), "err");
+    setStatus(
+      sessionRole === "host" ? els.statusHost : els.statusGuest,
+      "Media access: " + formatMediaAccessError(e),
+      "err"
+    );
   }
 });
 
 els.btnConnect.addEventListener("click", async () => {
-  const remoteId = (els.peerIdIn.value || "").trim();
-  if (!remoteId) {
-    setStatus(els.statusGuest, "Please enter the partner Session ID.", "err");
-    return;
-  }
-  if (global.DualPeerSocial?.checkConnectAvailable) {
-    try {
-      const check = await global.DualPeerSocial.checkConnectAvailable({ hostPeerId: remoteId });
-      if (!check?.available) {
-        setStatus(
-          els.statusGuest,
-          check?.message ||
-            "Your partner is in another session. Please try again later.",
-          "err"
-        );
-        return;
-      }
-    } catch (err) {
-      if (err?.status === 409 || err?.code === "provider_busy") {
-        setStatus(
-          els.statusGuest,
-          err.message ||
-            "Your partner is in another session. Please try again later.",
-          "err"
-        );
-        return;
-      }
-    }
-  }
-  hangup();
-  sessionRole = "guest";
-  notifySessionRole();
-  try {
-    await startSessionMedia();
-    peer = new Peer(undefined, PEER_OPTIONS);
-
-    peer.on("open", (myId) => {
-      els.peerIdOut.textContent = myId;
-      setupPeerHandlers();
-
-      const stream = getActiveLocalStream();
-      const call = stream ? peer.call(remoteId, stream) : null;
-      if (call) {
-        mediaConn = call;
-        call.on("stream", onRemoteStream);
-        call.on("close", () => {
-          els.remoteVideo.srcObject = null;
-          refreshVideoOverlays();
-          resetRemoteMediaUi();
-          updateConnectionUi();
-        });
-      }
-
-      const conn = peer.connect(remoteId, { reliable: true, serialization: "json" });
-      setupDataConnection(conn);
-
-      updateConnectionUi();
-      els.btnConnect.disabled = true;
-      els.btnStartHost.disabled = true;
-    });
-
-    peer.on("error", (err) => {
-      setStatus(els.statusGuest, String(err.message || err), "err");
-    });
-  } catch (e) {
-    setStatus(els.statusGuest, "Media access: " + formatMediaAccessError(e), "err");
-  }
+  toggleLocalAudio();
 });
 
 els.btnHangup.addEventListener("click", () => hangup());
@@ -3893,11 +3915,11 @@ function applyAccountStreamingUi() {
   if (!videoAccessUnlocked) return;
   if (els.btnStartHost) {
     els.btnStartHost.disabled = false;
-    els.btnStartHost.title = "Start your camera and share a Session ID";
+    els.btnStartHost.title = "Start Camera (video)";
   }
   if (els.btnConnect) {
-    els.btnConnect.disabled = false;
-    els.btnConnect.title = "Share your camera with your partner's session";
+    els.btnConnect.disabled = !localStream;
+    els.btnConnect.title = "Start Micro (enable microphone/audio)";
   }
   global.DualPeerSocial?.updateSessionActionHighlight?.();
 }
@@ -3914,7 +3936,7 @@ function setVideoAccessUi(unlocked) {
   }
   setMediaSourceControlsEnabled(unlocked);
   if (els.btnStartHost) els.btnStartHost.disabled = !unlocked;
-  if (els.btnConnect) els.btnConnect.disabled = !unlocked;
+  if (els.btnConnect) els.btnConnect.disabled = !unlocked || !localStream;
   if (unlocked) {
     refreshMediaDeviceLists().catch(() => {});
     applyAccountStreamingUi();
@@ -4278,7 +4300,34 @@ function applyRemotePlaybackVolume(volume) {
   }
 }
 
+function syncStartMicroButtonUi() {
+  const btn = els.btnConnect;
+  if (!btn) return;
+
+  const stream = getActiveLocalStream();
+  if (!stream) {
+    btn.disabled = true;
+    btn.textContent = "Start Micro";
+    btn.title = "Start Micro (enable microphone/audio)";
+    return;
+  }
+
+  const tracks = stream.getAudioTracks();
+  if (!tracks.length) {
+    btn.disabled = true;
+    btn.textContent = "Start Micro";
+    btn.title = "Microphone not available";
+    return;
+  }
+
+  const isMuted = tracks.every((t) => !t.enabled);
+  btn.disabled = false;
+  btn.textContent = isMuted ? "Start Micro" : "Stop Micro";
+  btn.title = isMuted ? "Start Micro (enable microphone/audio)" : "Stop Micro (mute microphone/audio)";
+}
+
 function resetLocalMediaUi() {
+  micWantedEnabled = false;
   setLocalControlsEnabled(false);
   setIconState(els.localMuteIcon, MEDIA_ICON.micOn, MEDIA_ICON.micOff, false);
   setIconState(els.localVideoIcon, MEDIA_ICON.camOn, MEDIA_ICON.camOff, false);
@@ -4298,6 +4347,8 @@ function resetLocalMediaUi() {
     "Stop Video",
     "Start Video"
   );
+
+  syncStartMicroButtonUi();
 }
 
 function resetRemoteMediaUi() {
@@ -4340,7 +4391,7 @@ function syncLocalMediaUi() {
 
   const audioTracks = stream.getAudioTracks();
   const videoTracks = stream.getVideoTracks();
-  const isMuted = audioTracks.length > 0 && !audioTracks.every((t) => t.enabled);
+  const isMuted = audioTracks.length === 0 ? true : !audioTracks.every((t) => t.enabled);
   const isVideoOff = videoTracks.length > 0 && !videoTracks.every((t) => t.enabled);
 
   setIconState(els.localMuteIcon, MEDIA_ICON.micOn, MEDIA_ICON.micOff, isMuted);
@@ -4361,6 +4412,8 @@ function syncLocalMediaUi() {
     "Stop Video",
     "Start Video"
   );
+
+  syncStartMicroButtonUi();
 }
 
 function syncRemoteMediaUi() {
@@ -4410,6 +4463,7 @@ function toggleLocalAudio() {
   tracks.forEach((track) => {
     track.enabled = enable;
   });
+  micWantedEnabled = enable;
   window.localStream = stream;
   syncLocalMediaUi();
   return true;
