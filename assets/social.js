@@ -411,7 +411,16 @@
       if (sel instanceof HTMLSelectElement) sel.value = "";
     });
     couplingPartner = false;
-    if (clearChat) clearLiveChat({ deleteServer: true }).catch(() => {});
+    if (clearChat) {
+      try {
+        await clearLiveChat({ deleteServer: true });
+      } catch (err) {
+        console.warn("[social] clear chat failed:", err);
+      }
+    }
+    state.partner = null;
+    state.threadId = null;
+    renderMessages({ skipBroadcast: true });
     updateSessionActionHighlight();
     updatePartnerInstantRow();
   }
@@ -571,9 +580,15 @@
       if (!state.messages.length) {
         const empty = document.createElement("p");
         empty.className = "chat-empty-hint";
-        empty.textContent = state.partner
-          ? `Chat with ${state.partner.displayName}. History clears when the video session ends.`
-          : "Sign in and connect with your host to start chatting.";
+        const partnerId = getCoupledPartnerId();
+        const partnerName = state.partner?.displayName || state.partner?.username;
+        if (partnerId && partnerName) {
+          empty.textContent = `Chat with ${partnerName}. History clears when the video session ends.`;
+        } else if (isLoggedIn()) {
+          empty.textContent = "Select a partner from the Member Pool to start chatting.";
+        } else {
+          empty.textContent = "Sign in and connect with your host to start chatting.";
+        }
         pane.appendChild(empty);
         return;
       }
@@ -2220,8 +2235,8 @@
   }
 
   function initMembersToolbar() {
-    document.getElementById("btnClearActiveMembers")?.addEventListener("click", () => {
-      clearActiveMembers({ clearStorage: true, clearChat: true });
+    document.getElementById("btnClearActiveMembers")?.addEventListener("click", async () => {
+      await clearActiveMembers({ clearStorage: true, clearChat: true });
       const st = document.getElementById("setupActiveMembersStatus");
       if (st) {
         st.hidden = false;
