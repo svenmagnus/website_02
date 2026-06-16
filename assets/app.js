@@ -3588,6 +3588,13 @@ function initChatControls() {
 
 function setLovenseStatus(text) {
   if (els.lovenseStatus) els.lovenseStatus.textContent = text || "";
+  updateLovenseRetryVisibility();
+}
+
+function updateLovenseRetryVisibility() {
+  const btn = document.getElementById("btnLovenseRetry");
+  if (!btn) return;
+  btn.hidden = !(videoAccessUnlocked && !isLovenseReady());
 }
 
 function isLovenseReady() {
@@ -4318,6 +4325,7 @@ function setVideoAccessUi(unlocked) {
   } else {
     setMediaSourceStatus("");
   }
+  updateLovenseRetryVisibility();
 }
 
 let lovenseUiBooted = false;
@@ -4418,6 +4426,7 @@ function initLovenseLazyBoot() {
     });
   }
   updateLovensePatternUrl();
+  updateLovenseRetryVisibility();
 }
 
 function grantSiteAccess() {

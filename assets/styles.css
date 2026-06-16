@@ -3155,8 +3155,13 @@ footer {
   line-height: 1.5;
 }
 
-.setup-quick-guide-actions {
-  margin-bottom: 0.65rem;
+.lovense-local-actions {
+  margin: 0 0 0.65rem;
+}
+
+.lovense-retry-btn {
+  font-size: 0.76rem;
+  padding: 0.3rem 0.65rem;
 }
 
 .setup-quick-guide-tip {
