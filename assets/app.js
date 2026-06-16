@@ -180,6 +180,8 @@ let lovenseReady = false;
 /** @type {"host"|"guest"|null} */
 let sessionRole = null;
 let micWantedEnabled = false;
+/** @type {RTCRtpSender|null} */
+let cachedLocalVideoSender = null;
 
 function notifySessionRole() {
   window.dispatchEvent(
@@ -1236,8 +1238,188 @@ function replaceTracksInPeerConnection(stream) {
   if (!pc || !stream) return;
   stream.getTracks().forEach((track) => {
     const sender = pc.getSenders().find((s) => s.track?.kind === track.kind);
-    if (sender) sender.replaceTrack(track).catch(() => {});
+    if (sender) {
+      sender.replaceTrack(track).catch(() => {});
+      if (track.kind === "video") cachedLocalVideoSender = sender;
+    }
   });
+}
+
+function getLocalVideoSender() {
+  const pc = mediaConn?.peerConnection;
+  if (pc) {
+    const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+    if (sender) {
+      cachedLocalVideoSender = sender;
+      return sender;
+    }
+    if (cachedLocalVideoSender && pc.getSenders().includes(cachedLocalVideoSender)) {
+      return cachedLocalVideoSender;
+    }
+    const transceiver = pc.getTransceivers?.().find(
+      (t) =>
+        t.sender &&
+        (t.receiver?.track?.kind === "video" ||
+          t.direction === "sendrecv" ||
+          t.direction === "sendonly")
+    );
+    if (transceiver?.sender) {
+      cachedLocalVideoSender = transceiver.sender;
+      return transceiver.sender;
+    }
+  }
+  return cachedLocalVideoSender;
+}
+
+function cacheLocalVideoSender() {
+  getLocalVideoSender();
+}
+
+function isLocalCameraActive() {
+  const stream = getActiveLocalStream();
+  return !!stream?.getVideoTracks().some((t) => t.readyState === "live" && t.enabled);
+}
+
+function isRemoteVideoPublishing() {
+  const stream = els.remoteVideo?.srcObject;
+  if (!(stream instanceof MediaStream)) return false;
+  return stream.getVideoTracks().some((t) => t.readyState === "live" && t.enabled && !t.muted);
+}
+
+async function acquireLocalVideoTrack() {
+  const videoDevice = await findSelectedVideoDevice();
+  const isObs = isObsDevice(videoDevice);
+  const constraints = { video: buildVideoConstraints(videoDevice), audio: false };
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (_) {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  }
+  const videoTrack = stream.getVideoTracks()[0];
+  if (!videoTrack) {
+    stream.getTracks().forEach((track) => track.stop());
+    throw new Error("Could not open camera.");
+  }
+  stream.getTracks().forEach((track) => {
+    if (track !== videoTrack) track.stop();
+  });
+  if (isObs) {
+    setObsVideoWrapFlag(true);
+  }
+  return videoTrack;
+}
+
+function attachVideoTrackToLocalStream(videoTrack) {
+  let stream = getActiveLocalStream();
+  if (!stream) {
+    stream = new MediaStream();
+    localStream = stream;
+    window.localStream = stream;
+  }
+  stream.getVideoTracks().forEach((track) => {
+    stream.removeTrack(track);
+    if (track !== videoTrack && track.readyState !== "ended") track.stop();
+  });
+  if (!stream.getVideoTracks().includes(videoTrack)) {
+    stream.addTrack(videoTrack);
+  }
+  videoTrack.enabled = true;
+  localStream = stream;
+  window.localStream = stream;
+  return stream;
+}
+
+async function enableLocalCameraPublishing() {
+  if (getBroadcastMode() === "whip") {
+    let stream = getActiveLocalStream();
+    if (!stream) {
+      await startWhipSessionMedia();
+      stream = getActiveLocalStream();
+    }
+    stream?.getVideoTracks().forEach((track) => {
+      track.enabled = true;
+    });
+    if (stream) replaceTracksInPeerConnection(stream);
+    attachLocalVideoStream(stream);
+    syncLocalMediaUi();
+    syncStartCameraButtonUi();
+    refreshVideoOverlays();
+    updateConnectionUi();
+    return true;
+  }
+
+  let stream = getActiveLocalStream();
+  let videoTrack = stream?.getVideoTracks().find((track) => track.readyState === "live");
+  if (!videoTrack) {
+    videoTrack = await acquireLocalVideoTrack();
+    stream = attachVideoTrackToLocalStream(videoTrack);
+  } else {
+    videoTrack.enabled = true;
+  }
+
+  attachLocalVideoStream(stream);
+  const sender = getLocalVideoSender();
+  if (sender) {
+    await sender.replaceTrack(videoTrack).catch(() => {});
+    cachedLocalVideoSender = sender;
+  } else if (mediaConn?.peerConnection) {
+    mediaConn.peerConnection.addTrack(videoTrack, stream);
+    cacheLocalVideoSender();
+  }
+
+  if (dataConn?.open) {
+    sendDataChannelMessage({ type: "camera_state", enabled: true, ts: Date.now() });
+  }
+  syncLocalMediaUi();
+  syncStartCameraButtonUi();
+  refreshVideoOverlays();
+  updateConnectionUi();
+  return true;
+}
+
+async function disableLocalCameraPublishing() {
+  if (getBroadcastMode() === "whip") {
+    const stream = getActiveLocalStream();
+    stream?.getVideoTracks().forEach((track) => {
+      track.enabled = false;
+    });
+    if (stream) replaceTracksInPeerConnection(stream);
+    syncLocalMediaUi();
+    syncStartCameraButtonUi();
+    refreshVideoOverlays();
+    if (dataConn?.open) {
+      sendDataChannelMessage({ type: "camera_state", enabled: false, ts: Date.now() });
+    }
+    updateConnectionUi();
+    return true;
+  }
+
+  const stream = getActiveLocalStream();
+  const videoTrack = stream?.getVideoTracks().find((track) => track.readyState === "live");
+  const sender = getLocalVideoSender();
+  if (sender) {
+    await sender.replaceTrack(null).catch(() => {});
+  }
+  if (videoTrack) {
+    videoTrack.enabled = false;
+    videoTrack.stop();
+    stream.removeTrack(videoTrack);
+  }
+
+  if (dataConn?.open) {
+    sendDataChannelMessage({ type: "camera_state", enabled: false, ts: Date.now() });
+  }
+  syncLocalMediaUi();
+  syncStartCameraButtonUi();
+  refreshVideoOverlays();
+  updateConnectionUi();
+  return true;
+}
+
+async function setLocalCameraEnabled(enable) {
+  if (enable) return enableLocalCameraPublishing();
+  return disableLocalCameraPublishing();
 }
 
 function replaceTrackInPeerConnection(newTrack) {
@@ -1802,6 +1984,7 @@ function hangup() {
     peer = null;
   }
   sessionRole = null;
+  cachedLocalVideoSender = null;
   notifySessionRole();
   global.DualPeerSocial?.updateSessionActionHighlight?.();
   partnerRemoteToys = [];
@@ -1850,7 +2033,14 @@ function updatePeerConnectionStatus() {
   if (sessionRole === "host") {
     if (!videoOk && !dataOk) return;
     if (videoOk && dataOk) {
-      setStatus(els.statusHost, "Partner connected (video + control).", "ok");
+      const remoteLive = isRemoteVideoPublishing();
+      setStatus(
+        els.statusHost,
+        remoteLive
+          ? "Partner connected (video + control)."
+          : "Partner connected (camera off, control active).",
+        "ok"
+      );
     } else if (videoOk) {
       setStatus(els.statusHost, "Partner connected (video).", "ok");
     } else if (dataOk) {
@@ -1859,7 +2049,14 @@ function updatePeerConnectionStatus() {
     setStatus(els.statusGuest, "Partner connected.", "ok");
   } else if (sessionRole === "guest") {
     if (videoOk && dataOk) {
-      setStatus(els.statusGuest, "Connected (video + control).", "ok");
+      const remoteLive = isRemoteVideoPublishing();
+      setStatus(
+        els.statusGuest,
+        remoteLive
+          ? "Connected (video + control)."
+          : "Connected (partner camera off, control active).",
+        "ok"
+      );
     } else if (videoOk) {
       setStatus(els.statusGuest, "Video connected — control: establishing …", "ok");
     } else if (peer) {
@@ -3080,6 +3277,16 @@ function handleIncomingDataMessage(raw) {
     endSessionChat();
     return;
   }
+  if (data.type === "camera_state") {
+    scheduleOverlayRefreshBurst();
+    syncRemoteMediaUi();
+    updateConnectionUi();
+    if (els.remoteVideo?.srcObject) {
+      const playPromise = els.remoteVideo.play();
+      if (playPromise?.catch) playPromise.catch(() => {});
+    }
+    return;
+  }
   if (data.type === "host_peer_id") {
     const peerId = String(data.peerId || "").trim();
     if (peerId) global.DualPeerSocial?.applyHostPeerIdFromMeetings?.(peerId);
@@ -3685,6 +3892,34 @@ function setupDataConnection(conn) {
   }
 }
 
+function bindRemoteStreamTrackEvents(remoteStream) {
+  if (!(remoteStream instanceof MediaStream) || remoteStream._remoteTrackEventsBound) return;
+  remoteStream._remoteTrackEventsBound = true;
+
+  const refreshRemote = () => {
+    scheduleOverlayRefreshBurst();
+    syncRemoteMediaUi();
+    updateConnectionUi();
+    const playPromise = els.remoteVideo?.play();
+    if (playPromise?.catch) playPromise.catch(() => {});
+  };
+
+  remoteStream.addEventListener("addtrack", (event) => {
+    if (event.track?.kind === "video") {
+      event.track.addEventListener("unmute", refreshRemote);
+      event.track.addEventListener("mute", refreshRemote);
+      event.track.addEventListener("ended", refreshRemote);
+      refreshRemote();
+    }
+  });
+
+  remoteStream.getVideoTracks().forEach((track) => {
+    track.addEventListener("unmute", refreshRemote);
+    track.addEventListener("mute", refreshRemote);
+    track.addEventListener("ended", refreshRemote);
+  });
+}
+
 function onRemoteStream(remoteStream) {
   if (els.remoteVideo) {
     els.remoteVideo.srcObject = remoteStream;
@@ -3692,6 +3927,7 @@ function onRemoteStream(remoteStream) {
     applyRemotePlaybackVolume(getStoredRemoteVolume());
     bindVideoOverlayRefresh(els.remoteVideo);
     bindStreamTrackRefresh(remoteStream);
+    bindRemoteStreamTrackEvents(remoteStream);
     const playPromise = els.remoteVideo.play();
     if (playPromise && typeof playPromise.then === "function") {
       playPromise.then(() => scheduleOverlayRefreshBurst()).catch(() => scheduleOverlayRefreshBurst());
@@ -3714,6 +3950,7 @@ function setupPeerHandlers() {
       resetRemoteMediaUi();
       updateConnectionUi();
     });
+    setTimeout(() => cacheLocalVideoSender(), 300);
   });
 
   peer.on("connection", (conn) => {
@@ -3728,6 +3965,15 @@ function setupPeerHandlers() {
 }
 
 els.btnStartHost.addEventListener("click", async () => {
+  if (sessionRole && peer) {
+    try {
+      await setLocalCameraEnabled(!isLocalCameraActive());
+    } catch (err) {
+      setPeerStatus(formatMediaAccessError(err), "err");
+    }
+    return;
+  }
+
   hangup();
   micWantedEnabled = false;
 
@@ -3789,20 +4035,20 @@ els.btnStartHost.addEventListener("click", async () => {
             resetRemoteMediaUi();
             updateConnectionUi();
           });
+          setTimeout(() => cacheLocalVideoSender(), 300);
         }
 
         const conn = peer.connect(remoteId, { reliable: true, serialization: "json" });
         setupDataConnection(conn);
 
         updateConnectionUi();
-        els.btnStartHost.disabled = true;
+        syncStartCameraButtonUi();
         syncStartMicroButtonUi();
       });
     } else {
       peer.on("open", async (id) => {
         els.peerIdOut.textContent = id;
         setupPeerHandlers();
-        els.btnStartHost.disabled = true;
         publishHostPeerIdToGuest(id);
 
         try {
@@ -3820,8 +4066,9 @@ els.btnStartHost.addEventListener("click", async () => {
           setStatus(els.statusHost, "Waiting for incoming connection … share Peer ID with partner.", "ok");
         } catch (err) {
           setStatus(els.statusHost, String(err.message || err), "err");
-          els.btnStartHost.disabled = !videoAccessUnlocked;
         }
+        syncStartCameraButtonUi();
+        syncStartMicroButtonUi();
       });
     }
 
@@ -3913,10 +4160,7 @@ function initMemberProfileBridge() {
 
 function applyAccountStreamingUi() {
   if (!videoAccessUnlocked) return;
-  if (els.btnStartHost) {
-    els.btnStartHost.disabled = false;
-    els.btnStartHost.title = "Start Camera (video)";
-  }
+  syncStartCameraButtonUi();
   if (els.btnConnect) {
     els.btnConnect.disabled = !localStream;
     els.btnConnect.title = "Start Micro (enable microphone/audio)";
@@ -3935,7 +4179,7 @@ function setVideoAccessUi(unlocked) {
     els.loginOverlay.hidden = unlocked;
   }
   setMediaSourceControlsEnabled(unlocked);
-  if (els.btnStartHost) els.btnStartHost.disabled = !unlocked;
+  syncStartCameraButtonUi();
   if (els.btnConnect) els.btnConnect.disabled = !unlocked || !localStream;
   if (unlocked) {
     refreshMediaDeviceLists().catch(() => {});
@@ -4326,6 +4570,26 @@ function syncStartMicroButtonUi() {
   btn.title = isMuted ? "Start Micro (enable microphone/audio)" : "Stop Micro (mute microphone/audio)";
 }
 
+function syncStartCameraButtonUi() {
+  const btn = els.btnStartHost;
+  if (!btn) return;
+
+  const inSession = Boolean(sessionRole && peer);
+  if (!inSession) {
+    btn.disabled = !videoAccessUnlocked;
+    btn.textContent = "Start Camera";
+    btn.title = "Start Camera (video)";
+    return;
+  }
+
+  btn.disabled = false;
+  const active = isLocalCameraActive();
+  btn.textContent = active ? "Stop Camera" : "Start Camera";
+  btn.title = active
+    ? "Stop Camera (session stays connected)"
+    : "Start Camera (partner sees video immediately)";
+}
+
 function resetLocalMediaUi() {
   micWantedEnabled = false;
   setLocalControlsEnabled(false);
@@ -4349,6 +4613,7 @@ function resetLocalMediaUi() {
   );
 
   syncStartMicroButtonUi();
+  syncStartCameraButtonUi();
 }
 
 function resetRemoteMediaUi() {
@@ -4414,6 +4679,7 @@ function syncLocalMediaUi() {
   );
 
   syncStartMicroButtonUi();
+  syncStartCameraButtonUi();
 }
 
 function syncRemoteMediaUi() {
@@ -4470,20 +4736,9 @@ function toggleLocalAudio() {
 }
 
 function toggleLocalVideo() {
-  const stream = getActiveLocalStream();
-  if (!stream) return false;
-
-  const tracks = stream.getVideoTracks();
-  if (!tracks.length) return false;
-
-  const isOff = tracks.every((t) => !t.enabled);
-  const enable = isOff;
-  tracks.forEach((track) => {
-    track.enabled = enable;
+  setLocalCameraEnabled(!isLocalCameraActive()).catch((err) => {
+    setPeerStatus(formatMediaAccessError(err), "err");
   });
-  window.localStream = stream;
-  syncLocalMediaUi();
-  refreshVideoOverlays();
   return true;
 }
 
