@@ -2063,7 +2063,7 @@ function handlePartnerMediaDisconnected() {
   setStatus(els.statusHost, "Partner disconnected — click Start Camera to reconnect.", "");
 }
 
-function hangup() {
+function hangup({ skipSessionPause = false } = {}) {
   const wasStreamProvider = sessionRole === "host";
   const hadLiveCall = !!(dataConn?.open || mediaConn?.open);
   if (dataConn?.open) {
@@ -2104,7 +2104,7 @@ function hangup() {
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
-  if (wasStreamProvider || hadLiveCall) {
+  if (!skipSessionPause && (wasStreamProvider || hadLiveCall)) {
     global.DualPeerSocial?.pauseActiveSession?.().catch(() => {});
   }
   if (hadLiveCall) endSessionChat();
@@ -3360,7 +3360,8 @@ function handleIncomingDataMessage(raw) {
   }
   if (data.type === "session_end") {
     endSessionChat();
-    handlePartnerMediaDisconnected();
+    resetPeerMediaState({ keepInstantSession: false });
+    global.DualPeerSocial?.handleRemoteSessionEnded?.().catch(() => {});
     return;
   }
   if (data.type === "camera_state") {

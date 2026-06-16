@@ -932,6 +932,39 @@
     }
   }
 
+  function removeInstantSessionWithPartnerFromLocal(partnerId) {
+    const id = String(partnerId || getCoupledPartnerId() || "").trim();
+    const uid = getSessionUserId();
+    if (!id || !uid) return;
+    state.meetings = state.meetings.filter((m) => {
+      if (m.mode !== "instant" || m.status !== "live") return true;
+      const hostId = m.host?.id;
+      const guestId = m.guest?.id;
+      if (!hostId || !guestId) return true;
+      const involvesUs = hostId === uid || guestId === uid;
+      const involvesPartner = hostId === id || guestId === id;
+      return !(involvesUs && involvesPartner);
+    });
+  }
+
+  async function handleRemoteSessionEnded() {
+    state.sessionJoinedMeetingId = null;
+    state._pendingMeetingId = null;
+    global.MemberProfile?.setPartnerProfile?.(null);
+    removeInstantSessionWithPartnerFromLocal();
+    setContactPool(state.contactPool);
+    renderActiveMembersPanel();
+    updatePartnerInstantRow();
+    updateSessionActionHighlight();
+    updateMeetingPanels();
+    setMeetingStatusOnAll("Partner ended the session.", "ok");
+    try {
+      await refreshMeetingsFromServer();
+    } catch (_) {
+      /* optimistic local update already applied */
+    }
+  }
+
   function syncJoinedSessionState() {
     if (!state.sessionJoinedMeetingId) return;
     const meeting = state.meetings.find((m) => m.id === state.sessionJoinedMeetingId);
@@ -939,6 +972,9 @@
       state.sessionJoinedMeetingId = null;
       global.MemberProfile?.setPartnerProfile?.(null);
       updateMeetingPanels();
+      updatePartnerInstantRow();
+      updateSessionActionHighlight();
+      setContactPool(state.contactPool);
       return;
     }
     refreshPartnerPlaybookIfNeeded().catch(() => {});
@@ -1589,14 +1625,12 @@
     if (btn) btn.disabled = true;
     try {
       if (global.appSessionRole?.()) {
-        global.DualPeerConnect?.hangup?.();
+        global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
       }
       await deleteMeeting(active.id);
       state._pendingMeetingId = null;
-      if (state.sessionJoinedMeetingId === active.id) {
-        state.sessionJoinedMeetingId = null;
-        global.MemberProfile?.setPartnerProfile?.(null);
-      }
+      state.sessionJoinedMeetingId = null;
+      global.MemberProfile?.setPartnerProfile?.(null);
       setPartnerInstantStatus("Session stopped for both partners.", "ok");
       setMeetingStatusOnAll("Session stopped for both partners.", "ok");
       broadcastMeetingsChanged();
@@ -2282,6 +2316,7 @@
     loadPartnerPlaybook,
     refreshPartnerPlaybookIfNeeded,
     onPartnerDisconnected,
+    handleRemoteSessionEnded,
     isSessionJoined,
     ensureChatThread,
     loadModelPool,
