@@ -249,61 +249,149 @@
         </section>
 
         <section class="manual-section">
-          <h2>5. Advanced: Multi-Streaming &amp; Parallel Sessions (Recommended)</h2>
+          <h2>5. Camera Connections &amp; Streaming Modes</h2>
           <p class="status-line">
-            If you want to use advanced camera features or broadcast on public cam sites (e.g., Chaturbate, Stripchat)
-            while simultaneously hosting a private 1:1 session on Tangent Club, you can easily combine both worlds without
-            overloading your computer.
+            Tangent Club offers maximum flexibility for video transport. Depending on whether you run an exclusive solo
+            session or stream in parallel on public cam sites, you can choose between two streaming modes.
           </p>
 
-          <h3 class="manual-subheading">The Smart Setup: Stream Master (OBS) + Virtual Camera</h3>
+          <h3 class="manual-subheading">The Two Core Modes for Solo Streams</h3>
+
+          <h3 class="manual-subheading">Alternative 1: The OBS Studio Mode (WHIP) – Maximum Stability</h3>
           <p class="status-line">
-            Instead of sending multiple heavy server streams (RTMP/WHIP) at the same time, you use OBS to broadcast to the
-            public sites and the OBS Virtual Camera to feed your video directly into Tangent Club via your browser.
+            <strong>Panel Settings:</strong><br />
+            Broadcast: <code>OBS Studio (WHIP)</code><br />
+            Video source: <em>Ignored in this mode</em>
+          </p>
+          <p class="status-line">
+            In this mode, you use the modern <strong>WHIP protocol</strong> (WebRTC-HTTP Ingestion Protocol) to stream
+            directly from OBS to the Tangent Club server, which securely routes your feed to your partner.
           </p>
           <ul>
             <li>
-              <strong>Advantage 1 (Performance):</strong> Your Mac/PC only has to encode and process the video feed once. This
-              saves massive CPU power and bandwidth.
+              <strong>Advantages:</strong> Rock-solid connection with buffering and stabilization, advanced production with
+              scenes/overlays/audio routing, and reliable behavior behind restrictive firewalls.
             </li>
             <li>
-              <strong>Advantage 2 (Toy Control):</strong> Since Tangent Club receives your stream as a &ldquo;webcam&rdquo;
-              feed through the browser, the Lovense Chrome extension remains fully active. Your partner can control your toys
-              directly in real time, while public viewers can still trigger your toys via automated tips.
+              <strong>Disadvantages:</strong> Higher system load because your computer must encode and compress video in
+              real time.
             </li>
           </ul>
-
-          <h3 class="manual-subheading">Step-by-Step Configuration</h3>
+          <h3 class="manual-subheading">Step-by-Step Configuration (WHIP)</h3>
           <ol>
+            <li>In the Tangent Club panel, set Broadcast to <code>OBS Studio (WHIP)</code>.</li>
+            <li>Copy the <strong>OBS Server (WHIP)</strong> URL and your unique <strong>OBS Bearer Token</strong>.</li>
             <li>
-              <strong>Set Up Public Streaming in OBS:</strong><br />
-              Configure your stream for Chaturbate (or use the Multiple Output plugin if adding Stripchat) inside Lovense
-              Stream Master (OBS). Click <strong>Start Streaming</strong> (or <strong>Start All</strong>) to take your
-              public show live.
+              Open Lovense Stream Master (OBS), go to <em>Settings → Stream</em>, set the service to <strong>WHIP</strong>,
+              paste the server URL and Bearer Token, and click <strong>Apply</strong>.
             </li>
             <li>
-              <strong>Activate the Virtual Camera:</strong><br />
-              In the bottom-right control panel of Stream Master, click <strong>Start Virtual Camera</strong>.
-              <br /><br />
-              <span aria-hidden="true">💡</span> <strong>Pro Tip for Privacy:</strong> If you do not want your Tangent Club
-              partner to see your public overlays, chat boxes, or the Lovense Video Feedback source on your screen, click
-              the gear icon next to <strong>Start Virtual Camera</strong>. Change the Output Type from
-              &ldquo;Program&rdquo; to &ldquo;Source&rdquo; and select your raw camera feed (Lovense Webcam 2) from the
-              dropdown. Click <strong>Save</strong>.
-            </li>
-            <li>
-              <strong>Connect to Tangent Club:</strong><br />
-              Open Google Chrome, log into tangent-club.com, and open the Broadcast Panel for your session. In the
-              <strong>Video source</strong> dropdown menu, select <strong>Lovense OBS Virtual Camera (OBS)</strong>, then
-              click the pink <strong>Start Camera</strong> button.
-            </li>
-            <li>
-              <strong>Verify Toy Integration:</strong><br />
-              Keep your public streaming tabs open in Chrome. The Lovense extension will monitor all platforms
-              simultaneously. Triggers from Chaturbate/Stripchat tokens and direct slider movements from your Tangent Club
-              partner will process perfectly in parallel based on the <strong>Highest Level Wins</strong> rule.
+              In OBS, click <strong>Start Streaming</strong>. In the Tangent Club panel, click the pink
+              <strong>Start Camera</strong> button to go live for your partner.
             </li>
           </ol>
+
+          <h3 class="manual-subheading">Alternative 2: The Webcam Mode (no OBS) – Resource-Saving &amp; Real-Time</h3>
+          <p class="status-line">
+            <strong>Panel Settings:</strong><br />
+            Broadcast: <code>Webcam &amp; microphone (no OBS)</code><br />
+            Video source: <code>Your Hardware Webcam</code> or <code>OBS Virtual Camera</code>
+          </p>
+          <p class="status-line">
+            In this mode, Tangent Club bypasses the streaming server and uses the browser's native WebRTC engine to
+            establish a direct peer-to-peer connection between you and your partner.
+          </p>
+          <ul>
+            <li>
+              <strong>Advantages:</strong> Extremely lightweight, true real-time latency, and no OBS key setup.
+            </li>
+            <li>
+              <strong>Disadvantages:</strong> Connection quality depends on both sides' network and local firewall behavior.
+            </li>
+          </ul>
+          <h3 class="manual-subheading">Step-by-Step Configuration (Webcam Mode)</h3>
+          <ol>
+            <li>In the Tangent Club panel, set Broadcast to <code>Webcam &amp; microphone (no OBS)</code>.</li>
+            <li>
+              In the <strong>Video source</strong> dropdown, select your physical webcam or
+              <strong>OBS Virtual Camera</strong>.
+            </li>
+            <li>Click the pink <strong>Start Camera</strong> button.</li>
+          </ol>
+
+          <h3 class="manual-subheading">Advanced: Multi-Streaming &amp; Parallel Sessions (Recommended Workflow)</h3>
+          <p class="status-line">
+            If you want to broadcast on public cam sites (e.g., Chaturbate, Stripchat) while simultaneously hosting a
+            private 1:1 session on Tangent Club, use a hybrid setup.
+          </p>
+          <h3 class="manual-subheading">The Smart Setup: Stream Master (OBS) + Virtual Camera</h3>
+          <p class="status-line">
+            Instead of overloading your computer with multiple heavy server streams (RTMP to public sites plus WHIP to
+            Tangent Club), combine <strong>Alternative 2 (Webcam Mode)</strong> with your public streaming setup. Stream
+            by key to public sites and use <strong>OBS Virtual Camera</strong> to feed the same image into Tangent Club.
+          </p>
+          <ul>
+            <li>
+              <strong>Advantage 1 (Performance):</strong> Your Mac/PC only encodes once for public sites; Tangent Club
+              reads the image directly from virtual camera output.
+            </li>
+            <li>
+              <strong>Advantage 2 (Flawless Toy Control):</strong> Because Tangent Club receives a native browser webcam
+              feed, the Lovense Chrome extension remains fully operational. Triggers from public tokens and Tangent Club
+              sliders can run in parallel based on <em>Highest Level Wins</em>.
+            </li>
+          </ul>
+          <h3 class="manual-subheading">Step-by-Step Configuration for Parallel Streams</h3>
+          <ol>
+            <li>
+              <strong>Set Up Public Streaming in OBS:</strong> Configure streaming for Chaturbate/Stripchat in Lovense
+              Stream Master (OBS), then click <strong>Start Streaming</strong>.
+            </li>
+            <li>
+              <strong>Activate the Virtual Camera:</strong> In the bottom-right OBS control panel, click
+              <strong>Start Virtual Camera</strong>.<br /><br />
+              <span aria-hidden="true">💡</span> <strong>Pro Tip for Privacy:</strong> Click the gear icon next to
+              <strong>Start Virtual Camera</strong>, switch <em>Output Type</em> from <strong>Program</strong> to
+              <strong>Source</strong>, and select your raw camera feed. Click <strong>Save</strong>.
+            </li>
+            <li>
+              <strong>Connect to Tangent Club:</strong> Set Broadcast to
+              <code>Webcam &amp; microphone (no OBS)</code>, choose <code>OBS Virtual Camera</code> as video source, then
+              click the pink <strong>Start Camera</strong> button.
+            </li>
+          </ol>
+
+          <h3 class="manual-subheading">Quick Reference Summary</h3>
+          <table class="manual-table">
+            <thead>
+              <tr>
+                <th>Your Goal / Scenario</th>
+                <th>Broadcast Setting</th>
+                <th>Video Source</th>
+                <th>OBS Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Exclusive Solo Stream</strong> (Highest stability)</td>
+                <td><code>OBS Studio (WHIP)</code></td>
+                <td><em>Ignored</em></td>
+                <td>Enter WHIP URL + Token, then <strong>Start Streaming</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Exclusive Solo Stream</strong> (Low CPU / Low Heat)</td>
+                <td><code>Webcam &amp; microphone (no OBS)</code></td>
+                <td><code>Your Webcam</code></td>
+                <td>None (OBS not required)</td>
+              </tr>
+              <tr>
+                <td><strong>Parallel Streaming</strong> (Public Sites + Tangent Club)</td>
+                <td><code>Webcam &amp; microphone (no OBS)</code></td>
+                <td><code>OBS Virtual Camera</code></td>
+                <td><strong>Start Streaming</strong> (public) + <strong>Start Virtual Camera</strong></td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         <section class="manual-section">
