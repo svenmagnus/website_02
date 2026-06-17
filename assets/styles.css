@@ -3196,6 +3196,10 @@ footer {
   font-weight: 600;
 }
 
+.tangent-about-title:not(:first-child) {
+  margin-top: 0.9rem;
+}
+
 .tangent-about-text {
   margin: 0 0 0.35rem;
   font-size: 0.82rem;
