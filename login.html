@@ -1,12 +1,132 @@
 <!DOCTYPE html>
-<html lang="de" data-theme="cb-dark">
+<html lang="en">
   <head>
+    <script src="assets/theme-init.js?v=8624"></script>
     <meta charset="utf-8" />
-    <meta http-equiv="refresh" content="0;url=index.html" />
-    <title>Anmelden — Weiterleitung</title>
-    <script>location.replace("index.html");</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Log in — Tangent Club</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css?v=8624" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   </head>
-  <body>
-    <p><a href="index.html">Zur Anmeldung</a></p>
+  <body class="auth-page public-auth-page login-page">
+    <header class="public-site-header">
+      <a href="landing.html" class="logo-link public-logo">
+        <img src="assets/logo.png" alt="Tangent Club" class="site-logo site-logo--theme-dark" />
+        <img src="assets/logo-light.svg" alt="Tangent Club" class="site-logo site-logo--theme-light" />
+      </a>
+      <nav class="public-site-nav" aria-label="Main">
+        <a href="anleitung.html">User Guide</a>
+        <a href="faq.html">FAQ</a>
+        <a href="support.html">Support</a>
+      </nav>
+      <div class="public-header-actions">
+        <a href="register.html" class="secondary public-header-btn">Sign up</a>
+        <a href="login.html" class="primary public-header-btn" aria-current="page">Log in</a>
+      </div>
+    </header>
+
+    <main class="public-auth-main">
+      <div class="public-auth-columns">
+        <div class="login-overlay-card auth-card public-auth-card">
+          <h1>Welcome back</h1>
+          <p class="login-overlay-hint">
+            Sign in with your <strong>account username</strong> and password (not your profile display name).
+          </p>
+          <p class="status-line ok" id="loginPageVerifiedBanner" hidden></p>
+          <form id="siteAccessForm">
+            <div class="login-overlay-row">
+              <label for="accessUsername">Username</label>
+              <input
+                type="text"
+                id="accessUsername"
+                autocomplete="username"
+                required
+                placeholder="Your username"
+              />
+            </div>
+            <div class="login-overlay-row">
+              <label for="accessPassword">Password</label>
+              <div class="password-input-wrap">
+                <input
+                  type="password"
+                  id="accessPassword"
+                  autocomplete="current-password"
+                  required
+                  placeholder="Your password"
+                />
+                <button
+                  type="button"
+                  class="password-toggle-btn"
+                  data-password-toggle
+                  aria-controls="accessPassword"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                >
+                  <i class="bi bi-eye" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+            <p class="login-overlay-error" id="accessError" hidden></p>
+            <button type="submit" class="primary public-auth-submit" id="accessUnlock">Log in</button>
+          </form>
+          <p class="status-line auth-forgot-row">
+            <a href="forgot-password.html">Forgot password?</a>
+          </p>
+        </div>
+
+        <aside class="public-invite-panel" aria-labelledby="publicInviteTitle">
+          <h2 id="publicInviteTitle">New to Tangent Club?</h2>
+          <p class="public-invite-lead">
+            Registration is <strong>invitation-only</strong> — that keeps the platform professional and focused on real
+            1:1 sessions, not mass traffic.
+          </p>
+          <p class="status-line public-invite-hint">
+            Open the personal link from your invite email, or enter the 4-digit code below.
+          </p>
+          <div class="login-overlay-row">
+            <label for="publicInviteCode">Invitation code</label>
+            <input
+              type="text"
+              id="publicInviteCode"
+              inputmode="numeric"
+              pattern="[0-9]{4}"
+              maxlength="4"
+              placeholder="4 digits from your host"
+              autocomplete="one-time-code"
+            />
+          </div>
+          <p class="login-overlay-error" id="publicInviteError" hidden></p>
+          <button type="button" class="secondary public-invite-btn" id="publicInviteContinue">
+            Create free account
+          </button>
+          <p class="status-line public-invite-foot">
+            <a href="anleitung.html">How invitations work</a>
+            ·
+            <a href="landing.html">About the platform</a>
+          </p>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="public-site-footer">
+      <nav class="public-footer-nav" aria-label="Footer">
+        <a href="anleitung.html">User Guide</a>
+        <a href="faq.html">FAQ</a>
+        <a href="privacy-policy.html">Privacy</a>
+        <a href="impressum.html">Impressum</a>
+      </nav>
+      <p class="public-footer-note">18+ · Invitation required for registration</p>
+    </footer>
+
+    <script src="assets/api-config.js?v=8428"></script>
+    <script src="assets/ui-shell.js?v=8611"></script>
+    <script src="assets/app.js?v=8428"></script>
+    <script src="assets/auth.js?v=8624"></script>
   </body>
 </html>

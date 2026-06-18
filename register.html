@@ -5,28 +5,27 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Create Account — Tangent Club</title>
-    <link rel="stylesheet" href="assets/styles.css?v=8611" />
+    <link rel="stylesheet" href="assets/styles.css?v=8624" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   </head>
   <body class="auth-page">
     <main class="auth-page-main">
-      <a href="index.html" class="logo-link auth-logo">
+      <a href="landing.html" class="logo-link auth-logo">
         <img src="assets/logo.png" alt="Tangent-Club Logo" class="site-logo site-logo--theme-dark" />
         <img src="assets/logo-light.svg" alt="Tangent-Club Logo" class="site-logo site-logo--theme-light" />
       </a>
       <div class="login-overlay-card auth-card auth-card-wide">
         <h1>Create Account</h1>
-        <div class="tangent-about-box tangent-about-box--register">
-          <h2 class="tangent-about-title">Welcome to Tangent Club</h2>
+        <div class="tangent-about-box tangent-about-box--register public-invite-callout">
+          <h2 class="tangent-about-title">You&rsquo;re invited — welcome</h2>
           <p class="status-line tangent-about-text">
-            Tangent Club is a <strong>private video lounge</strong> for invited guests and hosts — not an open erotic
-            portal. You were invited to a <strong>1:1 session</strong> with someone you know. After registration you can
-            <strong>chat with your host</strong> (messages stay saved) and join the stream when they share a
-            <strong>Host Peer ID</strong> with you.
+            Tangent Club is a <strong>private 1:1 studio</strong> for professionals and their clients — not a public cam
+            site. Your invitation means you join a <strong>curated community</strong>: no anonymous crowds, no public
+            galleries, and no pressure to perform for the masses.
           </p>
           <p class="status-line tangent-about-text">
-            Unlike typical adult sites there is no public model list, no anonymous browsing, and no open chat rooms —
-            only your connection, optional Lovense toy control, and technique requests during a private stream.
+            After registration you can <strong>chat with your host</strong>, join private sessions, invite your own
+            partners, and optionally sync Lovense toys — all in a calm, exclusive space built for real connections.
           </p>
         </div>
         <p class="status-line" id="registerApiStatus" hidden></p>
@@ -104,17 +103,19 @@
           <p class="status-line" style="margin-top: 1rem">
             <a href="index.html?onboard=1">Go to app</a>
             ·
-            <a href="index.html">Home</a>
+            <a href="login.html">Log in</a>
           </p>
         </div>
         <p class="status-line" style="margin-top: 1rem">
-          Already registered? <a href="index.html">Log in</a>
+          Already registered? <a href="login.html">Log in</a>
+          ·
+          <a href="landing.html">About the platform</a>
         </p>
       </div>
     </main>
     <script src="assets/api-config.js?v=8428"></script>
     <script src="assets/ui-shell.js?v=8611"></script>
     <script src="assets/app.js?v=8428"></script>
-    <script src="assets/auth.js?v=8611"></script>
+    <script src="assets/auth.js?v=8624"></script>
   </body>
 </html>

@@ -242,6 +242,10 @@
 
   /** Logged-in user enters main app (no welcome.html); optional Profil tab + banner. */
   function enterAppAfterAuth({ showProfile = true } = {}) {
+    if (!document.getElementById("appMain")) {
+      window.location.href = showProfile ? "index.html?onboard=1" : "index.html";
+      return;
+    }
     if (!document.getElementById("siteAccessForm")) {
       window.location.href = showProfile ? "index.html?onboard=1" : "index.html";
       return;
@@ -1938,7 +1942,7 @@
         });
     } else if (inviteInfo) {
       inviteInfo.textContent =
-        "Register using the invitation link or the 4-digit code someone shared with you.";
+        "Your invitation link or code unlocks registration — exclusivity keeps the platform focused on real 1:1 sessions.";
       inviteInfo.className = "status-line";
       if (emailHint) {
         emailHint.textContent = "Use your own email address for your new account.";
@@ -1986,7 +1990,7 @@
           if (devEl && result.devVerifyUrl) {
             devEl.hidden = false;
             devEl.className = "status-line ok";
-            devEl.innerHTML = `Confirm: <a href="${result.devVerifyUrl}">Verify email now</a> — then <a href="index.html">log in</a>`;
+            devEl.innerHTML = `Confirm: <a href="${result.devVerifyUrl}">Verify email now</a> — then <a href="login.html">log in</a>`;
           }
           if (successMsg && !result.devVerifyUrl) {
             successMsg.textContent += " Then log in on the home page.";
@@ -2027,8 +2031,88 @@
 
   function initWelcomeRedirect() {
     if (!document.body.classList.contains("welcome-page")) return;
-    const target = isLoggedIn() ? "index.html?onboard=1" : "index.html";
+    const target = isLoggedIn() ? "index.html?onboard=1" : "landing.html";
     window.location.replace(target);
+  }
+
+  function maybeRedirectToPublicLanding() {
+    const path = location.pathname;
+    const onIndex =
+      path.endsWith("/index.html") || path.endsWith("/") || /\/website_02\/?$/.test(path);
+    if (!onIndex) return;
+    if (getSession()?.token) return;
+
+    const params = new URLSearchParams(location.search);
+    if (params.get("login") === "1") {
+      location.replace("login.html");
+      return;
+    }
+    if (params.get("verified") === "1") {
+      location.replace("login.html?verified=1");
+      return;
+    }
+    const stayOnIndex = ["premium", "onboard", "calendar"];
+    if (stayOnIndex.some((key) => params.has(key))) return;
+
+    const token = params.get("token");
+    const inviteCode = params.get("inviteCode");
+    if (token || inviteCode) {
+      location.replace(`register.html${location.search}`);
+      return;
+    }
+    location.replace("landing.html");
+  }
+
+  function initPublicLoginExtras() {
+    if (!document.body.classList.contains("login-page")) return;
+
+    const params = new URLSearchParams(location.search);
+    if (params.get("token")) {
+      location.replace(`register.html?token=${encodeURIComponent(params.get("token") || "")}`);
+      return;
+    }
+
+    if (params.get("verified") === "1") {
+      const banner = document.getElementById("loginPageVerifiedBanner");
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = "Email verified — sign in with your username and password.";
+      }
+    }
+
+    const codeEl = document.getElementById("publicInviteCode");
+    const continueBtn = document.getElementById("publicInviteContinue");
+    const errEl = document.getElementById("publicInviteError");
+    const prefill = String(params.get("inviteCode") || "")
+      .replace(/\D+/g, "")
+      .slice(0, 4);
+    if (prefill && codeEl instanceof HTMLInputElement) codeEl.value = prefill;
+
+    const goRegisterWithCode = () => {
+      const code = codeEl instanceof HTMLInputElement ? codeEl.value.trim() : "";
+      if (!/^\d{4}$/.test(code)) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = "Enter the 4-digit code from your invitation.";
+        }
+        codeEl?.focus();
+        return;
+      }
+      location.href = `register.html?inviteCode=${encodeURIComponent(code)}`;
+    };
+
+    if (codeEl instanceof HTMLInputElement) {
+      codeEl.addEventListener("input", () => {
+        codeEl.value = codeEl.value.replace(/\D+/g, "").slice(0, 4);
+        if (errEl) errEl.hidden = true;
+      });
+      codeEl.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        goRegisterWithCode();
+      });
+    }
+    continueBtn?.addEventListener("click", goRegisterWithCode);
   }
 
   function initSiteAccessGate() {
@@ -2051,6 +2135,8 @@
     const guestInviteBtn = document.getElementById("authModelGuestInvite");
     const inviteCodeRow = document.getElementById("accessInviteCodeRow");
 
+    const isLoginPage = document.body.classList.contains("login-page");
+
     const setAccessModelUi = (mode) => {
       if (!inviteCodeRow) return;
       const showInviteCode = mode === "guestInvite";
@@ -2061,7 +2147,9 @@
       }
     };
 
-    setAccessModelUi("freeHost");
+    if (!isLoginPage) {
+      setAccessModelUi("freeHost");
+    }
 
     if (freeHostBtn) {
       freeHostBtn.addEventListener("click", () => {
@@ -2099,7 +2187,7 @@
       const btn = document.getElementById("accessUnlock");
       if (btn instanceof HTMLButtonElement) {
         btn.disabled = true;
-        btn.textContent = "Signing in …";
+        btn.textContent = isLoginPage ? "Logging in …" : "Signing in …";
       }
       if (errEl) errEl.hidden = true;
 
@@ -2130,7 +2218,7 @@
       } finally {
         if (btn instanceof HTMLButtonElement) {
           btn.disabled = false;
-          btn.textContent = "Sign in";
+          btn.textContent = isLoginPage ? "Log in" : "Sign in";
         }
       }
     });
@@ -2193,7 +2281,9 @@
   });
 
   function init() {
+    maybeRedirectToPublicLanding();
     initSiteAccessGate();
+    initPublicLoginExtras();
     initPremiumLoginModal();
     initInviteModal();
     initLoginPage();

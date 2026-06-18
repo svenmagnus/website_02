@@ -38,21 +38,11 @@
       aria-labelledby="loginOverlayTitle"
     >
       <div class="login-overlay-card">
-        <h2 id="loginOverlayTitle">Tangent Club — Sign in</h2>
+        <h2 id="loginOverlayTitle">Sign in again</h2>
         <p class="login-overlay-hint">
-          Use your <strong>account username</strong> and password (not your profile display name).
+          Your session ended. Use your <strong>account username</strong> and password to continue.
         </p>
         <form id="siteAccessForm">
-          <div class="auth-models">
-            <button type="button" class="auth-model-card" id="authModelFreeHost">
-              <strong>Member Login</strong>
-              <span>Sign in or register. Invite others to your model pool.</span>
-            </button>
-            <button type="button" class="auth-model-card" id="authModelGuestInvite">
-              <strong>Guest by Invitation</strong>
-              <span>Register via invite link or 4-digit code from someone you know.</span>
-            </button>
-          </div>
           <div class="login-overlay-row" id="accessInviteCodeRow" hidden style="display: none">
             <label for="accessInviteCode">Invite code</label>
             <input
@@ -61,10 +51,10 @@
               inputmode="numeric"
               pattern="[0-9]{4}"
               maxlength="4"
-              placeholder="4-digit invitation code (guest)"
+              placeholder="4-digit invitation code"
             />
           </div>
-          <p class="status-line" id="accessModelHint">Select a model above, then sign in.</p>
+          <p class="status-line" id="accessModelHint" hidden></p>
           <div class="login-overlay-row">
             <label for="accessUsername">Username</label>
             <input
@@ -104,10 +94,11 @@
           <a href="forgot-password.html">Forgot password?</a>
         </p>
         <p class="status-line" style="margin-top: 1rem">
-          No account yet? <a href="register.html">Register</a>
-        </p>
-        <p class="login-overlay-hint" style="margin-top: 0.75rem">
-          Registration is possible only with a personal invitation code.
+          <a href="login.html">Full sign-in page</a>
+          ·
+          <a href="register.html">Register with invitation</a>
+          ·
+          <a href="landing.html">About Tangent Club</a>
         </p>
       </div>
      </div>
@@ -1221,7 +1212,7 @@
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
     <script src="assets/app.js?v=8620"></script>
-    <script src="assets/auth.js?v=8613"></script>
+    <script src="assets/auth.js?v=8624"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8622"></script>
     <script src="assets/member-profile.js?v=8597"></script>
