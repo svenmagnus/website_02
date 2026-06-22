@@ -28,6 +28,7 @@ import {
   resolveSmtpSecure,
 } from "./mail.js";
 import { subscriptionFieldsForProfile, assertSubscriptionAccess, isStripeConfigured } from "./billing.js";
+import { normalizeAppearanceTheme } from "./mail-design.js";
 
 const BCRYPT_ROUNDS = 12;
 const SESSION_DAYS = 30;
