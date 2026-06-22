@@ -260,9 +260,10 @@ export async function ensureStripeCheckoutBranding(stripe) {
     const priceId = String(process.env.STRIPE_PRICE_ID || "").trim();
     try {
       const account = await stripe.accounts.retrieve();
+      const accountId = account?.id;
       const currentName = String(account?.business_profile?.name || "").trim();
-      if (currentName !== brandName) {
-        await stripe.accounts.update({
+      if (accountId && currentName !== brandName) {
+        await stripe.accounts.update(accountId, {
           business_profile: { name: brandName },
         });
         console.log(`[billing] Stripe business name set to "${brandName}" (was "${currentName || "empty"}")`);
