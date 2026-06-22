@@ -27,7 +27,7 @@ import {
   withMailTimeout,
   resolveSmtpSecure,
 } from "./mail.js";
-import { normalizeAppearanceTheme } from "./mail-design.js";
+import { subscriptionFieldsForProfile, assertSubscriptionAccess } from "./billing.js";
 
 const BCRYPT_ROUNDS = 12;
 const SESSION_DAYS = 30;
@@ -321,6 +321,7 @@ function rowToProfile(row) {
     playModeSound: playModeSoundFromRow(row),
     appearanceTheme: normalizeAppearanceTheme(row.appearance_theme || "neon"),
     ...banFieldsForProfile(row),
+    ...subscriptionFieldsForProfile(row),
   };
 }
 
@@ -1155,6 +1156,14 @@ authRouter.post("/profile/mail/test", requireAuth, requireAdminAccount, async (r
 });
 
 authRouter.post("/invites", requireAuth, async (req, res) => {
+  try {
+    assertSubscriptionAccess(req.authUser);
+  } catch (err) {
+    if (err.code === "subscription_required") {
+      return res.status(402).json({ ok: false, error: err.code, subscription: err.subscription });
+    }
+    throw err;
+  }
   const emailRaw = String(req.body?.email || "").trim();
   const email = emailRaw ? validateEmail(emailRaw) : null;
   if (emailRaw && !email) {
@@ -1261,6 +1270,14 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
 });
 
 authRouter.post("/book-model", requireAuth, (req, res) => {
+  try {
+    assertSubscriptionAccess(req.authUser);
+  } catch (err) {
+    if (err.code === "subscription_required") {
+      return res.status(402).json({ ok: false, error: err.code, subscription: err.subscription });
+    }
+    throw err;
+  }
   const db = getDb();
   const guestUserId = req.authUser.id;
   const modelUserId = String(req.body?.modelUserId || "").trim();
@@ -1613,5 +1630,7 @@ authRouter.get("/auth/status", (_req, res) => {
     smtpConfigured: isSmtpConfigured(),
     appPublicUrl: getAppPublicUrl(),
     stratoPreset: STRATO_MAIL_PRESET,
+    billingConfigured: /^(1|true|yes)$/i.test(String(process.env.STRIPE_SECRET_KEY || "")) &&
+      Boolean(String(process.env.STRIPE_PRICE_ID || "").trim()),
   });
 });

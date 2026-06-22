@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb, initDb } from "./db.js";
 import { authRouter } from "./auth-routes.js";
+import { billingRouter, handleStripeWebhook } from "./billing-routes.js";
 import { socialRouter } from "./social-routes.js";
 import {
   handleAvatarDelete,
@@ -740,6 +741,12 @@ app.use(
   express.static(path.join(__dirname, "data", "uploads"), { maxAge: "3600000", etag: true })
 );
 
+app.post(
+  "/api/billing/webhook",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
+
 app.use(express.json({ limit: "32kb" }));
 app.use(express.text({ type: ["application/sdp", "text/plain", "*/*"], limit: "256kb" }));
 
@@ -748,6 +755,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api", authRouter);
+app.use("/api", billingRouter);
 app.use("/api", socialRouter);
 
 app.post("/api/broadcast/register", (req, res) => {

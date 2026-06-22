@@ -6,6 +6,7 @@ import { chatColorsFromRow } from "./chat-colors.js";
 import { playModeSoundFromRow } from "./play-mode-sound.js";
 import { isUserBanned } from "./member-ban.js";
 import { avatarUrlForUser } from "./profile-avatar.js";
+import { resolveSubscriptionAccess } from "./billing.js";
 import {
   buildGoogleCalendarUrl,
   isGoogleCalendarConfigured,
@@ -60,6 +61,14 @@ function requireAuth(req, res, next) {
     });
   }
   req.authUser = user;
+  const subscription = resolveSubscriptionAccess(user);
+  if (!subscription.accessGranted) {
+    return res.status(402).json({
+      ok: false,
+      error: "subscription_required",
+      subscription,
+    });
+  }
   next();
 }
 

@@ -5214,6 +5214,22 @@ body.layout-resize-active * {
   border-color: color-mix(in srgb, var(--partner) 35%, var(--border));
 }
 
+.subscription-overlay-card {
+  max-width: 24rem;
+}
+
+.subscription-price-line {
+  text-align: center;
+  margin: 0.5rem 0 1rem !important;
+  font-size: 0.95rem;
+}
+
+.subscription-checkout-btn,
+.subscription-portal-btn {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
 @media (max-width: 720px) {
   .public-site-header {
     justify-content: center;

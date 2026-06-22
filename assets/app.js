@@ -4317,6 +4317,10 @@ function setVideoAccessUi(unlocked) {
   if (els.loginOverlay) {
     els.loginOverlay.hidden = unlocked;
   }
+  const subscriptionOverlay = document.getElementById("subscriptionOverlay");
+  if (subscriptionOverlay && unlocked) {
+    subscriptionOverlay.hidden = true;
+  }
   setMediaSourceControlsEnabled(unlocked);
   syncStartCameraButtonUi();
   syncStartMicroButtonUi();
@@ -4465,6 +4469,18 @@ function initAccessGate() {
   });
   global.addEventListener("dualpeer-site-access-revoked", () => {
     revokeSiteAccess();
+  });
+
+  global.addEventListener("dualpeer-subscription-required", () => {
+    revokeSiteAccess();
+    const loginOverlay = document.getElementById("loginOverlay");
+    if (loginOverlay) loginOverlay.hidden = true;
+  });
+
+  global.addEventListener("dualpeer-subscription-granted", () => {
+    if (global.DualPeerAuth?.isLoggedIn()) {
+      grantSiteAccess();
+    }
   });
 
   if (global.DualPeerAuth?.onReady) {

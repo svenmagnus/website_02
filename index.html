@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8623" />
+    <link rel="stylesheet" href="assets/styles.css?v=8625" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -102,6 +102,36 @@
         </p>
       </div>
      </div>
+
+    <div
+      class="login-overlay subscription-overlay"
+      id="subscriptionOverlay"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="subscriptionOverlayTitle"
+    >
+      <div class="login-overlay-card subscription-overlay-card">
+        <h2 id="subscriptionOverlayTitle">Continue with Tangent Club</h2>
+        <p class="login-overlay-hint" id="subscriptionOverlayHint">
+          Your free trial has ended. Subscribe to keep using private sessions, chat, and Lovense sync.
+        </p>
+        <p class="status-line subscription-price-line" id="subscriptionPriceLine">
+          <strong id="subscriptionPriceAmount">2.95 €</strong> / month · cancel anytime
+        </p>
+        <p class="status-line ok" id="subscriptionTrialBanner" hidden></p>
+        <p class="login-overlay-error" id="subscriptionError" hidden></p>
+        <button type="button" class="primary subscription-checkout-btn" id="subscriptionCheckoutBtn">
+          Subscribe now
+        </button>
+        <button type="button" class="secondary subscription-portal-btn" id="subscriptionPortalBtn" hidden>
+          Manage billing
+        </button>
+        <p class="status-line" style="margin-top: 1rem">
+          <button type="button" class="linkish" id="subscriptionLogoutBtn">Sign out</button>
+        </p>
+      </div>
+    </div>
 
     <div class="login-overlay" id="inviteModal" hidden role="dialog" aria-modal="true" aria-labelledby="inviteModalTitle">
       <div class="login-overlay-card">
@@ -1212,7 +1242,7 @@
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
     <script src="assets/app.js?v=8620"></script>
-    <script src="assets/auth.js?v=8624"></script>
+    <script src="assets/auth.js?v=8625"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8622"></script>
     <script src="assets/member-profile.js?v=8597"></script>

@@ -118,7 +118,13 @@
       banReason: user.banReason || "",
       bannedAt: user.bannedAt || null,
       appearanceTheme: user.appearanceTheme || "neon",
+      subscription: user.subscription || null,
     };
+  }
+
+  function isSubscriptionBlocked(profile) {
+    const sub = profile?.subscription;
+    return Boolean(sub?.enforced && !sub?.accessGranted && !sub?.exempt);
   }
 
   function getAccountUser() {
@@ -175,6 +181,7 @@
       isBanned: Boolean(profile.isBanned),
       banReason: profile.banReason || "",
       bannedAt: profile.bannedAt || null,
+      subscription: profile.subscription || null,
     });
   }
 
@@ -251,6 +258,15 @@
       return;
     }
     closePremiumLoginModal();
+    const profile = getCachedProfile();
+    if (isSubscriptionBlocked(profile)) {
+      updateSubscriptionOverlay(profile.subscription);
+      global.dispatchEvent(
+        new CustomEvent("dualpeer-subscription-required", { detail: profile.subscription })
+      );
+      return;
+    }
+    hideSubscriptionOverlay();
     if (global.dualPeerSiteAccess?.grant) global.dualPeerSiteAccess.grant();
     else global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
     if (showProfile) {
@@ -460,6 +476,130 @@
       /* ignore */
     }
     clearSession();
+  }
+
+  async function fetchBillingStatus() {
+    return api("/api/billing/status");
+  }
+
+  async function startBillingCheckout() {
+    const data = await api("/api/billing/checkout", { method: "POST" });
+    if (data.url) {
+      window.location.href = data.url;
+      return data;
+    }
+    throw Object.assign(new Error("checkout_unavailable"), { code: "checkout_unavailable" });
+  }
+
+  async function openBillingPortal() {
+    const data = await api("/api/billing/portal", { method: "POST" });
+    if (data.url) {
+      window.location.href = data.url;
+      return data;
+    }
+    throw Object.assign(new Error("portal_unavailable"), { code: "portal_unavailable" });
+  }
+
+  function updateSubscriptionOverlay(subscription) {
+    const overlay = document.getElementById("subscriptionOverlay");
+    if (!overlay || !subscription) return;
+
+    const hint = document.getElementById("subscriptionOverlayHint");
+    const trialBanner = document.getElementById("subscriptionTrialBanner");
+    const priceAmount = document.getElementById("subscriptionPriceAmount");
+    const portalBtn = document.getElementById("subscriptionPortalBtn");
+    const checkoutBtn = document.getElementById("subscriptionCheckoutBtn");
+
+    if (priceAmount) priceAmount.textContent = `${subscription.priceEur || "2.95"} €`;
+
+    if (subscription.phase === "trial" && subscription.daysRemaining > 0) {
+      if (hint) {
+        hint.textContent =
+          "Your free trial is still active. You can subscribe early to secure uninterrupted access.";
+      }
+      if (trialBanner) {
+        trialBanner.hidden = false;
+        trialBanner.textContent = `${subscription.daysRemaining} day(s) left in your free trial.`;
+      }
+    } else {
+      if (hint) {
+        hint.textContent =
+          "Your free trial has ended. Subscribe to keep using private sessions, chat, and Lovense sync.";
+      }
+      if (trialBanner) trialBanner.hidden = true;
+    }
+
+    if (portalBtn) {
+      portalBtn.hidden = !["active", "trialing", "past_due", "canceled"].includes(subscription.status);
+    }
+    if (checkoutBtn) {
+      checkoutBtn.textContent =
+        subscription.phase === "trial" && subscription.daysRemaining > 0
+          ? "Subscribe early"
+          : "Subscribe now";
+    }
+
+    overlay.hidden = false;
+    if (global.dualPeerUi?.openAuthModal) {
+      global.dualPeerUi.openAuthModal("subscriptionOverlay");
+    }
+  }
+
+  function hideSubscriptionOverlay() {
+    const overlay = document.getElementById("subscriptionOverlay");
+    if (overlay) overlay.hidden = true;
+    const errEl = document.getElementById("subscriptionError");
+    if (errEl) errEl.hidden = true;
+  }
+
+  function initSubscriptionOverlay() {
+    const overlay = document.getElementById("subscriptionOverlay");
+    if (!overlay) return;
+
+    const checkoutBtn = document.getElementById("subscriptionCheckoutBtn");
+    const portalBtn = document.getElementById("subscriptionPortalBtn");
+    const logoutBtn = document.getElementById("subscriptionLogoutBtn");
+    const errEl = document.getElementById("subscriptionError");
+
+    checkoutBtn?.addEventListener("click", async () => {
+      if (checkoutBtn instanceof HTMLButtonElement) {
+        checkoutBtn.disabled = true;
+        checkoutBtn.textContent = "Opening checkout …";
+      }
+      if (errEl) errEl.hidden = true;
+      try {
+        await startBillingCheckout();
+      } catch (err) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent =
+            err.code === "stripe_not_configured"
+              ? "Billing is not configured yet. Please contact support."
+              : err.message || "Checkout failed.";
+        }
+      } finally {
+        if (checkoutBtn instanceof HTMLButtonElement) {
+          checkoutBtn.disabled = false;
+          checkoutBtn.textContent = "Subscribe now";
+        }
+      }
+    });
+
+    portalBtn?.addEventListener("click", async () => {
+      if (errEl) errEl.hidden = true;
+      try {
+        await openBillingPortal();
+      } catch (err) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = err.message || "Could not open billing portal.";
+        }
+      }
+    });
+
+    logoutBtn?.addEventListener("click", () => {
+      logout();
+    });
   }
 
   async function fetchProfile() {
@@ -1635,6 +1775,14 @@
       if (resendPanel) resendPanel.hidden = true;
       try {
         await login(user?.value, pass?.value);
+        const profile = await fetchProfile();
+        if (isSubscriptionBlocked(profile)) {
+          updateSubscriptionOverlay(profile.subscription);
+          global.dispatchEvent(
+            new CustomEvent("dualpeer-subscription-required", { detail: profile.subscription })
+          );
+          return;
+        }
         if (document.getElementById("premiumLoginModal")) {
           enterAppAfterAuth({ showProfile: true });
         } else {
@@ -2197,6 +2345,14 @@
           return;
         }
         await login(usernameEl?.value, passwordEl?.value);
+        const profile = await fetchProfile();
+        if (isSubscriptionBlocked(profile)) {
+          updateSubscriptionOverlay(profile.subscription);
+          global.dispatchEvent(
+            new CustomEvent("dualpeer-subscription-required", { detail: profile.subscription })
+          );
+          return;
+        }
         enterAppAfterAuth({ showProfile: true });
       } catch (err) {
         if (handleAccountBannedError(err)) return;
@@ -2243,10 +2399,33 @@
       }
     }
     if (hasSiteAccess) {
-      if (global.dualPeerSiteAccess?.grant) global.dualPeerSiteAccess.grant();
-      else global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
-      const onboard = new URLSearchParams(location.search).get("onboard") === "1";
-      if (onboard) {
+      const params = new URLSearchParams(location.search);
+      if (params.get("billing") === "success") {
+        try {
+          await fetchProfile();
+        } catch (_) {
+          /* profile refetch optional */
+        }
+        const url = new URL(location.href);
+        url.searchParams.delete("billing");
+        history.replaceState(null, "", url.pathname + url.search + url.hash);
+      }
+
+      const profile = getCachedProfile() || getSession()?.user;
+      if (isSubscriptionBlocked(profile)) {
+        updateSubscriptionOverlay(profile.subscription);
+        global.dispatchEvent(
+          new CustomEvent("dualpeer-subscription-required", { detail: profile.subscription })
+        );
+      } else {
+        hideSubscriptionOverlay();
+        if (global.dualPeerSiteAccess?.grant) global.dualPeerSiteAccess.grant();
+        else global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+        global.dispatchEvent(new CustomEvent("dualpeer-subscription-granted"));
+      }
+
+      const onboard = params.get("onboard") === "1";
+      if (onboard && !isSubscriptionBlocked(profile)) {
         queueMicrotask(() => {
           if (global.MemberProfile?.enterProfileWorkspace) {
             global.MemberProfile.enterProfileWorkspace({ onboarding: true });
@@ -2294,6 +2473,7 @@
     initResetPasswordPage();
     initProfileMailForm();
     initAdminUsersModal();
+    initSubscriptionOverlay();
     bootstrap();
   }
 
@@ -2328,6 +2508,9 @@
     openInviteModal,
     fetchPremiumModels,
     bookModel,
+    fetchBillingStatus,
+    startBillingCheckout,
+    openBillingPortal,
     validateInviteToken,
     fetchMailSettings,
     saveMailSettings,
