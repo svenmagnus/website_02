@@ -250,7 +250,7 @@ export function remainingTrialSeconds(user, subRow) {
   return Math.floor(remainingMs / 1000);
 }
 
-/** Stripe Checkout header uses business_profile.name — sync from STRIPE_BRAND_NAME. */
+/** Stripe Checkout header uses Dashboard business name; product line uses product name. */
 export async function ensureStripeCheckoutBranding(stripe) {
   if (!stripe) return;
   if (brandingSyncPromise) return brandingSyncPromise;
@@ -258,34 +258,19 @@ export async function ensureStripeCheckoutBranding(stripe) {
   brandingSyncPromise = (async () => {
     const brandName = stripeBrandName();
     const priceId = String(process.env.STRIPE_PRICE_ID || "").trim();
-    try {
-      const account = await stripe.accounts.retrieve();
-      const accountId = account?.id;
-      const currentName = String(account?.business_profile?.name || "").trim();
-      if (accountId && currentName !== brandName) {
-        await stripe.accounts.update(accountId, {
-          business_profile: { name: brandName },
-        });
-        console.log(`[billing] Stripe business name set to "${brandName}" (was "${currentName || "empty"}")`);
-      }
-    } catch (err) {
-      console.warn("[billing] Stripe business profile update failed:", err.message);
-    }
-
     if (!priceId) return;
 
     try {
       const price = await stripe.prices.retrieve(priceId, { expand: ["product"] });
       const product = price.product;
       if (!product || typeof product === "string") return;
-      const productTitle = brandName;
       const productDescription = "Monthly platform access — private 1:1 sessions on Tangent Club.";
-      if (product.name !== productTitle || product.description !== productDescription) {
+      if (product.name !== brandName || product.description !== productDescription) {
         await stripe.products.update(product.id, {
-          name: productTitle,
+          name: brandName,
           description: productDescription,
         });
-        console.log(`[billing] Stripe product renamed to "${productTitle}"`);
+        console.log(`[billing] Stripe product renamed to "${brandName}"`);
       }
     } catch (err) {
       console.warn("[billing] Stripe product branding update failed:", err.message);
