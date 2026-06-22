@@ -27,7 +27,7 @@ import {
   withMailTimeout,
   resolveSmtpSecure,
 } from "./mail.js";
-import { subscriptionFieldsForProfile, assertSubscriptionAccess } from "./billing.js";
+import { subscriptionFieldsForProfile, assertSubscriptionAccess, isStripeConfigured } from "./billing.js";
 
 const BCRYPT_ROUNDS = 12;
 const SESSION_DAYS = 30;
@@ -1630,7 +1630,6 @@ authRouter.get("/auth/status", (_req, res) => {
     smtpConfigured: isSmtpConfigured(),
     appPublicUrl: getAppPublicUrl(),
     stratoPreset: STRATO_MAIL_PRESET,
-    billingConfigured: /^(1|true|yes)$/i.test(String(process.env.STRIPE_SECRET_KEY || "")) &&
-      Boolean(String(process.env.STRIPE_PRICE_ID || "").trim()),
+    billingConfigured: isStripeConfigured(),
   });
 });
