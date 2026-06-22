@@ -12,6 +12,8 @@ import {
   SUBSCRIPTION_PRICE_EUR,
   TRIAL_DAYS,
   upsertSubscriptionRow,
+  ensureStripeCheckoutBranding,
+  stripeBrandName,
 } from "./billing.js";
 
 function parseBearer(req) {
@@ -76,6 +78,9 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
     const subRow = getSubscriptionRow(db, user.id);
     const trialSeconds = remainingTrialSeconds(user, subRow);
     const appUrl = getAppPublicUrl();
+    const brandName = stripeBrandName();
+
+    await ensureStripeCheckoutBranding(stripe);
 
     const sessionParams = {
       mode: "subscription",
@@ -87,6 +92,12 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
       metadata: { userId: user.id },
       subscription_data: {
         metadata: { userId: user.id },
+        description: `${brandName} platform subscription`,
+      },
+      custom_text: {
+        submit: {
+          message: `${brandName} — secure monthly subscription. Cancel anytime in billing settings.`,
+        },
       },
     };
 

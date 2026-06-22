@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { getDb, initDb } from "./db.js";
 import { authRouter } from "./auth-routes.js";
 import { billingRouter, handleStripeWebhook } from "./billing-routes.js";
+import { ensureStripeCheckoutBranding, getStripe, isStripeConfigured } from "./billing.js";
 import { socialRouter } from "./social-routes.js";
 import {
   handleAvatarDelete,
@@ -716,6 +717,12 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 initDb();
+
+if (isStripeConfigured()) {
+  ensureStripeCheckoutBranding(getStripe()).catch((err) => {
+    console.warn("[billing] Startup branding sync failed:", err.message);
+  });
+}
 
 const app = express();
 app.use(

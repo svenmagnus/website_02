@@ -4,7 +4,12 @@ import { getDb } from "./db.js";
 export const TRIAL_DAYS = Math.max(1, Number(process.env.SUBSCRIPTION_TRIAL_DAYS || 30));
 export const SUBSCRIPTION_PRICE_EUR = "2.95";
 
+export function stripeBrandName() {
+  return String(process.env.STRIPE_BRAND_NAME || process.env.MAIL_SITE_NAME || "Tangent Club").trim();
+}
+
 let stripeClient;
+let brandingSyncPromise = null;
 
 export function isStripeConfigured() {
   return Boolean(String(process.env.STRIPE_SECRET_KEY || "").trim() && String(process.env.STRIPE_PRICE_ID || "").trim());
@@ -243,4 +248,50 @@ export function remainingTrialSeconds(user, subRow) {
   const remainingMs = trialEndsAt - Date.now();
   if (remainingMs <= 0) return 0;
   return Math.floor(remainingMs / 1000);
+}
+
+/** Stripe Checkout header uses business_profile.name — sync from STRIPE_BRAND_NAME. */
+export async function ensureStripeCheckoutBranding(stripe) {
+  if (!stripe) return;
+  if (brandingSyncPromise) return brandingSyncPromise;
+
+  brandingSyncPromise = (async () => {
+    const brandName = stripeBrandName();
+    const priceId = String(process.env.STRIPE_PRICE_ID || "").trim();
+    try {
+      const account = await stripe.accounts.retrieve();
+      const currentName = String(account?.business_profile?.name || "").trim();
+      if (currentName !== brandName) {
+        await stripe.accounts.update({
+          business_profile: { name: brandName },
+        });
+        console.log(`[billing] Stripe business name set to "${brandName}" (was "${currentName || "empty"}")`);
+      }
+    } catch (err) {
+      console.warn("[billing] Stripe business profile update failed:", err.message);
+    }
+
+    if (!priceId) return;
+
+    try {
+      const price = await stripe.prices.retrieve(priceId, { expand: ["product"] });
+      const product = price.product;
+      if (!product || typeof product === "string") return;
+      const productTitle = brandName;
+      const productDescription = "Monthly platform access — private 1:1 sessions on Tangent Club.";
+      if (product.name !== productTitle || product.description !== productDescription) {
+        await stripe.products.update(product.id, {
+          name: productTitle,
+          description: productDescription,
+        });
+        console.log(`[billing] Stripe product renamed to "${productTitle}"`);
+      }
+    } catch (err) {
+      console.warn("[billing] Stripe product branding update failed:", err.message);
+    }
+  })().finally(() => {
+    brandingSyncPromise = null;
+  });
+
+  return brandingSyncPromise;
 }
