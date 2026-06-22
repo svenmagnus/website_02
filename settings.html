@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8611" />
+    <link rel="stylesheet" href="assets/styles.css?v=8626" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -115,6 +115,29 @@
                 autocomplete="nickname"
               />
             </label>
+          </section>
+
+          <section class="settings-section" id="settingsBillingSection">
+            <h2>Membership &amp; billing</h2>
+            <p class="settings-hint" id="settingsBillingIntro">
+              Your platform access — free trial, subscription status, and renewal dates.
+            </p>
+            <div class="settings-billing-card" id="settingsBillingCard">
+              <div class="settings-billing-status-row">
+                <span class="settings-billing-badge" id="settingsBillingBadge" hidden></span>
+              </div>
+              <dl class="settings-billing-details" id="settingsBillingDetails"></dl>
+              <p class="status-line" id="settingsBillingNote"></p>
+              <p class="status-line err" id="settingsBillingError" hidden></p>
+              <div class="settings-billing-actions">
+                <button type="button" class="primary" id="settingsBillingCheckoutBtn" hidden>
+                  Subscribe
+                </button>
+                <button type="button" class="secondary" id="settingsBillingPortalBtn" hidden>
+                  Manage billing
+                </button>
+              </div>
+            </div>
           </section>
 
           <section class="settings-section">
@@ -250,11 +273,16 @@
     </footer>
 
     <script src="assets/api-config.js?v=8611"></script>
-    <script src="assets/ui-shell.js?v=8611"></script>
-    <script src="assets/auth.js?v=8611"></script>
+    <script src="assets/ui-shell.js?v=8626"></script>
+    <script src="assets/auth.js?v=8626"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         if (window.dualPeerUi) window.dualPeerUi.initSettingsPage();
+        if (window.DualPeerAuth?.refreshSettingsBilling) {
+          window.DualPeerAuth.onReady(function () {
+            window.DualPeerAuth.refreshSettingsBilling();
+          });
+        }
         if (location.hash === "#email-server") {
           document.getElementById("email-server")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }

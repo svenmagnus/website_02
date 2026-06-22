@@ -552,6 +552,276 @@
     if (errEl) errEl.hidden = true;
   }
 
+  function formatBillingDate(ts) {
+    if (!ts) return "—";
+    try {
+      return new Date(ts).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch (_) {
+      return "—";
+    }
+  }
+
+  function describeSubscriptionForSettings(sub) {
+    if (!sub) {
+      return {
+        badge: "Unknown",
+        badgeClass: "muted",
+        rows: [],
+        note: "",
+        showCheckout: false,
+        showPortal: false,
+      };
+    }
+
+    if (!sub.enforced) {
+      return {
+        badge: "Not required",
+        badgeClass: "muted",
+        rows: [{ label: "Billing", value: "Platform subscription is not enabled on this server." }],
+        note: "",
+        showCheckout: false,
+        showPortal: false,
+      };
+    }
+
+    if (sub.exempt) {
+      return {
+        badge: "Included",
+        badgeClass: "ok",
+        rows: [
+          { label: "Plan", value: "Full access — no subscription fee" },
+          { label: "Reason", value: "Administrator or premium partner account" },
+        ],
+        note: "You are not charged the monthly platform fee.",
+        showCheckout: false,
+        showPortal: false,
+      };
+    }
+
+    const priceLabel = `${sub.priceEur || "2.95"} € / month`;
+
+    if (sub.phase === "trial") {
+      return {
+        badge: "Free trial",
+        badgeClass: "trial",
+        rows: [
+          { label: "Status", value: "Trial active" },
+          { label: "Days remaining", value: String(sub.daysRemaining ?? 0) },
+          { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt) },
+          { label: "After trial", value: priceLabel },
+        ],
+        note: "Subscribe anytime before the trial ends to avoid interruption.",
+        showCheckout: true,
+        showPortal: Boolean(sub.stripeCustomerId),
+        checkoutLabel: "Subscribe early",
+      };
+    }
+
+    if (sub.status === "active" || sub.phase === "active") {
+      return {
+        badge: "Active",
+        badgeClass: "ok",
+        rows: [
+          { label: "Plan", value: priceLabel },
+          { label: "Next renewal", value: formatBillingDate(sub.currentPeriodEnd) },
+          {
+            label: "Cancellation",
+            value: sub.cancelAtPeriodEnd
+              ? `Ends ${formatBillingDate(sub.currentPeriodEnd)}`
+              : "Renews automatically",
+          },
+        ],
+        note: "",
+        showCheckout: false,
+        showPortal: true,
+      };
+    }
+
+    if (sub.status === "trialing" || sub.phase === "trialing") {
+      return {
+        badge: "Trial (Stripe)",
+        badgeClass: "trial",
+        rows: [
+          { label: "Plan", value: priceLabel },
+          { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt || sub.currentPeriodEnd) },
+          { label: "Days remaining", value: String(sub.daysRemaining ?? 0) },
+        ],
+        note: "Payment method on file — billing starts when the trial ends unless you cancel.",
+        showCheckout: false,
+        showPortal: true,
+      };
+    }
+
+    if (sub.requiresPayment || sub.phase === "trial_expired") {
+      return {
+        badge: "Trial ended",
+        badgeClass: "warn",
+        rows: [
+          { label: "Trial ended", value: formatBillingDate(sub.trialEndsAt) },
+          { label: "Required plan", value: priceLabel },
+        ],
+        note: "Subscribe to restore full access to sessions, chat, and invites.",
+        showCheckout: true,
+        showPortal: Boolean(sub.stripeCustomerId),
+        checkoutLabel: "Subscribe now",
+      };
+    }
+
+    if (sub.status === "past_due") {
+      return {
+        badge: "Payment issue",
+        badgeClass: "err",
+        rows: [
+          { label: "Plan", value: priceLabel },
+          { label: "Status", value: "Past due — update your payment method" },
+        ],
+        note: "Update billing in the customer portal to restore access.",
+        showCheckout: false,
+        showPortal: true,
+      };
+    }
+
+    return {
+      badge: sub.status === "none" ? "No subscription" : sub.status,
+      badgeClass: "muted",
+      rows: [
+        { label: "Plan", value: priceLabel },
+        { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt) },
+      ],
+      note: "",
+      showCheckout: !sub.accessGranted,
+      showPortal: Boolean(sub.stripeCustomerId),
+      checkoutLabel: "Subscribe",
+    };
+  }
+
+  function renderSettingsBilling(profile) {
+    const section = document.getElementById("settingsBillingSection");
+    if (!section) return;
+
+    const badge = document.getElementById("settingsBillingBadge");
+    const details = document.getElementById("settingsBillingDetails");
+    const noteEl = document.getElementById("settingsBillingNote");
+    const checkoutBtn = document.getElementById("settingsBillingCheckoutBtn");
+    const portalBtn = document.getElementById("settingsBillingPortalBtn");
+    const errEl = document.getElementById("settingsBillingError");
+    const intro = document.getElementById("settingsBillingIntro");
+
+    if (!isLoggedIn()) {
+      if (intro) {
+        intro.innerHTML =
+          'Sign in to view your membership status. <a href="login.html">Log in</a>';
+      }
+      if (badge) badge.hidden = true;
+      if (details) details.innerHTML = "";
+      if (noteEl) noteEl.textContent = "";
+      if (checkoutBtn) checkoutBtn.hidden = true;
+      if (portalBtn) portalBtn.hidden = true;
+      return;
+    }
+
+    const sub = profile?.subscription;
+    const info = describeSubscriptionForSettings(sub);
+
+    if (intro) {
+      intro.textContent =
+        "Your platform access — free trial, subscription status, and renewal dates.";
+    }
+
+    if (badge) {
+      badge.hidden = false;
+      badge.className = `settings-billing-badge settings-billing-badge--${info.badgeClass}`;
+      badge.textContent = info.badge;
+    }
+
+    if (details) {
+      details.innerHTML = info.rows
+        .map(
+          (row) =>
+            `<div class="settings-billing-detail"><dt>${row.label}</dt><dd>${row.value}</dd></div>`
+        )
+        .join("");
+    }
+
+    if (noteEl) {
+      noteEl.textContent = info.note || "";
+      noteEl.className = info.note ? "status-line settings-billing-note" : "status-line";
+      noteEl.hidden = !info.note;
+    }
+
+    if (checkoutBtn instanceof HTMLButtonElement) {
+      checkoutBtn.hidden = !info.showCheckout;
+      checkoutBtn.textContent = info.checkoutLabel || "Subscribe";
+    }
+    if (portalBtn instanceof HTMLButtonElement) {
+      portalBtn.hidden = !info.showPortal;
+    }
+    if (errEl) errEl.hidden = true;
+  }
+
+  async function refreshSettingsBilling() {
+    const section = document.getElementById("settingsBillingSection");
+    if (!section) return;
+    if (!isLoggedIn()) {
+      renderSettingsBilling(null);
+      return;
+    }
+    try {
+      const profile = getCachedProfile() || (await fetchProfile());
+      renderSettingsBilling(profile);
+    } catch (err) {
+      const errEl = document.getElementById("settingsBillingError");
+      if (errEl) {
+        errEl.hidden = false;
+        errEl.textContent = err.message || "Could not load billing status.";
+      }
+    }
+  }
+
+  function initSettingsBillingSection() {
+    const section = document.getElementById("settingsBillingSection");
+    if (!section) return;
+
+    const checkoutBtn = document.getElementById("settingsBillingCheckoutBtn");
+    const portalBtn = document.getElementById("settingsBillingPortalBtn");
+    const errEl = document.getElementById("settingsBillingError");
+
+    checkoutBtn?.addEventListener("click", async () => {
+      if (checkoutBtn instanceof HTMLButtonElement) {
+        checkoutBtn.disabled = true;
+      }
+      if (errEl) errEl.hidden = true;
+      try {
+        await startBillingCheckout();
+      } catch (err) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = err.message || "Checkout failed.";
+        }
+      } finally {
+        if (checkoutBtn instanceof HTMLButtonElement) checkoutBtn.disabled = false;
+      }
+    });
+
+    portalBtn?.addEventListener("click", async () => {
+      if (errEl) errEl.hidden = true;
+      try {
+        await openBillingPortal();
+      } catch (err) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = err.message || "Could not open billing portal.";
+        }
+      }
+    });
+
+    onReady(refreshSettingsBilling);
+  }
+
   function initSubscriptionOverlay() {
     const overlay = document.getElementById("subscriptionOverlay");
     if (!overlay) return;
@@ -613,6 +883,10 @@
     }
     updateAccountMenuAuthState();
     global.dispatchEvent(new CustomEvent("dualpeer-avatar-ready", { detail: { avatarUrl: profile.avatarUrl } }));
+    global.dispatchEvent(new CustomEvent("dualpeer-profile-update", { detail: { profile } }));
+    if (document.getElementById("settingsBillingSection")) {
+      renderSettingsBilling(profile);
+    }
     return profile;
   }
 
@@ -2474,6 +2748,7 @@
     initProfileMailForm();
     initAdminUsersModal();
     initSubscriptionOverlay();
+    initSettingsBillingSection();
     bootstrap();
   }
 
@@ -2511,6 +2786,7 @@
     fetchBillingStatus,
     startBillingCheckout,
     openBillingPortal,
+    refreshSettingsBilling,
     validateInviteToken,
     fetchMailSettings,
     saveMailSettings,
