@@ -56,6 +56,16 @@ GitHub Pages liefert weiter HTML/JS; API läuft auf dem VPS.
 
 ## Updates
 
+**Wichtig:** Auf dem Server ist nur **SSH-Key-Login** aktiv — kein Passwort für `root`.  
+Der Key liegt auf dem Mac unter `~/.ssh/id_ed25519_hetzner`.
+
+```bash
+# Nach git push origin main — vom Mac im Repo:
+./scripts/deploy-production.sh
+```
+
+Oder manuell:
+
 ```bash
 ssh -i ~/.ssh/id_ed25519_hetzner root@167.233.30.166
 cd /home/tangent/website_02 && sudo -u tangent git pull
