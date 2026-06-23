@@ -193,6 +193,19 @@ export function resolveSubscriptionAccess(user, subRow = null) {
     hasPremiumModelAccess: false,
   };
 
+  if (base.exempt) {
+    let membershipType = "admin";
+    if (isModelUser(user)) membershipType = "partner";
+    else if (isFreeGuestUser(user)) membershipType = "free";
+    return finalizeAccess(user, row, {
+      ...base,
+      accessGranted: true,
+      requiresPayment: false,
+      phase: "exempt",
+      membershipType,
+    });
+  }
+
   if (adminOverride === "trial_expired") {
     return finalizeAccess(user, row, {
       ...base,
@@ -243,18 +256,6 @@ export function resolveSubscriptionAccess(user, subRow = null) {
     });
   }
 
-  if (isFreeGuestUser(user)) {
-    return finalizeAccess(user, row, {
-      ...base,
-      accessGranted: true,
-      requiresPayment: false,
-      phase: "free",
-      tier: null,
-      membershipType: "free",
-      priceEur: MEMBER_PRICE_EUR,
-    });
-  }
-
   if (!base.enforced) {
     return finalizeAccess(user, row, {
       ...base,
@@ -262,16 +263,6 @@ export function resolveSubscriptionAccess(user, subRow = null) {
       requiresPayment: false,
       phase: "not_required",
       membershipType: isModelUser(user) ? "partner" : isAdminUser(user) ? "admin" : "member",
-    });
-  }
-
-  if (base.exempt) {
-    return finalizeAccess(user, row, {
-      ...base,
-      accessGranted: true,
-      requiresPayment: false,
-      phase: "exempt",
-      membershipType: isModelUser(user) ? "partner" : "admin",
     });
   }
 
