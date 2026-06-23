@@ -1198,8 +1198,8 @@
     const info = describeSubscriptionForSettings(sub);
 
     if (intro) {
-      intro.textContent =
-        "Your platform access — free trial, subscription status, and renewal dates.";
+      intro.innerHTML =
+        'Your platform access — free trial, subscription status, and renewal dates. Member subscriptions have <strong>no minimum term</strong> — cancel anytime under <strong>Manage billing</strong> (<a href="terms.html#cancellation">Terms / AGB</a>).';
     }
 
     if (renewalIntro && info.renewalDue) {
