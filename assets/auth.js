@@ -291,7 +291,7 @@
   }
 
   function isFreeMembershipUser(user) {
-    return Boolean(user?.isFreeGuest);
+    return Boolean(user?.isFreeGuest) || Boolean(user?.isModel);
   }
 
   function hasPremiumModelAccess(user) {
