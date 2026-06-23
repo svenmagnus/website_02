@@ -244,23 +244,57 @@
 
   async function performAccountLogout() {
     closeAccountMenu();
-    if (typeof global.dualPeerPerformLogout === "function") {
-      await global.dualPeerPerformLogout();
-    } else {
-      const legacy = document.getElementById("logoutBtn");
-      if (legacy) legacy.click();
-      else global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
+    const runLogout = async () => {
+      if (typeof global.dualPeerPerformLogout === "function") {
+        await global.dualPeerPerformLogout();
+        return;
+      }
+      if (global.DualPeerAuth?.logout) {
+        await global.DualPeerAuth.logout();
+        return;
+      }
+      global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
+      global.DualPeerAuth?.clearSession?.();
+    };
+
+    try {
+      await Promise.race([
+        runLogout(),
+        new Promise((resolve) => {
+          setTimeout(resolve, 8000);
+        }),
+      ]);
+    } catch (_) {
+      global.DualPeerAuth?.clearSession?.();
+    } finally {
+      global.DualPeerAuth?.clearSession?.();
+      if (global.dualPeerSiteAccess?.revoke) global.dualPeerSiteAccess.revoke();
+      window.location.replace("landing.html");
     }
-    location.reload();
+  }
+
+  function bindAccountLogout() {
+    if (global.__dualPeerAccountLogoutBound) return;
+    global.__dualPeerAccountLogoutBound = true;
+    document.addEventListener(
+      "click",
+      (e) => {
+        const btn = e.target?.closest?.("#accountLogoutBtn");
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        void performAccountLogout();
+      },
+      true
+    );
   }
 
   function initAccountMenu() {
     const btn = document.getElementById("accountMenuBtn");
     const panel = document.getElementById("accountDropdown");
-    const logoutBtn = document.getElementById("accountLogoutBtn");
-    const headerLogoutBtn = document.getElementById("headerLogoutBtn");
 
     refreshProfileLabels();
+    bindAccountLogout();
 
     if (!global.__dualPeerAccountMenuThemeBound) {
       global.__dualPeerAccountMenuThemeBound = true;
@@ -302,14 +336,6 @@
           return;
         }
         closeAccountMenu();
-      });
-    }
-
-    for (const el of [logoutBtn, headerLogoutBtn]) {
-      if (!el || el.dataset.logoutBound === "1") continue;
-      el.dataset.logoutBound = "1";
-      el.addEventListener("click", () => {
-        void performAccountLogout();
       });
     }
   }

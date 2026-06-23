@@ -676,14 +676,15 @@
   async function logout() {
     try {
       if (isLoggedIn()) {
-        await api("/api/social/presence/offline", { method: "POST" }).catch(() => {});
-        await api("/api/social/sessions/clear", { method: "POST" }).catch(() => {});
-        await api("/api/auth/logout", { method: "POST" });
+        await api("/api/social/presence/offline", { method: "POST", timeoutMs: 4000 }).catch(() => {});
+        await api("/api/social/sessions/clear", { method: "POST", timeoutMs: 6000 }).catch(() => {});
+        await api("/api/auth/logout", { method: "POST", timeoutMs: 4000 }).catch(() => {});
       }
     } catch (_) {
       /* ignore */
+    } finally {
+      clearSession();
     }
-    clearSession();
   }
 
   async function fetchBillingStatus() {
@@ -1804,8 +1805,6 @@
     if (inviteMailSetup) inviteMailSetup.hidden = !canAccessMailSettings();
     const premiumBtn = document.getElementById("headerPremiumBtn");
     if (premiumBtn) premiumBtn.hidden = !isPremium();
-    const headerLogoutBtn = document.getElementById("headerLogoutBtn");
-    if (headerLogoutBtn) headerLogoutBtn.hidden = !loggedIn;
 
     updateHeaderRoleBadge();
     updateSettingsMailSection();
@@ -3323,6 +3322,7 @@
     getSession,
     getCachedProfile,
     cacheProfile,
+    clearSession,
     login,
     register,
     resendVerification,
