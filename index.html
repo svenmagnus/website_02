@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8645" />
+    <link rel="stylesheet" href="assets/styles.css?v=8647" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -631,6 +631,41 @@
                   <option value="other">Other</option>
                 </select>
               </div>
+              <div class="row profile-row-split">
+                <div>
+                  <label for="profileAge">Age</label>
+                  <input
+                    type="number"
+                    id="profileAge"
+                    min="18"
+                    max="120"
+                    placeholder="18+"
+                    inputmode="numeric"
+                  />
+                </div>
+                <div>
+                  <label for="profileBodyType">Body type</label>
+                  <select id="profileBodyType">
+                    <option value="">Prefer not to say</option>
+                    <option value="slim">Slim</option>
+                    <option value="athletic">Athletic</option>
+                    <option value="average">Average</option>
+                    <option value="curvy">Curvy</option>
+                    <option value="plus">Plus size</option>
+                    <option value="muscular">Muscular</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row">
+                <label for="profileInterestedIn">Interested in</label>
+                <select id="profileInterestedIn">
+                  <option value="">Prefer not to say</option>
+                  <option value="women">Women</option>
+                  <option value="men">Men</option>
+                  <option value="nonbinary">Non-binary people</option>
+                  <option value="everyone">Everyone</option>
+                </select>
+              </div>
               <div class="row">
                 <label for="profileNationality">Nationality</label>
                 <input
@@ -664,6 +699,24 @@
               <div class="row">
                 <label for="profileBio">About you</label>
                 <textarea id="profileBio" rows="4" maxlength="500" placeholder="A few words about you …"></textarea>
+              </div>
+              <div class="profile-gallery-block">
+                <div class="profile-gallery-head">
+                  <label class="profile-gallery-label">Photo gallery</label>
+                  <label for="profileGalleryInput" class="secondary profile-gallery-upload-label">Add photo</label>
+                  <input
+                    type="file"
+                    id="profileGalleryInput"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                    multiple
+                  />
+                </div>
+                <p class="status-line profile-field-hint">
+                  Up to 6 photos shown in your Member Pool profile. JPEG, PNG or WebP, max 2.5&nbsp;MB each.
+                </p>
+                <div id="profileGalleryGrid" class="profile-gallery-grid" aria-live="polite"></div>
+                <p class="status-line profile-gallery-status" id="profileGalleryStatus" hidden></p>
               </div>
               <p class="status-line profile-field-hint profile-playbook-prefs-hint">
                 Check a menu to show it in My Playbook below. Uncheck to hide it again.
@@ -1037,8 +1090,9 @@
           <div class="panel-tab-panel" data-remote-tab-panel="modelpool" hidden>
             <h2 class="panel-tab-title">Member Pool</h2>
             <p class="status-line" style="margin: 0 0 0.5rem">
-              Everyone you have shared sessions or chat with. <strong>Double-click</strong> to add them to
-              <strong>Current Chat Partner</strong> (Setup, left). <strong>Online</strong> only while they are signed in now.
+              Everyone you have shared sessions or chat with. <strong>Click</strong> a contact to view their profile.
+              <strong>Double-click</strong> to add them to <strong>Current Chat Partner</strong> (Setup, left).
+              <strong>Online</strong> only while they are signed in now.
             </p>
             <div class="row setup-add-model-row member-pool-add-row">
               <label for="setupAddModelUsername"
@@ -1273,9 +1327,9 @@
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
     <script src="assets/app.js?v=8638"></script>
-    <script src="assets/auth.js?v=8646"></script>
+    <script src="assets/auth.js?v=8647"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8642"></script>
-    <script src="assets/member-profile.js?v=8597"></script>
+    <script src="assets/social.js?v=8647"></script>
+    <script src="assets/member-profile.js?v=8647"></script>
   </body>
 </html>

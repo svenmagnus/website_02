@@ -39,11 +39,15 @@
     return {
       displayName: "Guest",
       gender: "",
+      age: null,
+      bodyType: "",
+      interestedIn: "",
       nationality: "",
       languages: "",
       location: "",
       bio: "",
       lovenseToys: "",
+      galleryImages: [],
       techniques: [],
       customTechniques: [],
       customMenus: [],
@@ -149,14 +153,28 @@
       : [];
 
     const displayName = String(raw.displayName || raw.name || "Guest").trim().slice(0, 32) || "Guest";
+    let age = null;
+    if (raw.age != null && raw.age !== "") {
+      const n = Number(raw.age);
+      if (Number.isInteger(n) && n >= 18 && n <= 120) age = n;
+    }
+    const bodyType = String(raw.bodyType || "").trim().slice(0, 48);
+    const interestedIn = String(raw.interestedIn || "").trim().slice(0, 120);
+    const galleryImages = Array.isArray(raw.galleryImages)
+      ? raw.galleryImages.filter((img) => img && img.url)
+      : [];
     return {
       displayName,
       gender: GENDERS.some((g) => g.value === raw.gender) ? raw.gender : "",
+      age,
+      bodyType,
+      interestedIn,
       nationality: String(raw.nationality || "").trim().slice(0, 64),
       languages: String(raw.languages || "").trim().slice(0, 120),
       location: String(raw.location || "").trim().slice(0, 120),
       bio: String(raw.bio || "").trim().slice(0, 500),
       lovenseToys: String(raw.lovenseToys || "").trim().slice(0, 500),
+      galleryImages,
       techniques,
       customTechniques,
       customMenus,
@@ -183,11 +201,15 @@
     return normalizeProfile({
       displayName: raw.displayName,
       gender: raw.gender,
+      age: raw.age,
+      bodyType: raw.bodyType,
+      interestedIn: raw.interestedIn,
       nationality: raw.nationality,
       languages: raw.languages,
       location: raw.location,
       bio: raw.bio,
       lovenseToys: raw.lovenseToys,
+      galleryImages: raw.galleryImages,
       techniques: raw.techniques,
       customTechniques: raw.customTechniques,
       customMenus: raw.customMenus,
@@ -233,6 +255,9 @@
       global.DualPeerAuth.updateProfile({
         displayName: next.displayName,
         gender: next.gender,
+        age: next.age,
+        bodyType: next.bodyType,
+        interestedIn: next.interestedIn,
         nationality: next.nationality,
         languages: next.languages,
         location: next.location,
@@ -486,6 +511,9 @@
   function readProfileForm() {
     const nameEl = document.getElementById("profileDisplayName");
     const genderEl = document.getElementById("profileGender");
+    const ageEl = document.getElementById("profileAge");
+    const bodyTypeEl = document.getElementById("profileBodyType");
+    const interestedEl = document.getElementById("profileInterestedIn");
     const nationalityEl = document.getElementById("profileNationality");
     const languagesEl = document.getElementById("profileLanguages");
     const locationEl = document.getElementById("profileLocation");
@@ -495,11 +523,18 @@
     return normalizeProfile({
       displayName: nameEl instanceof HTMLInputElement ? nameEl.value : "Guest",
       gender: genderEl instanceof HTMLSelectElement ? genderEl.value : "",
+      age:
+        ageEl instanceof HTMLInputElement && ageEl.value.trim()
+          ? Number(ageEl.value)
+          : null,
+      bodyType: bodyTypeEl instanceof HTMLSelectElement ? bodyTypeEl.value : "",
+      interestedIn: interestedEl instanceof HTMLSelectElement ? interestedEl.value : "",
       nationality: nationalityEl instanceof HTMLInputElement ? nationalityEl.value : "",
       languages: languagesEl instanceof HTMLInputElement ? languagesEl.value : "",
       location: locationEl instanceof HTMLInputElement ? locationEl.value : "",
       bio: bioEl instanceof HTMLTextAreaElement ? bioEl.value : "",
       lovenseToys: toysEl instanceof HTMLTextAreaElement ? toysEl.value : "",
+      galleryImages: current.galleryImages,
       techniques: filterTechniquesForPlayPrefs(getCheckedTechniqueIds(), readPlayPrefsFromForm(), {
         customTechniques: current.customTechniques,
         customMenus: current.customMenus,
@@ -671,10 +706,136 @@
     }
   }
 
+  function setProfileGalleryStatus(msg, kind = "") {
+    const el = document.getElementById("profileGalleryStatus");
+    if (!el) return;
+    if (!msg) {
+      el.hidden = true;
+      el.textContent = "";
+      el.className = "status-line profile-gallery-status";
+      return;
+    }
+    el.hidden = false;
+    el.className = `status-line profile-gallery-status${kind ? ` ${kind}` : ""}`;
+    el.textContent = msg;
+  }
+
+  function renderProfileGallery(images) {
+    const grid = document.getElementById("profileGalleryGrid");
+    if (!grid) return;
+    grid.replaceChildren();
+    const list = Array.isArray(images) ? images : [];
+    for (const img of list) {
+      if (!img?.url) continue;
+      const wrap = document.createElement("div");
+      wrap.className = "profile-gallery-item";
+      const photo = document.createElement("img");
+      photo.className = "profile-gallery-thumb";
+      photo.alt = "";
+      photo.loading = "lazy";
+      photo.src = resolveAvatarSrc(img.url);
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "profile-gallery-remove";
+      removeBtn.title = "Remove photo";
+      removeBtn.setAttribute("aria-label", "Remove photo");
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", () => {
+        void deleteGalleryImage(img.id);
+      });
+      wrap.appendChild(photo);
+      wrap.appendChild(removeBtn);
+      grid.appendChild(wrap);
+    }
+  }
+
+  async function deleteGalleryImage(imageId) {
+    if (!isAccountMode() || !global.DualPeerAuth?.api) return;
+    setProfileGalleryStatus("Removing…", "");
+    try {
+      const data = await global.DualPeerAuth.api(
+        `/api/profile/gallery/${encodeURIComponent(imageId)}`,
+        { method: "DELETE" }
+      );
+      const cached = global.DualPeerAuth.getCachedProfile?.();
+      if (cached) {
+        cached.galleryImages = data.gallery || [];
+        global.DualPeerAuth.cacheProfile?.(cached);
+      }
+      renderProfileGallery(data.gallery || []);
+      setProfileGalleryStatus("Photo removed.", "ok");
+      setTimeout(() => setProfileGalleryStatus(""), 2500);
+    } catch (err) {
+      setProfileGalleryStatus(err.message || "Could not remove photo.", "err");
+    }
+  }
+
+  function readImageFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read file."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadGalleryFiles(files) {
+    if (!isAccountMode() || !global.DualPeerAuth?.api) return;
+    const list = Array.from(files || []).filter((f) => f && f.type.startsWith("image/"));
+    if (!list.length) return;
+
+    setProfileGalleryStatus("Uploading…", "");
+    let gallery =
+      global.DualPeerAuth.getCachedProfile?.()?.galleryImages ||
+      loadProfile().galleryImages ||
+      [];
+
+    try {
+      for (const file of list) {
+        if (gallery.length >= 6) {
+          setProfileGalleryStatus("Maximum 6 photos in gallery.", "err");
+          break;
+        }
+        const imageData = await readImageFileAsDataUrl(file);
+        const data = await global.DualPeerAuth.api("/api/profile/gallery", {
+          method: "POST",
+          body: JSON.stringify({ imageData }),
+        });
+        gallery = data.gallery || gallery;
+      }
+      const cached = global.DualPeerAuth.getCachedProfile?.();
+      if (cached) {
+        cached.galleryImages = gallery;
+        global.DualPeerAuth.cacheProfile?.(cached);
+      }
+      renderProfileGallery(gallery);
+      setProfileGalleryStatus("Gallery updated.", "ok");
+      setTimeout(() => setProfileGalleryStatus(""), 2500);
+    } catch (err) {
+      setProfileGalleryStatus(err.message || "Upload failed.", "err");
+    }
+  }
+
+  function initProfileGallery() {
+    const input = document.getElementById("profileGalleryInput");
+    if (!(input instanceof HTMLInputElement) || input.dataset.galleryBound === "1") return;
+    input.dataset.galleryBound = "1";
+    input.addEventListener("change", () => {
+      const files = input.files;
+      if (files?.length) void uploadGalleryFiles(files);
+      input.value = "";
+    });
+    const cached = global.DualPeerAuth?.getCachedProfile?.();
+    renderProfileGallery(cached?.galleryImages || loadProfile().galleryImages || []);
+  }
+
   function fillProfileForm(profile) {
     const p = normalizeProfile(profile);
     const nameEl = document.getElementById("profileDisplayName");
     const genderEl = document.getElementById("profileGender");
+    const ageEl = document.getElementById("profileAge");
+    const bodyTypeEl = document.getElementById("profileBodyType");
+    const interestedEl = document.getElementById("profileInterestedIn");
     const nationalityEl = document.getElementById("profileNationality");
     const languagesEl = document.getElementById("profileLanguages");
     const locationEl = document.getElementById("profileLocation");
@@ -684,6 +845,9 @@
       nameEl.value = p.displayName === "Guest" ? "" : p.displayName;
     }
     if (genderEl instanceof HTMLSelectElement) genderEl.value = p.gender;
+    if (ageEl instanceof HTMLInputElement) ageEl.value = p.age != null ? String(p.age) : "";
+    if (bodyTypeEl instanceof HTMLSelectElement) bodyTypeEl.value = p.bodyType || "";
+    if (interestedEl instanceof HTMLSelectElement) interestedEl.value = p.interestedIn || "";
     if (nationalityEl instanceof HTMLInputElement) nationalityEl.value = p.nationality || "";
     if (languagesEl instanceof HTMLInputElement) languagesEl.value = p.languages || "";
     if (locationEl instanceof HTMLInputElement) locationEl.value = p.location || "";
@@ -692,6 +856,7 @@
     renderPlayPrefsChecklists(p);
     setTechniqueChecks(p.techniques);
     updateProfileAvatarPreview();
+    renderProfileGallery(p.galleryImages);
   }
 
   function buildPrefCheckbox(name, id, label, checked) {
@@ -1321,6 +1486,7 @@
     renderTechniqueChecklist();
     renderCustomMenusEditor();
     initProfileAvatar();
+    initProfileGallery();
     refreshAccountMini();
     initWelcomeBannerDismiss();
     refreshWelcomeBanner();

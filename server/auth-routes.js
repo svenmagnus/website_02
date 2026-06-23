@@ -6,6 +6,7 @@ import { getDb } from "./db.js";
 import { encryptSecret } from "./smtp-crypto.js";
 import { linkInviteHostToGuest } from "./social-routes.js";
 import { avatarUrlForUser } from "./profile-avatar.js";
+import { galleryForUserRow } from "./profile-gallery.js";
 import { chatColorsFromRow, normalizeChatColorsInput } from "./chat-colors.js";
 import { playModeSoundFromRow, normalizePlayModeSoundInput } from "./play-mode-sound.js";
 import { isUserBanned, banFieldsForProfile, normalizeBanReasonInput } from "./member-ban.js";
@@ -324,6 +325,10 @@ function rowToProfile(row) {
     nationality: String(row.nationality || "").slice(0, 64),
     languages: String(row.languages || "").slice(0, 120),
     location: String(row.location || "").slice(0, 120),
+    age: row.age != null && Number.isInteger(row.age) ? row.age : null,
+    bodyType: String(row.body_type || "").slice(0, 48),
+    interestedIn: String(row.interested_in || "").slice(0, 120),
+    galleryImages: galleryForUserRow(row),
     createdAt: row.created_at,
     mailConfigured: isSmtpConfiguredForUser(row),
     accountType: isHostAccount(row) ? "host" : "guest",
@@ -1029,6 +1034,23 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
       : current.languages;
   const location =
     req.body?.location != null ? String(req.body.location).trim().slice(0, 120) : current.location;
+  const age =
+    req.body?.age != null
+      ? (() => {
+          if (req.body.age === "" || req.body.age == null) return null;
+          const n = Number(req.body.age);
+          if (!Number.isInteger(n) || n < 18 || n > 120) return current.age;
+          return n;
+        })()
+      : current.age;
+  const bodyType =
+    req.body?.bodyType != null
+      ? String(req.body.bodyType).trim().slice(0, 48)
+      : current.bodyType;
+  const interestedIn =
+    req.body?.interestedIn != null
+      ? String(req.body.interestedIn).trim().slice(0, 120)
+      : current.interestedIn;
   const playPrefs =
     req.body?.playPrefs != null
       ? {
@@ -1055,7 +1077,7 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
       : current.appearanceTheme;
 
   db.prepare(
-    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, custom_menus_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?, chat_colors_json = ?, play_mode_sound = ?, appearance_theme = ?
+    `UPDATE users SET display_name = ?, gender = ?, bio = ?, techniques_json = ?, custom_techniques_json = ?, custom_menus_json = ?, play_prefs_json = ?, lovense_toys = ?, nationality = ?, languages = ?, location = ?, age = ?, body_type = ?, interested_in = ?, chat_colors_json = ?, play_mode_sound = ?, appearance_theme = ?
      WHERE id = ?`
   ).run(
     displayName,
@@ -1072,6 +1094,9 @@ authRouter.patch("/profile", requireAuth, (req, res) => {
     nationality,
     languages,
     location,
+    age,
+    bodyType,
+    interestedIn,
     chatColors ? JSON.stringify(chatColors) : null,
     playModeSound,
     appearanceTheme,

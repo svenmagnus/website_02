@@ -6,6 +6,7 @@ import { chatColorsFromRow } from "./chat-colors.js";
 import { playModeSoundFromRow } from "./play-mode-sound.js";
 import { isUserBanned } from "./member-ban.js";
 import { avatarUrlForUser } from "./profile-avatar.js";
+import { galleryForUserRow } from "./profile-gallery.js";
 import { resolveSubscriptionAccess } from "./billing.js";
 import {
   buildGoogleCalendarUrl,
@@ -135,6 +136,39 @@ function partnerPlaybookRow(row) {
     chatColors: chatColorsFromRow(row),
     playModeSound: playModeSoundFromRow(row),
   };
+}
+
+function memberPoolProfileRow(row) {
+  if (!row) return null;
+  const playbook = partnerPlaybookRow(row);
+  return {
+    ...playbook,
+    id: row.id,
+    username: row.username,
+    avatarUrl: avatarUrlForUser(row),
+    nationality: String(row.nationality || "").slice(0, 64),
+    languages: String(row.languages || "").slice(0, 120),
+    location: String(row.location || "").slice(0, 120),
+    age: row.age != null && Number.isInteger(row.age) ? row.age : null,
+    bodyType: String(row.body_type || "").slice(0, 48),
+    interestedIn: String(row.interested_in || "").slice(0, 120),
+    galleryImages: galleryForUserRow(row),
+  };
+}
+
+function isInMemberPool(db, ownerId, memberId) {
+  return Boolean(
+    db
+      .prepare(
+        `SELECT 1 FROM model_pool
+         WHERE owner_user_id = ? AND model_user_id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM model_pool_hidden h
+             WHERE h.owner_user_id = ? AND h.hidden_user_id = ?
+           )`
+      )
+      .get(ownerId, memberId, ownerId, memberId)
+  );
 }
 
 function usersShareThreadOrMeeting(db, uid, partnerId) {
@@ -450,6 +484,24 @@ socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
   }));
 
   res.json({ ok: true, models });
+});
+
+socialRouter.get("/social/model-pool/:userId/profile", requireAuth, (req, res) => {
+  const db = getDb();
+  const uid = req.authUser.id;
+  const memberId = String(req.params.userId || "").trim();
+  if (!memberId) {
+    return res.status(400).json({ ok: false, error: "member_required" });
+  }
+  if (memberId === uid) {
+    return res.status(400).json({ ok: false, error: "invalid_member" });
+  }
+  if (!isInMemberPool(db, uid, memberId) && !usersShareThreadOrMeeting(db, uid, memberId)) {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(memberId);
+  if (!row) return res.status(404).json({ ok: false, error: "member_not_found" });
+  res.json({ ok: true, profile: memberPoolProfileRow(row) });
 });
 
 socialRouter.post("/social/model-pool/add", requireAuth, (req, res) => {

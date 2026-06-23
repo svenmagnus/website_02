@@ -25,6 +25,7 @@ import {
   handleAvatarUpload,
   requireAuthAvatar,
 } from "./profile-avatar.js";
+import { handleGalleryUpload, handleGalleryDelete } from "./profile-gallery.js";
 import { WhipReceiver } from "@werift/whip-server";
 import {
   RTCPeerConnection,
@@ -743,6 +744,8 @@ app.use(
 const avatarBodyParser = express.json({ limit: "4mb" });
 app.post("/api/profile/avatar", avatarBodyParser, requireAuthAvatar, handleAvatarUpload);
 app.delete("/api/profile/avatar", requireAuthAvatar, handleAvatarDelete);
+app.post("/api/profile/gallery", avatarBodyParser, requireAuthAvatar, handleGalleryUpload);
+app.delete("/api/profile/gallery/:imageId", requireAuthAvatar, handleGalleryDelete);
 app.use(
   "/api/uploads",
   express.static(path.join(__dirname, "data", "uploads"), { maxAge: "3600000", etag: true })

@@ -265,6 +265,22 @@ function runMigrations(database) {
     database.exec(
       `ALTER TABLE users ADD COLUMN custom_menus_json TEXT NOT NULL DEFAULT '{"menus":[],"enabled":[]}'`
     );
+    userColsPresence = tableColumns(database, "users");
+  }
+  if (!userColsPresence.includes("age")) {
+    database.exec(`ALTER TABLE users ADD COLUMN age INTEGER`);
+    userColsPresence = tableColumns(database, "users");
+  }
+  if (!userColsPresence.includes("body_type")) {
+    database.exec(`ALTER TABLE users ADD COLUMN body_type TEXT NOT NULL DEFAULT ''`);
+    userColsPresence = tableColumns(database, "users");
+  }
+  if (!userColsPresence.includes("interested_in")) {
+    database.exec(`ALTER TABLE users ADD COLUMN interested_in TEXT NOT NULL DEFAULT ''`);
+    userColsPresence = tableColumns(database, "users");
+  }
+  if (!userColsPresence.includes("profile_gallery_json")) {
+    database.exec(`ALTER TABLE users ADD COLUMN profile_gallery_json TEXT NOT NULL DEFAULT '[]'`);
   }
 
   database.exec(`

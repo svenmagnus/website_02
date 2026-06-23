@@ -31,6 +31,7 @@
     threadLastMessageAt: null,
     activeUserId: null,
     sessionJoinedMeetingId: null,
+    expandedPoolMemberId: null,
   };
 
   let chatBroadcastChannel = null;
@@ -464,13 +465,189 @@
     state.partner = state.contactPool.find((c) => c.id === id) || null;
   }
 
-  function buildMemberCard(m, { variant, onRemove, onActivate, onSelect, selected, premiumPartner } = {}) {
+  const POOL_GENDER_LABELS = {
+    female: "Female",
+    male: "Male",
+    nonbinary: "Non-binary",
+    other: "Other",
+  };
+  const POOL_BODY_LABELS = {
+    slim: "Slim",
+    athletic: "Athletic",
+    average: "Average",
+    curvy: "Curvy",
+    plus: "Plus size",
+    muscular: "Muscular",
+  };
+  const POOL_INTEREST_LABELS = {
+    women: "Women",
+    men: "Men",
+    nonbinary: "Non-binary people",
+    everyone: "Everyone",
+  };
+
+  function poolPrefLabels(ids, group) {
+    const PP = global.DualPeerPlayPrefs;
+    if (!PP || !Array.isArray(ids) || !ids.length) return "";
+    const list =
+      group === "dynamics" ? PP.DYNAMICS : group === "kinks" ? PP.KINKS : PP.INTENSITY;
+    const map = new Map((list || []).map((o) => [o.id, o.label]));
+    return ids.map((id) => map.get(id) || id).join(", ");
+  }
+
+  async function fetchPoolMemberProfile(memberId) {
+    const data = await api(`/api/social/model-pool/${encodeURIComponent(memberId)}/profile`);
+    return data.profile || null;
+  }
+
+  function renderPoolMemberDetail(container, profile) {
+    if (!container || !profile) return;
+    container.replaceChildren();
+
+    const title = document.createElement("h4");
+    title.className = "model-pool-detail-title";
+    title.textContent = "About you";
+    container.appendChild(title);
+
+    const dl = document.createElement("dl");
+    dl.className = "model-pool-detail-dl";
+
+    const addRow = (label, value) => {
+      if (!value || value === "—") return;
+      const dt = document.createElement("dt");
+      dt.textContent = label;
+      const dd = document.createElement("dd");
+      dd.textContent = value;
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    };
+
+    addRow("Age", profile.age ? String(profile.age) : "");
+    addRow("Gender", POOL_GENDER_LABELS[profile.gender] || profile.gender);
+    addRow("Body type", POOL_BODY_LABELS[profile.bodyType] || profile.bodyType);
+    addRow("Interested in", POOL_INTEREST_LABELS[profile.interestedIn] || profile.interestedIn);
+    addRow("Nationality", profile.nationality);
+    addRow("Languages", profile.languages);
+    addRow("Location", profile.location);
+    addRow("Dynamics", poolPrefLabels(profile.playPrefs?.dynamics, "dynamics"));
+    addRow("Kinks & practices", poolPrefLabels(profile.playPrefs?.kinks, "kinks"));
+    addRow("Intensity", poolPrefLabels(profile.playPrefs?.intensity, "intensity"));
+
+    if (dl.childElementCount) container.appendChild(dl);
+
+    const bio = String(profile.bio || "").trim();
+    if (bio) {
+      const bioBlock = document.createElement("div");
+      bioBlock.className = "model-pool-detail-bio";
+      const bioLabel = document.createElement("strong");
+      bioLabel.textContent = "Bio";
+      const bioText = document.createElement("p");
+      bioText.textContent = bio;
+      bioBlock.appendChild(bioLabel);
+      bioBlock.appendChild(bioText);
+      container.appendChild(bioBlock);
+    }
+
+    const gallery = Array.isArray(profile.galleryImages) ? profile.galleryImages : [];
+    if (gallery.length) {
+      const galleryWrap = document.createElement("div");
+      galleryWrap.className = "model-pool-detail-gallery";
+      const galleryLabel = document.createElement("strong");
+      galleryLabel.textContent = "Photos";
+      galleryWrap.appendChild(galleryLabel);
+      const grid = document.createElement("div");
+      grid.className = "model-pool-gallery-grid";
+      for (const img of gallery) {
+        if (!img?.url) continue;
+        const el = document.createElement("img");
+        el.className = "model-pool-gallery-thumb";
+        el.loading = "lazy";
+        el.alt = "";
+        try {
+          el.src = new URL(String(img.url), location.origin).href;
+        } catch (_) {
+          el.src = global.DualPeerAuth?.resolveAssetUrl?.(img.url) || img.url;
+        }
+        grid.appendChild(el);
+      }
+      galleryWrap.appendChild(grid);
+      container.appendChild(galleryWrap);
+    }
+
+    if (!bio && !dl.childElementCount && !gallery.length) {
+      const empty = document.createElement("p");
+      empty.className = "status-line";
+      empty.textContent = "No profile details yet.";
+      container.appendChild(empty);
+    }
+  }
+
+  async function togglePoolMemberPreview(memberId, entry) {
+    const detail = entry?.querySelector?.(".model-pool-detail");
+    if (!detail) return;
+
+    if (state.expandedPoolMemberId === memberId) {
+      state.expandedPoolMemberId = null;
+      entry.classList.remove("is-expanded");
+      detail.hidden = true;
+      return;
+    }
+
+    document.querySelectorAll(".model-pool-entry.is-expanded").forEach((el) => {
+      el.classList.remove("is-expanded");
+      const panel = el.querySelector(".model-pool-detail");
+      if (panel) panel.hidden = true;
+    });
+
+    state.expandedPoolMemberId = memberId;
+    entry.classList.add("is-expanded");
+    detail.hidden = false;
+    detail.replaceChildren();
+    const loading = document.createElement("p");
+    loading.className = "status-line";
+    loading.textContent = "Loading profile…";
+    detail.appendChild(loading);
+
+    try {
+      const profile = await fetchPoolMemberProfile(memberId);
+      renderPoolMemberDetail(detail, profile);
+    } catch (err) {
+      detail.replaceChildren();
+      const errEl = document.createElement("p");
+      errEl.className = "status-line err";
+      errEl.textContent = err.message || "Could not load profile.";
+      detail.appendChild(errEl);
+    }
+  }
+
+  function buildPoolEntry(m, cardOptions) {
+    const entry = document.createElement("div");
+    entry.className = "model-pool-entry";
+    entry.dataset.memberId = m.id;
+
+    const card = buildMemberCard(m, {
+      ...cardOptions,
+      onPreview: () => {
+        void togglePoolMemberPreview(m.id, entry);
+      },
+    });
+    entry.appendChild(card);
+
+    const detail = document.createElement("div");
+    detail.className = "model-pool-detail";
+    detail.hidden = true;
+    entry.appendChild(detail);
+
+    return entry;
+  }
+
+  function buildMemberCard(m, { variant, onRemove, onActivate, onPreview, onSelect, selected, premiumPartner } = {}) {
     const sessionLive = Boolean(findActiveInstantSessionWithPartner(m.id));
     const card = document.createElement("div");
     card.className = "model-card" + (m.signedIn ? " is-signed-in" : "") + (sessionLive ? " is-session-live" : "");
     if (variant === "pool") {
       card.classList.add("model-card--pool");
-      card.title = "Double-click to set as Current Chat Partner";
+      card.title = "Click for profile · double-click for Current Chat Partner";
     }
     if (variant === "active") {
       card.classList.add("model-card--active");
@@ -563,8 +740,22 @@
     }
     card.appendChild(meta);
 
-    if (variant === "pool" && onActivate) {
-      card.addEventListener("dblclick", () => onActivate(m));
+    if (variant === "pool") {
+      let clickTimer = null;
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".model-card-remove-btn")) return;
+        clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => {
+          if (onPreview) onPreview(m);
+        }, 260);
+      });
+      if (onActivate) {
+        card.addEventListener("dblclick", (e) => {
+          if (e.target.closest(".model-card-remove-btn")) return;
+          clearTimeout(clickTimer);
+          onActivate(m);
+        });
+      }
     }
 
     return card;
@@ -2080,11 +2271,12 @@
     } else {
       if (status) {
         status.className = "status-line ok";
-        status.textContent = `${regularContacts.length} contact${regularContacts.length === 1 ? "" : "s"} · double-click to set as Current Chat Partner`;
+        status.textContent =
+          `${regularContacts.length} contact${regularContacts.length === 1 ? "" : "s"} · click for profile · double-click for Current Chat Partner`;
       }
       for (const m of regularContacts) {
         root.appendChild(
-          buildMemberCard(m, {
+          buildPoolEntry(m, {
             variant: "pool",
             onActivate: (contact) => {
               addActiveMember(contact).then((ok) => {
@@ -2120,11 +2312,11 @@
 
     if (premiumStatus) {
       premiumStatus.className = "status-line ok";
-      premiumStatus.textContent = `${premiumContacts.length} Premium Partner${premiumContacts.length === 1 ? "" : "s"} · double-click to set as Current Chat Partner`;
+      premiumStatus.textContent = `${premiumContacts.length} Premium Partner${premiumContacts.length === 1 ? "" : "s"} · click for profile · double-click for Current Chat Partner`;
     }
     for (const m of premiumContacts) {
       premiumRoot.appendChild(
-        buildMemberCard(m, {
+        buildPoolEntry(m, {
           variant: "pool",
           premiumPartner: true,
           onActivate: (contact) => {
