@@ -572,7 +572,7 @@
 
     const title = document.createElement("h4");
     title.className = "model-pool-detail-title";
-    title.textContent = "About you";
+    title.textContent = "About me";
     container.appendChild(title);
 
     const dl = document.createElement("dl");
