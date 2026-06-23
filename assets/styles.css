@@ -4002,6 +4002,122 @@ footer {
   margin-top: 0.35rem;
 }
 
+.profile-gallery-thumb,
+.model-pool-gallery-thumb {
+  cursor: zoom-in;
+}
+
+.gallery-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.gallery-lightbox[hidden] {
+  display: none !important;
+}
+
+body.has-gallery-lightbox-open {
+  overflow: hidden;
+}
+
+.gallery-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.88);
+  cursor: zoom-out;
+}
+
+.gallery-lightbox-close {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  z-index: 2;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gallery-lightbox-close:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.gallery-lightbox-stage {
+  position: relative;
+  z-index: 1;
+  max-width: min(92vw, 960px);
+  max-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gallery-lightbox-img {
+  display: block;
+  max-width: min(92vw, 960px);
+  max-height: 85vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.gallery-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gallery-lightbox-nav:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.gallery-lightbox-prev {
+  left: 0.85rem;
+}
+
+.gallery-lightbox-next {
+  right: 0.85rem;
+}
+
+.gallery-lightbox-counter {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.78rem;
+}
+
 .profile-avatar-block {
   display: flex;
   align-items: flex-start;

@@ -720,27 +720,36 @@
     el.textContent = msg;
   }
 
+  function openGalleryLightbox(urls, startIndex = 0) {
+    global.DualPeerGalleryLightbox?.open?.({ images: urls, startIndex });
+  }
+
   function renderProfileGallery(images) {
     const grid = document.getElementById("profileGalleryGrid");
     if (!grid) return;
     grid.replaceChildren();
-    const list = Array.isArray(images) ? images : [];
-    for (const img of list) {
-      if (!img?.url) continue;
+    const list = Array.isArray(images) ? images.filter((img) => img?.url) : [];
+    const urls = list.map((img) => resolveAvatarSrc(img.url));
+    for (let i = 0; i < list.length; i++) {
+      const img = list[i];
       const wrap = document.createElement("div");
       wrap.className = "profile-gallery-item";
       const photo = document.createElement("img");
       photo.className = "profile-gallery-thumb";
       photo.alt = "";
       photo.loading = "lazy";
-      photo.src = resolveAvatarSrc(img.url);
+      photo.src = urls[i];
+      photo.addEventListener("click", () => {
+        openGalleryLightbox(urls, i);
+      });
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.className = "profile-gallery-remove";
       removeBtn.title = "Remove photo";
       removeBtn.setAttribute("aria-label", "Remove photo");
       removeBtn.textContent = "×";
-      removeBtn.addEventListener("click", () => {
+      removeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         void deleteGalleryImage(img.id);
       });
       wrap.appendChild(photo);

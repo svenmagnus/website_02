@@ -623,19 +623,28 @@
       galleryWrap.appendChild(galleryLabel);
       const grid = document.createElement("div");
       grid.className = "model-pool-gallery-grid";
+      const urls = [];
       for (const img of gallery) {
         if (!img?.url) continue;
+        let src = "";
+        try {
+          src = new URL(String(img.url), location.origin).href;
+        } catch (_) {
+          src = global.DualPeerAuth?.resolveAssetUrl?.(img.url) || img.url;
+        }
+        urls.push(src);
+      }
+      urls.forEach((src, i) => {
         const el = document.createElement("img");
         el.className = "model-pool-gallery-thumb";
         el.loading = "lazy";
         el.alt = "";
-        try {
-          el.src = new URL(String(img.url), location.origin).href;
-        } catch (_) {
-          el.src = global.DualPeerAuth?.resolveAssetUrl?.(img.url) || img.url;
-        }
+        el.src = src;
+        el.addEventListener("click", () => {
+          global.DualPeerGalleryLightbox?.open?.({ images: urls, startIndex: i });
+        });
         grid.appendChild(el);
-      }
+      });
       galleryWrap.appendChild(grid);
       container.appendChild(galleryWrap);
     }
