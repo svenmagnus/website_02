@@ -1524,6 +1524,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
         ? 1
         : 0
       : Number(existing.is_free_guest || 0);
+  const prevFreeGuest = Number(existing.is_free_guest || 0);
   let isPremium = isAdmin ? 1 : isModel ? 1 : isFreeMembership ? 0 : Number(existing.is_premium || 0);
   const isFreeGuest = isAdmin || isModel ? 0 : isFreeMembership;
   const password = req.body?.password != null ? String(req.body.password || "") : "";
@@ -1585,6 +1586,11 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
     db.prepare("DELETE FROM sessions WHERE user_id = ?").run(existing.id);
   }
 
+  const freeGuestChanged = prevFreeGuest !== isFreeGuest;
+  if (freeGuestChanged) {
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(existing.id);
+  }
+
   if (password) {
     if (password.length < 8 || password.length > 128) {
       return res.status(400).json({ ok: false, error: "invalid_password" });
@@ -1607,6 +1613,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   const membership = resolveMembershipLabel(updated, getSubscriptionRow(db, updated.id));
   res.json({
     ok: true,
+    sessionsInvalidated: freeGuestChanged || (isBillingTestUser && req.body?.subscriptionOverride != null && subscriptionOverride !== prevBillingOverride),
     user: {
       id: updated.id,
       username: updated.username,

@@ -167,6 +167,8 @@
   function isSubscriptionBlocked(profile) {
     if (!profile) return false;
     if (profile.isAdmin) return false;
+    if (profile.isFreeGuest) return false;
+    if (profile.isModel) return false;
     const sub = profile?.subscription;
     if (!sub) return false;
     if (sub.exempt) return false;
@@ -2520,12 +2522,13 @@
         const roleLabel = resolveAdminUserRoleLabel(merged || res.user || {});
         const billingChanged =
           username.toLowerCase() === ADMIN_BILLING_TEST_USERNAME && patch.subscriptionOverride != null;
-        setStatus(
-          billingChanged
-            ? `Saved ${res.user?.username || "profile"} — Role: ${roleLabel}. Mr_X must sign in again to apply.`
-            : `Saved ${res.user?.username || "profile"}.`,
-          "ok"
-        );
+        let statusMsg = `Saved ${res.user?.username || "profile"}.`;
+        if (billingChanged) {
+          statusMsg = `Saved ${res.user?.username || "profile"} — Role: ${roleLabel}. Mr_X must sign in again to apply.`;
+        } else if (res.sessionsInvalidated) {
+          statusMsg = `Saved ${res.user?.username || "profile"} — ${res.user?.username || "User"} must sign in again for billing/access changes to apply.`;
+        }
+        setStatus(statusMsg, "ok");
         if (res.user && merged) {
           refreshAdminUserRow(tr, res.user, patch, username);
         }
@@ -2546,6 +2549,9 @@
             updateSubscriptionOverlay(profile.subscription);
           } else {
             hideSubscriptionOverlay();
+            clearSubscriptionRenewalRequired();
+            if (global.dualPeerSiteAccess?.grant) global.dualPeerSiteAccess.grant();
+            else global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
           }
         }
       } catch (err) {
