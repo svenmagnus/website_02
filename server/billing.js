@@ -10,7 +10,9 @@ export function stripeBrandName() {
 
 export function normalizeSubscriptionOverride(value) {
   const v = String(value || "").trim().toLowerCase();
-  if (v === "trial_expired" || v === "active") return v;
+  if (v === "trial_expired") return "trial_expired";
+  if (v === "active" || v === "premium") return "active";
+  if (v === "trial_member" || v === "trial" || v === "") return "trial_member";
   return "";
 }
 
@@ -45,6 +47,7 @@ export function isSubscriptionExempt(user) {
   if (!user) return false;
   if (isAdminUser(user)) return true;
   if (isPremiumPartner(user)) return true;
+  if (Boolean(user?.is_premium) && !Boolean(user?.is_model)) return true;
   return false;
 }
 
@@ -102,6 +105,18 @@ export function resolveSubscriptionAccess(user, subRow = null) {
       accessGranted: true,
       requiresPayment: false,
       phase: "active",
+    };
+  }
+
+  if (adminOverride === "trial_member") {
+    const trialActive = Date.now() < trialEndsAt;
+    return {
+      ...base,
+      exempt: false,
+      accessGranted: trialActive,
+      requiresPayment: !trialActive,
+      phase: trialActive ? "trial" : "trial_expired",
+      daysRemaining: daysRemaining(trialEndsAt),
     };
   }
 

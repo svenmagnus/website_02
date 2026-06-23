@@ -1461,7 +1461,15 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   const isAdmin = req.body?.isAdmin != null ? (req.body.isAdmin ? 1 : 0) : Number(existing.is_admin || 0);
   const isModel =
     req.body?.isModel != null ? (req.body.isModel ? 1 : 0) : Number(existing.is_model || 0);
-  const isPremium = isAdmin ? 1 : isModel ? 1 : Number(existing.is_premium || 0);
+  const isFreeMembership =
+    req.body?.isFreeMembership != null
+      ? req.body.isFreeMembership
+        ? 1
+        : 0
+      : Number(existing.is_premium) && !Number(existing.is_model) && !Number(existing.is_admin)
+        ? 1
+        : 0;
+  const isPremium = isAdmin ? 1 : isModel ? 1 : isFreeMembership ? 1 : 0;
   const password = req.body?.password != null ? String(req.body.password || "") : "";
   const nextBanned =
     req.body?.isBanned != null ? Boolean(req.body.isBanned) : isUserBanned(existing);
@@ -1471,10 +1479,11 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       : normalizeBanReasonInput(existing.ban_reason);
   const bannedAt = nextBanned ? existing.banned_at || Date.now() : null;
   const storedBanReason = nextBanned ? banReason : "";
-  const subscriptionOverride =
-    req.body?.subscriptionOverride != null
-      ? normalizeSubscriptionOverride(req.body.subscriptionOverride)
-      : normalizeSubscriptionOverride(existing.subscription_override);
+  const isBillingTestUser = String(existing.username || "").toLowerCase() === "mr_x";
+  let subscriptionOverride = normalizeSubscriptionOverride(existing.subscription_override);
+  if (req.body?.subscriptionOverride != null && isBillingTestUser) {
+    subscriptionOverride = normalizeSubscriptionOverride(req.body.subscriptionOverride);
+  }
 
   if (existing.id === req.authUser.id && !isAdmin) {
     return res.status(400).json({

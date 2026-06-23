@@ -3152,6 +3152,17 @@ footer {
   border: 1px solid var(--border);
 }
 
+.admin-status-badge--expired {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.admin-billing-cell--na {
+  color: var(--muted);
+  text-align: center;
+}
+
 .admin-status-badge--guest {
   background: color-mix(in srgb, #60a5fa 20%, transparent);
   color: #93c5fd;

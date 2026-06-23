@@ -221,9 +221,40 @@
     return "is-member";
   }
 
+  const ADMIN_BILLING_TEST_USERNAME = "mr_x";
+
+  function isAdminBillingTestUser(user) {
+    return String(user?.username || "").trim().toLowerCase() === ADMIN_BILLING_TEST_USERNAME;
+  }
+
+  function isFreeMembershipUser(user) {
+    return Boolean(user?.isPremium) && !user?.isModel && !user?.isAdmin;
+  }
+
+  function resolveAdminUserRoleLabel(user) {
+    if (!user) return "Visitor";
+    if (user.isBanned) return "Banned";
+    const override = user.subscriptionOverride || "";
+    if (override === "trial_expired") return "Membership expired";
+    if (user.isAdmin) return "Administrator";
+    if (override === "active") return "Premium";
+    if (user.isPremium && user.isModel) return "Premium Partner";
+    if (user.isPremium) return "Premium";
+    if (user.isModel) return "Partner";
+    return "Member";
+  }
+
+  function resolveAdminUserRoleBadgeClass(user) {
+    if (!user) return "is-visitor";
+    if (user.isBanned) return "is-expired";
+    const override = user.subscriptionOverride || "";
+    if (override === "trial_expired") return "is-expired";
+    return resolveAccountRoleBadgeClass(user);
+  }
+
   function adminRoleBadgeHtml(user) {
-    const label = resolveAccountRoleLabel(user);
-    const cls = resolveAccountRoleBadgeClass(user).replace(/^is-/, "admin-status-badge--");
+    const label = resolveAdminUserRoleLabel(user);
+    const cls = resolveAdminUserRoleBadgeClass(user).replace(/^is-/, "admin-status-badge--");
     return `<span class="admin-status-badge ${cls}">${label}</span>`;
   }
 
@@ -692,6 +723,23 @@
     }
 
     const priceLabel = `${sub.priceEur || "2.95"} € / month`;
+
+    if (sub.adminOverride === "trial_member") {
+      return {
+        badge: "Free trial",
+        badgeClass: "trial",
+        rows: [
+          { label: "Status", value: "Trial active (test)" },
+          { label: "Days remaining", value: String(sub.daysRemaining ?? 0) },
+          { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt) },
+          { label: "Plan", value: priceLabel },
+        ],
+        note: "Admin billing test — simulates a member in free trial.",
+        showCheckout: true,
+        showPortal: Boolean(sub.stripeCustomerId),
+        checkoutLabel: "Subscribe early",
+      };
+    }
 
     if (sub.adminOverride === "trial_expired") {
       return {
@@ -1978,20 +2026,28 @@
   }
 
   function adminFlagCell(field, checked, { disabled = false } = {}) {
-    const labels = { isPremium: "Premium", isModel: "Partner", isAdmin: "Admin", isBanned: "Banned" };
+    const labels = {
+      isFreeMembership: "Free membership",
+      isModel: "Partner",
+      isAdmin: "Admin",
+      isBanned: "Banned",
+    };
     const dis = disabled ? " disabled" : "";
     const chk = checked ? " checked" : "";
     const label = labels[field] || field;
     return `<td class="admin-flag-cell"><label class="admin-flag-toggle" title="${label}"><input type="checkbox" class="admin-flag-input" data-field="${field}"${chk}${dis} aria-label="${label}" /><span class="admin-flag-mark" aria-hidden="true"></span></label></td>`;
   }
 
-  function adminBillingOverrideCell(override) {
-    const value = override || "";
+  function adminBillingOverrideCell(user) {
+    if (!isAdminBillingTestUser(user)) {
+      return `<td class="admin-billing-cell admin-billing-cell--na" title="Billing test is only available for Mr_X">—</td>`;
+    }
+    const value = user.subscriptionOverride || "trial_member";
     return `<td class="admin-billing-cell">
-      <select class="admin-input admin-billing-override" data-field="subscriptionOverride" title="Simulate billing state for testing (ignores premium-partner exemption)">
-        <option value=""${value === "" ? " selected" : ""}>Auto</option>
+      <select class="admin-input admin-billing-override" data-field="subscriptionOverride" title="Simulate billing state for Mr_X test account">
+        <option value="trial_member"${value === "trial_member" ? " selected" : ""}>Trial (Member)</option>
+        <option value="active"${value === "active" ? " selected" : ""}>Premium</option>
         <option value="trial_expired"${value === "trial_expired" ? " selected" : ""}>Trial expired</option>
-        <option value="active"${value === "active" ? " selected" : ""}>Force active</option>
       </select>
     </td>`;
   }
@@ -2006,18 +2062,20 @@
       <td class="admin-status-cell">
         ${adminRoleBadgeHtml(user)}
       </td>
+      ${adminFlagCell("isFreeMembership", isFreeMembershipUser(user), {
+        disabled: user.isAdmin || user.isModel,
+      })}
       <td><input type="email" class="admin-input" data-field="email" value="${escAdminAttr(user.email)}" /></td>
       <td><input type="text" class="admin-input" data-field="displayName" maxlength="32" value="${escAdminAttr(user.displayName)}" /></td>
       <td><input type="text" class="admin-input" data-field="nationality" maxlength="64" value="${escAdminAttr(user.nationality)}" /></td>
       <td><input type="text" class="admin-input" data-field="languages" maxlength="120" value="${escAdminAttr(user.languages)}" /></td>
       <td><input type="text" class="admin-input" data-field="location" maxlength="120" value="${escAdminAttr(user.location)}" /></td>
-      ${adminFlagCell("isPremium", user.isPremium, { disabled: true })}
       ${adminFlagCell("isModel", user.isModel)}
       ${adminFlagCell("isAdmin", user.isAdmin)}
       <td><input type="text" class="admin-input admin-ban-reason-input" data-field="banReason" maxlength="500" placeholder="ban reason (optional)" value="${escAdminAttr(user.banReason)}" /></td>
       ${adminFlagCell("isBanned", user.isBanned)}
       <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" autocomplete="new-password" /></td>
-      ${adminBillingOverrideCell(user.subscriptionOverride)}
+      ${adminBillingOverrideCell(user)}
       <td class="admin-actions-cell">
         <button type="button" class="primary admin-save-btn">Save</button>
         <button type="button" class="secondary admin-pool-btn" title="Add to your model pool">Pool</button>
@@ -2184,6 +2242,8 @@
       const isModelEl = tr.querySelector('[data-field="isModel"]');
       const isAdminEl = tr.querySelector('[data-field="isAdmin"]');
       const isBannedEl = tr.querySelector('[data-field="isBanned"]');
+      const isFreeMembershipEl = tr.querySelector('[data-field="isFreeMembership"]');
+      const username = tr.querySelector(".admin-user-name")?.textContent?.trim() || "";
       const patch = {
         email: emailEl?.value,
         displayName: displayNameEl?.value,
@@ -2193,11 +2253,15 @@
         location: tr.querySelector('[data-field="location"]')?.value,
         isModel: Boolean(isModelEl?.checked),
         isAdmin: Boolean(isAdminEl?.checked),
+        isFreeMembership: Boolean(isFreeMembershipEl?.checked),
         isBanned: Boolean(isBannedEl?.checked),
         banReason: tr.querySelector('[data-field="banReason"]')?.value || "",
-        subscriptionOverride: tr.querySelector('[data-field="subscriptionOverride"]')?.value || "",
         password: tr.querySelector('[data-field="password"]')?.value || "",
       };
+      if (username.toLowerCase() === ADMIN_BILLING_TEST_USERNAME) {
+        patch.subscriptionOverride =
+          tr.querySelector('[data-field="subscriptionOverride"]')?.value || "trial_member";
+      }
       btn.disabled = true;
       setStatus("Saving profile…");
       try {
