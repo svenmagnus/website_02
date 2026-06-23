@@ -525,11 +525,24 @@ html[data-theme="cb-light"] .header-role-badge.is-guest {
   background: var(--surface);
 }
 
+.header-role-badge.is-test {
+  color: var(--partner);
+  border-color: color-mix(in srgb, var(--partner) 50%, var(--border));
+  background: color-mix(in srgb, var(--partner) 12%, transparent);
+}
+
+.header-role-badge.is-expired {
+  color: #e67e22;
+  border-color: rgba(230, 126, 34, 0.5);
+  background: rgba(230, 126, 34, 0.12);
+}
+
 .header-role-badge.is-premium-partner,
 .header-role-badge.is-premium {
   color: #ffba3a;
   border-color: rgba(255, 186, 58, 0.55);
-  background: rgba(255, 186, 58, 0.1);
+  background: rgba(255, 186, 58, 0.14);
+  box-shadow: 0 0 12px rgba(255, 186, 58, 0.15);
 }
 
 .header-role-badge.is-partner {
@@ -541,6 +554,16 @@ html[data-theme="cb-light"] .header-role-badge.is-guest {
 .account-role.is-member {
   color: var(--text);
   font-weight: 600;
+}
+
+.account-role.is-test {
+  color: var(--partner);
+  font-weight: 700;
+}
+
+.account-role.is-expired {
+  color: #e67e22;
+  font-weight: 700;
 }
 
 .account-role.is-premium-partner,
@@ -3175,6 +3198,12 @@ footer {
   background: color-mix(in srgb, var(--muted) 14%, transparent);
   color: var(--text);
   border: 1px solid var(--border);
+}
+
+.admin-status-badge--test {
+  background: color-mix(in srgb, var(--partner) 12%, transparent);
+  color: var(--partner);
+  border: 1px solid color-mix(in srgb, var(--partner) 40%, var(--border));
 }
 
 .admin-status-badge--premium-partner,

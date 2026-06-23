@@ -265,13 +265,22 @@
 
   function resolveAccountRoleBadgeClass(user) {
     if (!user) return "is-visitor";
-    const type = user.membershipType || user.subscription?.membershipType;
+    const sub = user.subscription;
+    const type = user.membershipType || sub?.membershipType;
     if (user.isAdmin || type === "admin") return "is-admin";
     if (user.isModel || type === "partner") return "is-premium-partner";
-    if (type === "test") return "is-member";
+    if (type === "expired" || sub?.phase === "trial_expired") return "is-expired";
+    if (type === "test" || sub?.phase === "trial" || sub?.membershipType === "test") return "is-test";
     if (type === "free" || user.isFreeGuest) return "is-member";
-    if (type === "expired" || user.subscription?.phase === "trial_expired") return "is-expired";
-    if (user.isPremium || type === "premium" || user.subscription?.tier === "premium") return "is-premium";
+    if (
+      user.isPremium ||
+      type === "premium" ||
+      sub?.tier === "premium" ||
+      sub?.membershipType === "premium" ||
+      sub?.hasPremiumPurchased
+    ) {
+      return "is-premium";
+    }
     return "is-member";
   }
 
@@ -319,7 +328,8 @@
     const override = user.subscriptionOverride || "";
     if (override === "trial_expired") return "is-expired";
     if (override === "active") return "is-premium";
-    if (override === "member" || override === "trial_member") return "is-member";
+    if (override === "member") return "is-member";
+    if (override === "trial_member") return "is-test";
     return resolveAccountRoleBadgeClass(user);
   }
 
@@ -1802,6 +1812,8 @@
       "is-visitor",
       "is-model",
       "is-member",
+      "is-test",
+      "is-expired",
       "is-premium",
       "is-premium-partner",
       "is-partner"
@@ -1830,11 +1842,32 @@
     if (roleEl) {
       if (!loggedIn) {
         roleEl.textContent = "Not signed in";
-        roleEl.classList.remove("is-host", "is-guest", "is-admin", "is-member", "is-premium", "is-premium-partner", "is-partner");
+        roleEl.classList.remove(
+          "is-host",
+          "is-guest",
+          "is-admin",
+          "is-member",
+          "is-test",
+          "is-expired",
+          "is-premium",
+          "is-premium-partner",
+          "is-partner"
+        );
       } else {
         const user = session?.user;
         roleEl.textContent = resolveAccountRoleLabel(user);
-        roleEl.classList.remove("is-host", "is-guest", "is-admin", "is-member", "is-premium", "is-premium-partner", "is-partner", "is-model");
+        roleEl.classList.remove(
+          "is-host",
+          "is-guest",
+          "is-admin",
+          "is-member",
+          "is-test",
+          "is-expired",
+          "is-premium",
+          "is-premium-partner",
+          "is-partner",
+          "is-model"
+        );
         roleEl.classList.add(resolveAccountRoleBadgeClass(user));
       }
     }
