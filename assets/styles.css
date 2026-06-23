@@ -587,6 +587,29 @@ body.login-locked > footer {
   visibility: hidden;
 }
 
+body.subscription-paywall {
+  overflow: auto;
+}
+
+body.subscription-paywall > header {
+  visibility: visible;
+  position: relative;
+  z-index: 10001;
+}
+
+body.subscription-paywall > main,
+body.subscription-paywall > footer {
+  visibility: hidden;
+}
+
+body.subscription-paywall.has-auth-modal-open {
+  overflow: auto;
+}
+
+body.subscription-paywall .account-menu.is-open .account-dropdown {
+  z-index: 10002;
+}
+
 /* Vollbild-Login über die gesamte Seite */
 .login-overlay {
   position: fixed;
@@ -5420,9 +5443,22 @@ body.layout-resize-active * {
 }
 
 .subscription-checkout-btn,
-.subscription-portal-btn {
+.subscription-portal-btn,
+.subscription-settings-link {
   width: 100%;
   margin-top: 0.35rem;
+}
+
+.subscription-settings-link {
+  display: block;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
 }
 
 @media (max-width: 720px) {

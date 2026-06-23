@@ -4307,15 +4307,58 @@ function applyAccountStreamingUi() {
   global.DualPeerSocial?.updateSessionActionHighlight?.();
 }
 
+function isSubscriptionPaywallActive() {
+  return document.body.classList.contains("subscription-paywall");
+}
+
+function applySubscriptionPaywall() {
+  try {
+    sessionStorage.removeItem(SESSION_VIDEO_UNLOCK_KEY);
+  } catch (_) {
+    /* ignore */
+  }
+  videoAccessUnlocked = false;
+  document.body.classList.remove("login-locked");
+  document.body.classList.add("subscription-paywall");
+  if (els.loginOverlay) {
+    els.loginOverlay.hidden = true;
+  }
+  document.querySelectorAll("body > header").forEach((el) => {
+    el.removeAttribute("inert");
+  });
+  document.querySelectorAll("body > main, body > footer").forEach((el) => {
+    el.setAttribute("inert", "");
+  });
+  setMediaSourceControlsEnabled(false);
+  syncStartCameraButtonUi();
+  syncStartMicroButtonUi();
+  setMediaSourceStatus("");
+  updateLovenseRetryVisibility();
+}
+
+function clearSubscriptionPaywall() {
+  document.body.classList.remove("subscription-paywall");
+  document.querySelectorAll("body > main, body > footer").forEach((el) => {
+    el.removeAttribute("inert");
+  });
+}
+
 function setVideoAccessUi(unlocked) {
   videoAccessUnlocked = unlocked;
-  document.body.classList.toggle("login-locked", !unlocked);
-  document.querySelectorAll("body > header, body > main, body > footer").forEach((el) => {
-    if (unlocked) el.removeAttribute("inert");
-    else el.setAttribute("inert", "");
-  });
+  if (unlocked) {
+    document.body.classList.remove("login-locked");
+    clearSubscriptionPaywall();
+    document.querySelectorAll("body > header, body > main, body > footer").forEach((el) => {
+      el.removeAttribute("inert");
+    });
+  } else if (!isSubscriptionPaywallActive()) {
+    document.body.classList.add("login-locked");
+    document.querySelectorAll("body > header, body > main, body > footer").forEach((el) => {
+      el.setAttribute("inert", "");
+    });
+  }
   if (els.loginOverlay) {
-    els.loginOverlay.hidden = unlocked;
+    els.loginOverlay.hidden = unlocked || isSubscriptionPaywallActive();
   }
   const subscriptionOverlay = document.getElementById("subscriptionOverlay");
   if (subscriptionOverlay && unlocked) {
@@ -4451,12 +4494,15 @@ function revokeSiteAccess() {
   } catch (_) {
     /* ignore */
   }
+  clearSubscriptionPaywall();
   setVideoAccessUi(false);
 }
 
 window.dualPeerSiteAccess = {
   grant: grantSiteAccess,
   revoke: revokeSiteAccess,
+  applySubscriptionPaywall,
+  clearSubscriptionPaywall,
 };
 
 function initAccessGate() {
@@ -4472,9 +4518,7 @@ function initAccessGate() {
   });
 
   global.addEventListener("dualpeer-subscription-required", () => {
-    revokeSiteAccess();
-    const loginOverlay = document.getElementById("loginOverlay");
-    if (loginOverlay) loginOverlay.hidden = true;
+    applySubscriptionPaywall();
   });
 
   global.addEventListener("dualpeer-subscription-granted", () => {
@@ -4485,11 +4529,16 @@ function initAccessGate() {
 
   if (global.DualPeerAuth?.onReady) {
     global.DualPeerAuth.onReady(() => {
-      if (global.DualPeerAuth.isLoggedIn()) {
-        grantSiteAccess();
-        initLovenseIfPresent();
-        ensureLovenseInitialized();
+      if (!global.DualPeerAuth.isLoggedIn()) return;
+      const profile =
+        global.DualPeerAuth.getCachedProfile?.() || global.DualPeerAuth.getSession?.()?.user;
+      if (profile && global.DualPeerAuth.isSubscriptionBlocked?.(profile)) {
+        applySubscriptionPaywall();
+        return;
       }
+      grantSiteAccess();
+      initLovenseIfPresent();
+      ensureLovenseInitialized();
     });
   }
 

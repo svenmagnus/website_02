@@ -2771,6 +2771,9 @@
 
       const profile = getCachedProfile() || getSession()?.user;
       if (isSubscriptionBlocked(profile)) {
+        if (global.dualPeerSiteAccess?.applySubscriptionPaywall) {
+          global.dualPeerSiteAccess.applySubscriptionPaywall();
+        }
         updateSubscriptionOverlay(profile.subscription);
         global.dispatchEvent(
           new CustomEvent("dualpeer-subscription-required", { detail: profile.subscription })
@@ -2885,6 +2888,7 @@
     goToWelcomePage,
     openPremiumLoginModal,
     closePremiumLoginModal,
+    isSubscriptionBlocked,
     onReady,
   };
 

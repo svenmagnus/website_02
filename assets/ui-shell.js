@@ -229,7 +229,10 @@
   }
 
   function openAccountMenu() {
-    if (getOpenAuthModal()) closeAuthModals();
+    const openModal = getOpenAuthModal();
+    if (openModal && openModal.id !== "subscriptionOverlay") {
+      closeAuthModals();
+    }
     const menu = document.getElementById("accountMenu");
     const btn = document.getElementById("accountMenuBtn");
     const panel = document.getElementById("accountDropdown");
