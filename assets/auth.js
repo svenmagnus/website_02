@@ -1639,6 +1639,8 @@
     if (inviteMailSetup) inviteMailSetup.hidden = !canAccessMailSettings();
     const premiumBtn = document.getElementById("headerPremiumBtn");
     if (premiumBtn) premiumBtn.hidden = !isPremium();
+    const headerLogoutBtn = document.getElementById("headerLogoutBtn");
+    if (headerLogoutBtn) headerLogoutBtn.hidden = !loggedIn;
 
     updateHeaderRoleBadge();
     updateSettingsMailSection();

@@ -242,19 +242,37 @@
     syncThemeSegmentedControls(getSavedTheme());
   }
 
+  async function performAccountLogout() {
+    closeAccountMenu();
+    if (typeof global.dualPeerPerformLogout === "function") {
+      await global.dualPeerPerformLogout();
+    } else {
+      const legacy = document.getElementById("logoutBtn");
+      if (legacy) legacy.click();
+      else global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
+    }
+    location.reload();
+  }
+
   function initAccountMenu() {
     const btn = document.getElementById("accountMenuBtn");
     const panel = document.getElementById("accountDropdown");
     const logoutBtn = document.getElementById("accountLogoutBtn");
+    const headerLogoutBtn = document.getElementById("headerLogoutBtn");
 
     refreshProfileLabels();
-    initThemeSegmentedControls();
-    global.addEventListener("dualpeer-theme-change", (e) => {
-      const theme = e?.detail?.theme;
-      if (theme) syncThemeSegmentedControls(theme);
-    });
 
-    if (btn && panel) {
+    if (!global.__dualPeerAccountMenuThemeBound) {
+      global.__dualPeerAccountMenuThemeBound = true;
+      initThemeSegmentedControls();
+      global.addEventListener("dualpeer-theme-change", (e) => {
+        const theme = e?.detail?.theme;
+        if (theme) syncThemeSegmentedControls(theme);
+      });
+    }
+
+    if (btn && panel && btn.dataset.accountMenuBound !== "1") {
+      btn.dataset.accountMenuBound = "1";
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -267,34 +285,31 @@
       });
     }
 
-    document.addEventListener("click", (e) => {
-      const menu = document.getElementById("accountMenu");
-      if (!menu || !menu.classList.contains("is-open")) return;
-      if (e.target instanceof Node && menu.contains(e.target)) return;
-      closeAccountMenu();
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      if (getOpenAuthModal()) {
-        closeAuthModals();
-        e.preventDefault();
-        return;
-      }
-      closeAccountMenu();
-    });
-
-    if (logoutBtn) {
-      logoutBtn.addEventListener("click", async () => {
+    if (!global.__dualPeerAccountMenuDocBound) {
+      global.__dualPeerAccountMenuDocBound = true;
+      document.addEventListener("click", (e) => {
+        const menu = document.getElementById("accountMenu");
+        if (!menu || !menu.classList.contains("is-open")) return;
+        if (e.target instanceof Node && menu.contains(e.target)) return;
         closeAccountMenu();
-        if (typeof global.dualPeerPerformLogout === "function") {
-          await global.dualPeerPerformLogout();
-        } else {
-          const legacy = document.getElementById("logoutBtn");
-          if (legacy) legacy.click();
-          else global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        if (getOpenAuthModal()) {
+          closeAuthModals();
+          e.preventDefault();
+          return;
         }
-        location.reload();
+        closeAccountMenu();
+      });
+    }
+
+    for (const el of [logoutBtn, headerLogoutBtn]) {
+      if (!el || el.dataset.logoutBound === "1") continue;
+      el.dataset.logoutBound = "1";
+      el.addEventListener("click", () => {
+        void performAccountLogout();
       });
     }
   }
@@ -333,6 +348,8 @@
   }
 
   function initShell() {
+    if (global.__dualPeerShellInited) return;
+    global.__dualPeerShellInited = true;
     applyTheme(getSavedTheme(), { skipStorage: true });
     initAccountMenu();
     initPasswordToggles();
