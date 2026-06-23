@@ -90,8 +90,41 @@
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(PROFILE_CACHE_KEY);
     clearSubscriptionRenewalRequired();
+    hideSubscriptionOverlay();
+    global.dualPeerUi?.closeAuthModals?.();
     updateAccountMenuAuthState();
     global.dispatchEvent(new CustomEvent("dualpeer-auth-change", { detail: { loggedIn: false } }));
+  }
+
+  function flushLogoutApis(token) {
+    const base = resolveApiBase();
+    if (!base || !token) return Promise.resolve();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+    const post = (path, timeoutMs) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      return fetch(`${base}${path}`, {
+        method: "POST",
+        headers,
+        signal: controller.signal,
+      })
+        .catch(() => {})
+        .finally(() => clearTimeout(timeoutId));
+    };
+    return Promise.allSettled([
+      post("/api/social/presence/offline", 3000),
+      post("/api/social/sessions/clear", 4000),
+      post("/api/auth/logout", 3000),
+    ]);
+  }
+
+  async function logout() {
+    const token = getSession()?.token;
+    clearSession();
+    if (token) void flushLogoutApis(token);
   }
 
   function userToProfile(user) {
@@ -683,20 +716,6 @@
     });
   }
 
-  async function logout() {
-    try {
-      if (isLoggedIn()) {
-        await api("/api/social/presence/offline", { method: "POST", timeoutMs: 4000 }).catch(() => {});
-        await api("/api/social/sessions/clear", { method: "POST", timeoutMs: 6000 }).catch(() => {});
-        await api("/api/auth/logout", { method: "POST", timeoutMs: 4000 }).catch(() => {});
-      }
-    } catch (_) {
-      /* ignore */
-    } finally {
-      clearSession();
-    }
-  }
-
   async function fetchBillingStatus() {
     return api("/api/billing/status");
   }
@@ -1248,7 +1267,21 @@
     });
 
     logoutBtn?.addEventListener("click", () => {
-      logout();
+      void (async () => {
+        try {
+          if (typeof global.dualPeerPerformLogout === "function") {
+            await global.dualPeerPerformLogout();
+          } else {
+            await logout();
+          }
+        } catch (_) {
+          clearSession();
+        } finally {
+          clearSession();
+          if (global.dualPeerSiteAccess?.revoke) global.dualPeerSiteAccess.revoke();
+          window.location.replace("landing.html");
+        }
+      })();
     });
   }
 

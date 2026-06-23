@@ -4599,7 +4599,7 @@ async function performAppLogout() {
     /* ignore */
   }
   if (global.DualPeerAuth?.logout) {
-    await global.DualPeerAuth.logout();
+    void global.DualPeerAuth.logout();
   } else {
     global.dispatchEvent(new CustomEvent("dualpeer-logout-request"));
   }

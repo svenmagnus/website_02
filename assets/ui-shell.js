@@ -261,7 +261,7 @@
       await Promise.race([
         runLogout(),
         new Promise((resolve) => {
-          setTimeout(resolve, 8000);
+          setTimeout(resolve, 2000);
         }),
       ]);
     } catch (_) {
