@@ -4,6 +4,7 @@
 (function (global) {
   const SESSION_KEY = "dualpeer-member-session";
   const PROFILE_CACHE_KEY = "dualpeer-member-profile-cache";
+  const RENEWAL_REQUIRED_KEY = "dualpeer-renewal-required";
 
   const PRESET_TECHNIQUES = global.DualPeerTechniques?.allPresets?.() || [];
 
@@ -88,6 +89,7 @@
   function clearSession() {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(PROFILE_CACHE_KEY);
+    clearSubscriptionRenewalRequired();
     updateAccountMenuAuthState();
     global.dispatchEvent(new CustomEvent("dualpeer-auth-change", { detail: { loggedIn: false } }));
   }
@@ -150,10 +152,54 @@
     return "Subscribe now";
   }
 
+  function markSubscriptionRenewalRequired() {
+    try {
+      sessionStorage.setItem(RENEWAL_REQUIRED_KEY, "1");
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function clearSubscriptionRenewalRequired() {
+    try {
+      sessionStorage.removeItem(RENEWAL_REQUIRED_KEY);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function isIntentionalAppEntry() {
+    const params = new URLSearchParams(location.search);
+    if (params.has("billing")) return true;
+    if (params.get("onboard") === "1") return true;
+    if (params.get("premium") === "1") return true;
+    if (location.hash === "#premium") return true;
+    try {
+      return sessionStorage.getItem(RENEWAL_REQUIRED_KEY) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function isAppIndexPath() {
+    const path = location.pathname;
+    return path.endsWith("/index.html") || path.endsWith("/") || /\/website_02\/?$/.test(path);
+  }
+
   function maybeRedirectSubscriptionRenewal(profile) {
     if (!isSubscriptionBlocked(profile) || isContinueSubscriptionPage()) return false;
-    location.replace(subscriptionRenewalUrl());
-    return true;
+
+    if (isAppIndexPath() && !isIntentionalAppEntry()) {
+      location.replace("landing.html");
+      return true;
+    }
+
+    if (isIntentionalAppEntry()) {
+      location.replace(subscriptionRenewalUrl());
+      return true;
+    }
+
+    return false;
   }
 
   /** Display role for header, account menu, and admin table. */
@@ -314,6 +360,7 @@
     closePremiumLoginModal();
     const profile = getCachedProfile();
     if (isSubscriptionBlocked(profile)) {
+      markSubscriptionRenewalRequired();
       window.location.href = subscriptionRenewalUrl();
       return;
     }
@@ -1024,6 +1071,7 @@
       try {
         const profile = getCachedProfile() || (await fetchProfile());
         if (isSubscriptionBlocked(profile)) {
+          markSubscriptionRenewalRequired();
           location.replace(subscriptionRenewalUrl());
         }
       } catch (_) {
@@ -2234,6 +2282,7 @@
         await login(user?.value, pass?.value);
         const profile = await fetchProfile();
         if (isSubscriptionBlocked(profile)) {
+          markSubscriptionRenewalRequired();
           window.location.href = subscriptionRenewalUrl();
           return;
         }
@@ -2806,13 +2855,17 @@
           } catch (_) {
             /* profile optional for redirect */
           }
-          window.location.href = isSubscriptionBlocked(profile)
-            ? subscriptionRenewalUrl()
-            : "index.html?onboard=1";
+          if (isSubscriptionBlocked(profile)) {
+            markSubscriptionRenewalRequired();
+            window.location.href = subscriptionRenewalUrl();
+          } else {
+            window.location.href = "index.html?onboard=1";
+          }
           return;
         }
         const profile = await fetchProfile();
         if (isSubscriptionBlocked(profile)) {
+          markSubscriptionRenewalRequired();
           window.location.href = subscriptionRenewalUrl();
           return;
         }
@@ -2889,6 +2942,7 @@
         );
       } else {
         hideSubscriptionOverlay();
+        clearSubscriptionRenewalRequired();
         if (global.dualPeerSiteAccess?.grant) global.dualPeerSiteAccess.grant();
         else global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
         global.dispatchEvent(new CustomEvent("dualpeer-subscription-granted"));
