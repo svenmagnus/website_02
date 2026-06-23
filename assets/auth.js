@@ -1882,7 +1882,12 @@
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
     if (inviteMailSetup) inviteMailSetup.hidden = !canAccessMailSettings();
     const premiumBtn = document.getElementById("headerPremiumBtn");
-    if (premiumBtn) premiumBtn.hidden = !isPremium();
+    if (premiumBtn) {
+      const user = session?.user;
+      const roleLabel = user ? resolveAccountRoleLabel(user) : "";
+      // Role badge already shows Premium — avoid duplicate PREMIUM in the header.
+      premiumBtn.hidden = !isPremium() || roleLabel === "Premium";
+    }
 
     updateHeaderRoleBadge();
     updateSettingsMailSection();
