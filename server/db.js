@@ -319,6 +319,18 @@ function runMigrations(database) {
   if (!subCols.includes("premium_one_time_at")) {
     database.exec(`ALTER TABLE subscriptions ADD COLUMN premium_one_time_at INTEGER`);
   }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS model_pool_hidden (
+      owner_user_id TEXT NOT NULL,
+      hidden_user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (owner_user_id, hidden_user_id),
+      FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (hidden_user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_model_pool_hidden_owner ON model_pool_hidden(owner_user_id);
+  `);
 }
 
 function backfillModelPool(database) {

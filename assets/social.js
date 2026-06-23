@@ -539,6 +539,19 @@
       });
       head.appendChild(removeBtn);
     }
+    if (variant === "pool" && onRemove) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "model-card-remove-btn";
+      removeBtn.title = "Remove from member pool";
+      removeBtn.setAttribute("aria-label", `Remove ${name.textContent} from pool`);
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onRemove(m.id);
+      });
+      head.appendChild(removeBtn);
+    }
     card.appendChild(head);
 
     const meta = document.createElement("span");
@@ -1984,6 +1997,26 @@
     });
   }
 
+  async function removeFromModelPool(memberId) {
+    const id = String(memberId || "").trim();
+    if (!id || !isLoggedIn()) return false;
+    try {
+      await api(`/api/social/model-pool/${encodeURIComponent(id)}`, { method: "DELETE" });
+      state.contactPool = state.contactPool.filter((c) => c.id !== id);
+      state.modelPool = state.modelPool.filter((c) => c.id !== id);
+      if (state.sessionPartnerId === id) {
+        coupleSessionWithPartner(null, { addToMembers: false });
+      }
+      state.activeMembers = state.activeMembers.filter((m) => m.id !== id);
+      renderActiveMembersPanel();
+      await bootstrap({ loadChat: false });
+      return true;
+    } catch (err) {
+      console.warn("[social] remove from pool failed:", err);
+      return false;
+    }
+  }
+
   async function loadPremiumPartners() {
     state.premiumPartners = [];
     if (!canAccessPremiumPartners()) {
@@ -2063,6 +2096,9 @@
                   st.textContent = `${contact.displayName} is now your Current Chat Partner — they will see you there too.`;
                 }
               });
+            },
+            onRemove: (contactId) => {
+              void removeFromModelPool(contactId);
             },
           })
         );

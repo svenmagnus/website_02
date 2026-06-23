@@ -1267,7 +1267,7 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, username, display_name, account_type, is_premium, is_admin, is_model
+      `SELECT id, username, display_name, account_type, is_premium, is_admin, is_model, avatar_path, avatar_updated_at, last_seen_at
        FROM users
        WHERE is_model = 1 AND id != ?
        ORDER BY created_at ASC`
@@ -1282,7 +1282,9 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
     isPremium: Boolean(row.is_premium),
     isAdmin: Boolean(row.is_admin),
     isModel: Boolean(row.is_model),
-    online: false,
+    avatarUrl: avatarUrlForUser(row),
+    online: Boolean(row.last_seen_at && row.last_seen_at > Date.now() - 90_000),
+    signedIn: Boolean(row.last_seen_at && row.last_seen_at > Date.now() - 90_000),
     availabilityText: "Availability calendar coming soon",
   }));
 
@@ -1429,6 +1431,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
       isFreeGuest: isFreeGuestAccount(row),
       membershipLabel: membership.label,
       membershipType: membership.type,
+      memberSince: row.created_at,
       nationality: row.nationality || "",
       languages: row.languages || "",
       location: row.location || "",

@@ -281,6 +281,30 @@ function isUserOnline(db, userId) {
   return Boolean(row?.last_seen_at && row.last_seen_at > nowMs() - PRESENCE_ONLINE_MS);
 }
 
+function isPoolContactHidden(db, ownerUserId, contactUserId) {
+  return Boolean(
+    db
+      .prepare(
+        "SELECT 1 FROM model_pool_hidden WHERE owner_user_id = ? AND hidden_user_id = ?"
+      )
+      .get(ownerUserId, contactUserId)
+  );
+}
+
+function hidePoolContact(db, ownerUserId, contactUserId) {
+  db.prepare(
+    `INSERT OR REPLACE INTO model_pool_hidden (owner_user_id, hidden_user_id, created_at)
+     VALUES (?, ?, ?)`
+  ).run(ownerUserId, contactUserId, nowMs());
+}
+
+function unhidePoolContact(db, ownerUserId, contactUserId) {
+  db.prepare("DELETE FROM model_pool_hidden WHERE owner_user_id = ? AND hidden_user_id = ?").run(
+    ownerUserId,
+    contactUserId
+  );
+}
+
 function listContactsForUser(db, uid) {
   const ids = new Set();
   const threads = db
@@ -305,6 +329,7 @@ function listContactsForUser(db, uid) {
 
   const contacts = [];
   for (const id of ids) {
+    if (isPoolContactHidden(db, uid, id)) continue;
     const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
     if (!row) continue;
     contacts.push({
@@ -404,7 +429,10 @@ socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
       `SELECT mp.*, u.username, u.display_name, u.last_seen_at, u.avatar_path, u.avatar_updated_at, u.is_model
        FROM model_pool mp
        JOIN users u ON u.id = mp.model_user_id
-       WHERE mp.owner_user_id = ?
+       WHERE mp.owner_user_id = ? AND NOT EXISTS (
+         SELECT 1 FROM model_pool_hidden h
+         WHERE h.owner_user_id = mp.owner_user_id AND h.hidden_user_id = mp.model_user_id
+       )
        ORDER BY COALESCE(u.last_seen_at, mp.registered_at, mp.created_at) DESC`
     )
     .all(uid);
@@ -457,6 +485,7 @@ socialRouter.post("/social/model-pool/add", requireAuth, (req, res) => {
     .prepare("SELECT 1 FROM model_pool WHERE owner_user_id = ? AND model_user_id = ?")
     .get(uid, target.id);
   ensureModelPoolEntry(db, uid, target.id);
+  unhidePoolContact(db, uid, target.id);
   const thread = ensureChatThread(db, uid, target.id);
   if (!hadEntry) {
     const ownerLabel = req.authUser.display_name || req.authUser.username;
@@ -481,6 +510,27 @@ socialRouter.post("/social/model-pool/add", requireAuth, (req, res) => {
       avatarUrl: avatarUrlForUser(target),
     },
   });
+});
+
+socialRouter.delete("/social/model-pool/:modelUserId", requireAuth, (req, res) => {
+  const db = getDb();
+  const uid = req.authUser.id;
+  const modelUserId = String(req.params.modelUserId || "").trim();
+  if (!modelUserId) {
+    return res.status(400).json({ ok: false, error: "invalid_user" });
+  }
+  if (modelUserId === uid) {
+    return res.status(400).json({ ok: false, error: "cannot_remove_self" });
+  }
+  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(modelUserId);
+  if (!target) {
+    return res.status(404).json({ ok: false, error: "user_not_found" });
+  }
+
+  db.prepare("DELETE FROM model_pool WHERE owner_user_id = ? AND model_user_id = ?").run(uid, modelUserId);
+  hidePoolContact(db, uid, modelUserId);
+
+  res.json({ ok: true, removedUserId: modelUserId });
 });
 
 socialRouter.post("/social/session/connect-check", requireAuth, (req, res) => {

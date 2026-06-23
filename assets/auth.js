@@ -2210,6 +2210,7 @@
       <td class="admin-status-cell">
         ${adminRoleBadgeHtml(user)}
       </td>
+      <td class="admin-member-since-cell" title="Account registration date">${escAdminHtml(formatAdminProfileDate(user.memberSince))}</td>
       ${adminFlagCell("isFreeMembership", isFreeMembershipUser(user), {
         disabled: user.isAdmin || user.isModel,
       })}

@@ -3141,6 +3141,13 @@ footer {
   min-width: 7.5rem;
 }
 
+.admin-member-since-cell {
+  min-width: 6.5rem;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .admin-status-badge {
   display: inline-block;
   margin-right: 0.35rem;
@@ -3922,7 +3929,7 @@ footer {
 
 .model-card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.35rem;
   width: 100%;
