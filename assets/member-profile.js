@@ -610,7 +610,7 @@
     }
   }
 
-  function resizeImageFile(file, maxSide = 512) {
+  function resizeImageFile(file, maxSide = 512, { forceJpeg = false } = {}) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const image = new Image();
@@ -634,7 +634,7 @@
           return;
         }
         ctx.drawImage(image, 0, 0, w, h);
-        const mime = file.type === "image/png" ? "image/png" : "image/jpeg";
+        const mime = forceJpeg || file.type !== "image/png" ? "image/jpeg" : "image/png";
         const quality = mime === "image/jpeg" ? 0.88 : undefined;
         resolve(canvas.toDataURL(mime, quality));
       };
@@ -770,15 +770,6 @@
     }
   }
 
-  function readImageFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Could not read file."));
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function uploadGalleryFiles(files) {
     if (!isAccountMode() || !global.DualPeerAuth?.api) return;
     const list = Array.from(files || []).filter((f) => f && f.type.startsWith("image/"));
@@ -796,7 +787,15 @@
           setProfileGalleryStatus("Maximum 6 photos in gallery.", "err");
           break;
         }
-        const imageData = await readImageFileAsDataUrl(file);
+        if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+          setProfileGalleryStatus("Use JPEG, PNG or WebP.", "err");
+          break;
+        }
+        if (file.size > 2_500_000) {
+          setProfileGalleryStatus("Image must be 2.5 MB or smaller.", "err");
+          break;
+        }
+        const imageData = await resizeImageFile(file, 1280, { forceJpeg: true });
         const data = await global.DualPeerAuth.api("/api/profile/gallery", {
           method: "POST",
           body: JSON.stringify({ imageData }),
@@ -812,7 +811,11 @@
       setProfileGalleryStatus("Gallery updated.", "ok");
       setTimeout(() => setProfileGalleryStatus(""), 2500);
     } catch (err) {
-      setProfileGalleryStatus(err.message || "Upload failed.", "err");
+      const msg =
+        err?.status === 413
+          ? "Image too large for upload — try a smaller file or another photo."
+          : err.message || "Upload failed.";
+      setProfileGalleryStatus(msg, "err");
     }
   }
 

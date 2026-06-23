@@ -21,6 +21,14 @@ chown -R tangent:tangent /home/tangent/website_02
 cd server && sudo -u tangent npm install --omit=dev
 systemctl restart tangent-club
 systemctl is-active tangent-club
+# Nginx default body limit is 1 MB — gallery uploads need more headroom.
+NGINX_SITE="/etc/nginx/sites-available/tangent-club"
+if [[ -f "$NGINX_SITE" ]] && ! grep -q 'client_max_body_size' "$NGINX_SITE"; then
+  sed -i '/location \/ {/a\        client_max_body_size 6m;' "$NGINX_SITE"
+  nginx -t
+  systemctl reload nginx
+  echo "nginx: added client_max_body_size 6m"
+fi
 git -C /home/tangent/website_02 log -1 --oneline
 REMOTE
 echo "==> Done. Hard-refresh tangent-club.com in the browser."
