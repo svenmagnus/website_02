@@ -4506,7 +4506,29 @@ window.dualPeerSiteAccess = {
 };
 
 function initAccessGate() {
-  setVideoAccessUi(false);
+  const auth = global.DualPeerAuth;
+  const loggedIn = Boolean(auth?.isLoggedIn?.());
+  if (!loggedIn) {
+    setVideoAccessUi(false);
+  } else {
+    const user = auth.getSession()?.user;
+    const profile = auth.getCachedProfile?.();
+    if (user?.isAdmin || profile?.isAdmin) {
+      grantSiteAccess();
+    } else if (profile && auth.isSubscriptionBlocked?.(profile)) {
+      applySubscriptionPaywall();
+      if (els.loginOverlay) els.loginOverlay.hidden = true;
+    } else if (profile) {
+      grantSiteAccess();
+    } else if (els.loginOverlay) {
+      els.loginOverlay.hidden = true;
+      document.body.classList.remove("login-locked");
+      document.querySelectorAll("body > header").forEach((el) => {
+        el.removeAttribute("inert");
+        el.style.visibility = "";
+      });
+    }
+  }
 
   global.addEventListener("dualpeer-site-access-granted", () => {
     grantSiteAccess();

@@ -110,8 +110,14 @@ header.main-header {
 }
 
 /* ── Account menu (Chaturbate-style, top right) ── */
+.main-header {
+  position: relative;
+  z-index: 10050;
+}
+
 .account-menu {
   position: relative;
+  z-index: 10051;
 }
 
 .account-trigger {
@@ -179,7 +185,7 @@ html[data-theme="cb-dark"] .account-avatar {
   position: absolute;
   top: calc(100% + 0.45rem);
   right: 0;
-  z-index: 9000;
+  z-index: 10052;
   min-width: min(280px, 92vw);
   padding: 0.35rem 0;
   border-radius: 10px;
