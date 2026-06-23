@@ -354,6 +354,7 @@ export function subscriptionFieldsForProfile(user) {
       daysRemaining: access.daysRemaining,
       currentPeriodEnd: access.currentPeriodEnd,
       cancelAtPeriodEnd: access.cancelAtPeriodEnd,
+      stripeCustomerId: access.stripeCustomerId || null,
       adminOverride: access.adminOverride,
       hasPremiumModelAccess: access.hasPremiumModelAccess,
       hasPremiumPurchased: access.hasPremiumPurchased,

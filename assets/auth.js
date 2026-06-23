@@ -910,6 +910,12 @@
     btn.disabled = false;
   }
 
+  function shouldShowBillingPortal(sub) {
+    if (!sub || sub.exempt) return false;
+    if (sub.stripeCustomerId) return true;
+    return ["active", "trialing", "past_due"].includes(String(sub.status || ""));
+  }
+
   function describeSubscriptionForSettings(sub) {
     if (!sub) {
       return {
@@ -967,7 +973,7 @@
         note:
           "Admin billing test — subscribe as Member or add Premium. Premium requires an active Member subscription.",
         showCheckout: true,
-        showPortal: Boolean(sub.stripeCustomerId),
+        showPortal: shouldShowBillingPortal(sub),
         checkoutLabel: "Subscribe as Member",
         checkoutTier: "member",
         showPremiumCheckout: true,
@@ -989,7 +995,7 @@
         ],
         note: "Continue your subscription to restore full access to sessions, chat, and invites.",
         showCheckout: true,
-        showPortal: Boolean(sub.stripeCustomerId),
+        showPortal: shouldShowBillingPortal(sub),
         checkoutLabel: "Continue subscription",
         renewalDue: true,
       };
@@ -1005,7 +1011,7 @@
         ],
         note: "Admin override — simulates an active Member subscription.",
         showCheckout: false,
-        showPortal: Boolean(sub.stripeCustomerId),
+        showPortal: shouldShowBillingPortal(sub),
       };
     }
 
@@ -1019,7 +1025,7 @@
         ],
         note: "Admin override — simulates active Premium with Premium Partner access.",
         showCheckout: false,
-        showPortal: Boolean(sub.stripeCustomerId),
+        showPortal: shouldShowBillingPortal(sub),
       };
     }
 
@@ -1054,7 +1060,7 @@
         note:
           "Subscribe as Member before the test phase ends. Premium add-on unlocks Premium Partners in the Member Pool.",
         showCheckout: true,
-        showPortal: Boolean(sub.stripeCustomerId),
+        showPortal: shouldShowBillingPortal(sub),
         checkoutLabel: "Subscribe as Member",
         checkoutTier: "member",
         showPremiumCheckout: true,
@@ -1092,7 +1098,7 @@
             ? `Premium add-on purchased. Continue Member subscription (${memberPrice}) for platform access.`
             : `Upgrade to Premium (${premiumPrice}) for Premium Partner access — Member (${memberPrice}) remains required.`,
         showCheckout: isPremiumTier && !isLifetimePremium ? false : !isPremiumTier,
-        showPortal: !isLifetimePremium,
+        showPortal: shouldShowBillingPortal(sub),
         checkoutLabel: "Upgrade to Premium",
         checkoutTier: "premium",
       };
@@ -1111,7 +1117,7 @@
         ],
         note: "Payment method on file — billing starts when the trial ends unless you cancel.",
         showCheckout: false,
-        showPortal: true,
+        showPortal: shouldShowBillingPortal(sub),
       };
     }
 
@@ -1125,7 +1131,7 @@
         ],
         note: "Continue Member subscription to restore access. Premium add-on remains on your account.",
         showCheckout: true,
-        showPortal: Boolean(sub.stripeCustomerId),
+        showPortal: shouldShowBillingPortal(sub),
         checkoutLabel: "Continue as Member",
         checkoutTier: "member",
         renewalDue: true,
@@ -1143,7 +1149,7 @@
         ],
         note: "Update billing in the customer portal to restore access.",
         showCheckout: false,
-        showPortal: true,
+        showPortal: shouldShowBillingPortal(sub),
       };
     }
 
@@ -1156,7 +1162,7 @@
       ],
       note: "",
       showCheckout: !sub.accessGranted,
-      showPortal: Boolean(sub.stripeCustomerId),
+      showPortal: shouldShowBillingPortal(sub),
       checkoutLabel: "Subscribe as Member",
       checkoutTier: "member",
     };
