@@ -32,6 +32,8 @@
     activeUserId: null,
     sessionJoinedMeetingId: null,
     expandedPoolMemberId: null,
+    contactPoolRenderKey: "",
+    poolProfileCache: {},
   };
 
   let chatBroadcastChannel = null;
@@ -495,6 +497,70 @@
     return ids.map((id) => map.get(id) || id).join(", ");
   }
 
+  function poolCardRenderToken(m) {
+    if (!m?.id) return "";
+    const live = findActiveInstantSessionWithPartner(m.id) ? 1 : 0;
+    return `${m.id}:${m.signedIn ? 1 : 0}:${live}:${m.isPremiumPartner ? 1 : 0}`;
+  }
+
+  function contactPoolRenderKey(regularContacts, premiumContacts, showPremium) {
+    const regular = (regularContacts || []).map(poolCardRenderToken).join("|");
+    const premium = showPremium ? (premiumContacts || []).map(poolCardRenderToken).join("|") : "";
+    return `${regular}::${premium}`;
+  }
+
+  function findPoolEntryByMemberId(memberId) {
+    const id = String(memberId || "").trim();
+    if (!id) return null;
+    const sel = `.model-pool-entry[data-member-id="${CSS.escape(id)}"]`;
+    return (
+      document.querySelector(`#modelPoolList ${sel}`) ||
+      document.querySelector(`#premiumPartnersList ${sel}`)
+    );
+  }
+
+  function restoreExpandedPoolMemberPreview() {
+    const memberId = state.expandedPoolMemberId;
+    if (!memberId) return;
+    const entry = findPoolEntryByMemberId(memberId);
+    if (!entry) {
+      state.expandedPoolMemberId = null;
+      return;
+    }
+    const detail = entry.querySelector(".model-pool-detail");
+    if (!detail) return;
+
+    entry.classList.add("is-expanded");
+    detail.hidden = false;
+
+    const cached = state.poolProfileCache[memberId];
+    if (cached) {
+      renderPoolMemberDetail(detail, cached);
+      return;
+    }
+
+    detail.replaceChildren();
+    const loading = document.createElement("p");
+    loading.className = "status-line";
+    loading.textContent = "Loading profile…";
+    detail.appendChild(loading);
+
+    void fetchPoolMemberProfile(memberId)
+      .then((profile) => {
+        if (state.expandedPoolMemberId !== memberId) return;
+        if (profile) state.poolProfileCache[memberId] = profile;
+        renderPoolMemberDetail(detail, profile);
+      })
+      .catch((err) => {
+        if (state.expandedPoolMemberId !== memberId) return;
+        detail.replaceChildren();
+        const errEl = document.createElement("p");
+        errEl.className = "status-line err";
+        errEl.textContent = err.message || "Could not load profile.";
+        detail.appendChild(errEl);
+      });
+  }
+
   async function fetchPoolMemberProfile(memberId) {
     const data = await api(`/api/social/model-pool/${encodeURIComponent(memberId)}/profile`);
     return data.profile || null;
@@ -610,6 +676,8 @@
 
     try {
       const profile = await fetchPoolMemberProfile(memberId);
+      if (state.expandedPoolMemberId !== memberId) return;
+      if (profile) state.poolProfileCache[memberId] = profile;
       renderPoolMemberDetail(detail, profile);
     } catch (err) {
       detail.replaceChildren();
@@ -1018,6 +1086,9 @@
     state.loaded = false;
     state._pendingMeetingId = null;
     state.sessionJoinedMeetingId = null;
+    state.expandedPoolMemberId = null;
+    state.contactPoolRenderKey = "";
+    state.poolProfileCache = {};
 
     renderMessages({ skipBroadcast: true });
     renderModelPoolPanels();
@@ -2260,6 +2331,13 @@
     const regularContacts = state.contactPool.filter((c) => !c.isPremiumPartner);
     const poolPartners = state.contactPool.filter((c) => c.isPremiumPartner);
     const premiumContacts = mergeContactPools(state.premiumPartners, poolPartners);
+    const renderKey = contactPoolRenderKey(regularContacts, premiumContacts, showPremium);
+
+    if (renderKey === state.contactPoolRenderKey && root.childElementCount > 0) {
+      restoreExpandedPoolMemberPreview();
+      return;
+    }
+    state.contactPoolRenderKey = renderKey;
 
     root.replaceChildren();
     if (!regularContacts.length) {
@@ -2297,9 +2375,15 @@
       }
     }
 
-    if (!premiumRoot) return;
+    if (!premiumRoot) {
+      restoreExpandedPoolMemberPreview();
+      return;
+    }
     premiumRoot.replaceChildren();
-    if (!showPremium) return;
+    if (!showPremium) {
+      restoreExpandedPoolMemberPreview();
+      return;
+    }
 
     if (!premiumContacts.length) {
       if (premiumStatus) {
@@ -2307,6 +2391,7 @@
         premiumStatus.textContent =
           "No Premium Partners in your pool yet — they appear here when you add or book them.";
       }
+      restoreExpandedPoolMemberPreview();
       return;
     }
 
@@ -2333,6 +2418,8 @@
         })
       );
     }
+
+    restoreExpandedPoolMemberPreview();
   }
 
   function getActiveSessionPartner() {
