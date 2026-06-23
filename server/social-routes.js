@@ -401,7 +401,7 @@ socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
   touchPresence(db, uid);
   const rows = db
     .prepare(
-      `SELECT mp.*, u.username, u.display_name, u.last_seen_at, u.avatar_path, u.avatar_updated_at
+      `SELECT mp.*, u.username, u.display_name, u.last_seen_at, u.avatar_path, u.avatar_updated_at, u.is_model
        FROM model_pool mp
        JOIN users u ON u.id = mp.model_user_id
        WHERE mp.owner_user_id = ?
@@ -417,6 +417,8 @@ socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
     online: isUserOnline(db, row.model_user_id),
     signedIn: isUserOnline(db, row.model_user_id),
     avatarUrl: avatarUrlForUser(row),
+    isModel: Boolean(row.is_model),
+    isPremiumPartner: Boolean(row.is_model),
   }));
 
   res.json({ ok: true, models });

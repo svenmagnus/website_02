@@ -20,6 +20,7 @@
     inviteHost: null,
     meetings: [],
     modelPool: [],
+    premiumPartners: [],
     contactPool: [],
     activeMembers: [],
     sessionPartnerId: null,
@@ -322,7 +323,16 @@
       displayName: raw.displayName || raw.username || "Member",
       avatarUrl: raw.avatarUrl || null,
       signedIn: Boolean(raw.signedIn || raw.online),
+      isModel: Boolean(raw.isModel || raw.isPremiumPartner),
+      isPremiumPartner: Boolean(raw.isPremiumPartner || raw.isModel),
     };
+  }
+
+  function canAccessPremiumPartners() {
+    const auth = global.DualPeerAuth;
+    if (!auth?.isLoggedIn?.()) return false;
+    const user = auth.getSession?.()?.user;
+    return Boolean(auth.hasPremiumModelAccess?.(user));
   }
 
   function mergeContactPools(...lists) {
@@ -454,7 +464,7 @@
     state.partner = state.contactPool.find((c) => c.id === id) || null;
   }
 
-  function buildMemberCard(m, { variant, onRemove, onActivate, onSelect, selected } = {}) {
+  function buildMemberCard(m, { variant, onRemove, onActivate, onSelect, selected, premiumPartner } = {}) {
     const sessionLive = Boolean(findActiveInstantSessionWithPartner(m.id));
     const card = document.createElement("div");
     card.className = "model-card" + (m.signedIn ? " is-signed-in" : "") + (sessionLive ? " is-session-live" : "");
@@ -502,6 +512,12 @@
       liveBadge.textContent = "Live";
       liveBadge.title = "Instant session active";
       nameRow.appendChild(liveBadge);
+    }
+    if (premiumPartner || m.isPremiumPartner) {
+      const partnerBadge = document.createElement("span");
+      partnerBadge.className = "model-premium-partner-badge";
+      partnerBadge.textContent = "Premium Partner";
+      nameRow.appendChild(partnerBadge);
     }
     head.appendChild(nameRow);
     if (m.signedIn) {
@@ -1968,9 +1984,30 @@
     });
   }
 
+  async function loadPremiumPartners() {
+    state.premiumPartners = [];
+    if (!canAccessPremiumPartners()) {
+      renderContactPoolPanel();
+      return;
+    }
+    try {
+      const data = await global.DualPeerAuth?.fetchPremiumModels?.();
+      state.premiumPartners = (data?.models || []).map((m) => ({
+        ...m,
+        signedIn: Boolean(m.online),
+        isPremiumPartner: true,
+        isModel: true,
+      }));
+    } catch (err) {
+      console.warn("[social] premium partners failed:", err);
+    }
+    renderContactPoolPanel();
+  }
+
   async function loadModelPool() {
     if (!isLoggedIn()) {
       state.modelPool = [];
+      state.premiumPartners = [];
       setContactPool([]);
       renderActiveMembersPanel();
       return;
@@ -1979,6 +2016,7 @@
       const data = await api("/api/social/model-pool");
       state.modelPool = data.models || [];
       setContactPool([...state.contactPool, ...state.modelPool]);
+      await loadPremiumPartners();
     } catch (err) {
       console.warn("[social] model pool failed:", err);
     }
@@ -1987,24 +2025,72 @@
   function renderContactPoolPanel() {
     const root = document.getElementById("modelPoolList");
     const status = document.getElementById("modelPoolStatus");
+    const premiumSection = document.getElementById("premiumPartnersSection");
+    const premiumRoot = document.getElementById("premiumPartnersList");
+    const premiumStatus = document.getElementById("premiumPartnersStatus");
     if (!root) return;
+
+    const showPremium = canAccessPremiumPartners();
+    if (premiumSection) premiumSection.hidden = !showPremium;
+
+    const regularContacts = state.contactPool.filter((c) => !c.isPremiumPartner);
+    const poolPartners = state.contactPool.filter((c) => c.isPremiumPartner);
+    const premiumContacts = mergeContactPools(state.premiumPartners, poolPartners);
+
     root.replaceChildren();
-    if (!state.contactPool.length) {
+    if (!regularContacts.length) {
       if (status) {
         status.className = "status-line";
         status.textContent =
           "No contacts yet — invite someone or complete a session to build your pool.";
       }
+    } else {
+      if (status) {
+        status.className = "status-line ok";
+        status.textContent = `${regularContacts.length} contact${regularContacts.length === 1 ? "" : "s"} · double-click to set as Current Chat Partner`;
+      }
+      for (const m of regularContacts) {
+        root.appendChild(
+          buildMemberCard(m, {
+            variant: "pool",
+            onActivate: (contact) => {
+              addActiveMember(contact).then((ok) => {
+                if (!ok) return;
+                const st = document.getElementById("setupActiveMembersStatus");
+                if (st) {
+                  st.hidden = false;
+                  st.className = "status-line ok";
+                  st.textContent = `${contact.displayName} is now your Current Chat Partner — they will see you there too.`;
+                }
+              });
+            },
+          })
+        );
+      }
+    }
+
+    if (!premiumRoot) return;
+    premiumRoot.replaceChildren();
+    if (!showPremium) return;
+
+    if (!premiumContacts.length) {
+      if (premiumStatus) {
+        premiumStatus.className = "status-line";
+        premiumStatus.textContent =
+          "No Premium Partners in your pool yet — they appear here when you add or book them.";
+      }
       return;
     }
-    if (status) {
-      status.className = "status-line ok";
-      status.textContent = `${state.contactPool.length} contact${state.contactPool.length === 1 ? "" : "s"} · double-click to set as Current Chat Partner`;
+
+    if (premiumStatus) {
+      premiumStatus.className = "status-line ok";
+      premiumStatus.textContent = `${premiumContacts.length} Premium Partner${premiumContacts.length === 1 ? "" : "s"} · double-click to set as Current Chat Partner`;
     }
-    for (const m of state.contactPool) {
-      root.appendChild(
+    for (const m of premiumContacts) {
+      premiumRoot.appendChild(
         buildMemberCard(m, {
           variant: "pool",
+          premiumPartner: true,
           onActivate: (contact) => {
             addActiveMember(contact).then((ok) => {
               if (!ok) return;
@@ -2289,6 +2375,9 @@
     handleCalendarRedirect();
 
     global.addEventListener("dualpeer-auth-change", () => refreshAuthUi());
+    global.addEventListener("dualpeer-account-role-change", () => {
+      loadPremiumPartners().catch(() => {});
+    });
     global.addEventListener("dualpeer-session-role", () => {
       updateSessionActionHighlight();
       refreshPartnerPlaybookIfNeeded().catch(() => {});

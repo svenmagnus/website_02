@@ -119,7 +119,8 @@
           Lovense sync.
         </p>
         <p class="status-line subscription-price-line" id="subscriptionPriceLine">
-          <strong id="subscriptionPriceAmount">2.95 €</strong> / month · cancel anytime
+          <strong id="subscriptionPriceAmount">2.95 €</strong> / month as Member ·
+          <strong id="subscriptionPremiumPriceAmount">9.95 €</strong> / month as Premium
         </p>
         <p class="status-line ok" id="subscriptionTrialBanner" hidden></p>
         <p class="login-overlay-error" id="subscriptionError" hidden></p>
@@ -241,9 +242,14 @@
       <div class="login-overlay-card auth-card-wide">
         <h2 id="adminUsersModalTitle">Administrator: User Profiles</h2>
         <p class="login-overlay-hint">
-          Review all registered accounts. <strong>Role</strong> reflects membership tier and billing test state.
-          <strong>Free membership</strong> grants Premium access without billing. <strong>Billing test</strong> is only
-          available for test user <strong>Mr_X</strong>.
+          Review all registered accounts. <strong>Role</strong> shows account type:
+          <strong>Test account</strong> (trial phase),
+          <strong>Free</strong> (admin-granted guest),
+          <strong>Member</strong> (2.95&nbsp;€/month after trial),
+          <strong>Premium</strong> (9.95&nbsp;€/month, Premium Partner access),
+          <strong>Premium Partner</strong> (models).
+          Check <strong>Free</strong> for special guests without billing.
+          <strong>Billing test</strong> is only available for <strong>Mr_X</strong>.
           Double-click a <strong>username</strong> to view the full profile. Click <strong>Save</strong> on each row
           after edits.
         </p>
@@ -254,7 +260,7 @@
               <tr>
                 <th>User</th>
                 <th>Role</th>
-                <th title="Free membership — Premium access without billing">Free</th>
+                <th title="Free account — admin-granted access without billing">Free</th>
                 <th>Email</th>
                 <th>Display name</th>
                 <th>Nationality</th>
@@ -1044,8 +1050,17 @@
               <button type="button" class="secondary" id="btnAddModelToPool">Add to pool</button>
             </div>
             <p class="status-line" id="setupAddModelStatus" hidden></p>
+            <h3 class="member-pool-section-title">Contacts</h3>
             <div id="modelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="modelPoolStatus">Sign in to load your member pool.</p>
+            <div id="premiumPartnersSection" class="member-pool-premium-section" hidden>
+              <h3 class="member-pool-section-title">Premium Partners</h3>
+              <p class="status-line member-pool-premium-hint">
+                Available with <strong>Premium</strong> membership (9.95&nbsp;€/month). Book and chat with Premium Partners here.
+              </p>
+              <div id="premiumPartnersList" class="model-pool-grid model-pool-grid--premium"></div>
+              <p class="status-line" id="premiumPartnersStatus"></p>
+            </div>
           </div>
         </div>
         </div>
@@ -1249,13 +1264,13 @@
     <script src="assets/lovense-lan-loader.js?v=8425"></script>
     <script src="assets/play-prefs.js?v=8570"></script>
     <script src="assets/technique-presets.js?v=8572"></script>
-    <script src="assets/ui-shell.js?v=8637"></script>
+    <script src="assets/ui-shell.js?v=8638"></script>
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
-    <script src="assets/app.js?v=8637"></script>
-    <script src="assets/auth.js?v=8637"></script>
+    <script src="assets/app.js?v=8638"></script>
+    <script src="assets/auth.js?v=8638"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8627"></script>
+    <script src="assets/social.js?v=8638"></script>
     <script src="assets/member-profile.js?v=8597"></script>
   </body>
 </html>

@@ -4069,6 +4069,38 @@ footer {
   margin-top: 0.35rem;
 }
 
+.member-pool-section-title {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.member-pool-premium-section {
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.member-pool-premium-hint {
+  margin: 0 0 0.65rem;
+}
+
+.model-premium-partner-badge {
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffba3a;
+  border: 1px solid rgba(255, 186, 58, 0.45);
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  background: rgba(255, 186, 58, 0.1);
+}
+
 .setup-model-pool-field {
   margin: 0.75rem 0;
   padding: 0.75rem;

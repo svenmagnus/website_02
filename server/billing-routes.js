@@ -6,14 +6,19 @@ import {
   getSubscriptionRow,
   getOrCreateStripeCustomer,
   isStripeConfigured,
+  isPremiumStripeConfigured,
   remainingTrialSeconds,
   resolveSubscriptionAccess,
   syncSubscriptionFromStripe,
-  SUBSCRIPTION_PRICE_EUR,
+  MEMBER_PRICE_EUR,
+  PREMIUM_PRICE_EUR,
   TRIAL_DAYS,
   upsertSubscriptionRow,
   ensureStripeCheckoutBranding,
   stripeBrandName,
+  memberStripePriceId,
+  premiumStripePriceId,
+  normalizeSubscriptionTier,
 } from "./billing.js";
 
 function parseBearer(req) {
@@ -51,7 +56,9 @@ billingRouter.get("/billing/status", requireAuth, (req, res) => {
   res.json({
     ok: true,
     configured: isStripeConfigured(),
-    priceEur: SUBSCRIPTION_PRICE_EUR,
+    premiumConfigured: isPremiumStripeConfigured(),
+    priceEurMember: MEMBER_PRICE_EUR,
+    priceEurPremium: PREMIUM_PRICE_EUR,
     trialDays: TRIAL_DAYS,
     subscription: access,
   });
@@ -66,19 +73,35 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
   const db = getDb();
   const user = req.authUser;
   const access = resolveSubscriptionAccess(user);
+  const requestedTier = normalizeSubscriptionTier(req.body?.tier) || "member";
+
   if (access.exempt) {
     return res.status(400).json({ ok: false, error: "subscription_exempt" });
   }
-  if (access.accessGranted && ["active", "trialing"].includes(access.status)) {
+
+  if (requestedTier === "premium") {
+    if (!premiumStripePriceId()) {
+      return res.status(503).json({ ok: false, error: "premium_not_configured" });
+    }
+    if (access.tier === "premium" && ["active", "trialing"].includes(access.status)) {
+      return res.status(400).json({ ok: false, error: "subscription_active" });
+    }
+  } else if (access.accessGranted && ["active", "trialing"].includes(access.status)) {
     return res.status(400).json({ ok: false, error: "subscription_active" });
+  }
+
+  const priceId = requestedTier === "premium" ? premiumStripePriceId() : memberStripePriceId();
+  if (!priceId) {
+    return res.status(503).json({ ok: false, error: "stripe_not_configured" });
   }
 
   try {
     const customerId = await getOrCreateStripeCustomer(db, user);
     const subRow = getSubscriptionRow(db, user.id);
-    const trialSeconds = remainingTrialSeconds(user, subRow);
+    const trialSeconds = requestedTier === "member" ? remainingTrialSeconds(user, subRow) : 0;
     const appUrl = getAppPublicUrl();
     const brandName = stripeBrandName();
+    const tierLabel = requestedTier === "premium" ? "Premium" : "Member";
 
     await ensureStripeCheckoutBranding(stripe);
 
@@ -86,17 +109,17 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
       mode: "subscription",
       customer: customerId,
       client_reference_id: user.id,
-      line_items: [{ price: String(process.env.STRIPE_PRICE_ID).trim(), quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/index.html?billing=success`,
       cancel_url: `${appUrl}/index.html?billing=cancel`,
-      metadata: { userId: user.id },
+      metadata: { userId: user.id, tier: requestedTier },
       subscription_data: {
-        metadata: { userId: user.id },
-        description: `${brandName} platform subscription`,
+        metadata: { userId: user.id, tier: requestedTier },
+        description: `${brandName} ${tierLabel} subscription`,
       },
       custom_text: {
         submit: {
-          message: `${brandName} — secure monthly subscription. Cancel anytime in billing settings.`,
+          message: `${brandName} — secure monthly ${tierLabel} subscription. Cancel anytime in billing settings.`,
         },
       },
     };
@@ -109,7 +132,7 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
-    res.json({ ok: true, url: session.url });
+    res.json({ ok: true, url: session.url, tier: requestedTier });
   } catch (err) {
     console.error("[billing] checkout failed:", err);
     res.status(500).json({ ok: false, error: "checkout_failed", message: err.message });
@@ -171,6 +194,7 @@ export async function handleStripeWebhook(req, res) {
           upsertSubscriptionRow(db, userId, {
             stripe_customer_id: String(session.customer),
             status: "trialing",
+            subscription_tier: normalizeSubscriptionTier(session.metadata?.tier) || "member",
           });
         }
         if (session.subscription) {

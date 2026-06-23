@@ -115,6 +115,9 @@
       isAdmin: Boolean(user.isAdmin),
       isPremium: Boolean(user.isPremium),
       isModel: Boolean(user.isModel),
+      isFreeGuest: Boolean(user.isFreeGuest),
+      membershipLabel: user.membershipLabel || "",
+      membershipType: user.membershipType || user.subscription?.membershipType || "",
       avatarUrl: user.avatarUrl || null,
       isBanned: Boolean(user.isBanned),
       banReason: user.banReason || "",
@@ -209,19 +212,27 @@
   /** Display role for header, account menu, and admin table. */
   function resolveAccountRoleLabel(user) {
     if (!user) return "Visitor";
+    if (user.membershipLabel) return user.membershipLabel;
     if (user.isAdmin) return "Administrator";
-    if (user.isPremium && user.isModel) return "Premium Partner";
-    if (user.isPremium) return "Premium";
-    if (user.isModel) return "Partner";
+    if (user.isModel) return "Premium Partner";
+    if (user.isFreeGuest) return "Free";
+    const sub = user.subscription;
+    if (sub?.membershipLabel) return sub.membershipLabel;
+    if (sub?.membershipType === "test" || sub?.phase === "trial") return "Test account";
+    if (sub?.membershipType === "expired" || sub?.phase === "trial_expired") return "Membership expired";
+    if (user.isPremium || sub?.tier === "premium" || sub?.membershipType === "premium") return "Premium";
     return "Member";
   }
 
   function resolveAccountRoleBadgeClass(user) {
     if (!user) return "is-visitor";
-    if (user.isAdmin) return "is-admin";
-    if (user.isPremium && user.isModel) return "is-premium-partner";
-    if (user.isPremium) return "is-premium";
-    if (user.isModel) return "is-partner";
+    const type = user.membershipType || user.subscription?.membershipType;
+    if (user.isAdmin || type === "admin") return "is-admin";
+    if (user.isModel || type === "partner") return "is-premium-partner";
+    if (type === "test") return "is-member";
+    if (type === "free" || user.isFreeGuest) return "is-member";
+    if (type === "expired" || user.subscription?.phase === "trial_expired") return "is-expired";
+    if (user.isPremium || type === "premium" || user.subscription?.tier === "premium") return "is-premium";
     return "is-member";
   }
 
@@ -232,19 +243,30 @@
   }
 
   function isFreeMembershipUser(user) {
-    return Boolean(user?.isPremium) && !user?.isModel && !user?.isAdmin;
+    return Boolean(user?.isFreeGuest);
+  }
+
+  function hasPremiumModelAccess(user) {
+    if (!user) return false;
+    if (user.isAdmin) return true;
+    if (user.isModel) return false;
+    if (user.subscription?.hasPremiumModelAccess) return true;
+    return Boolean(user.isPremium) && !user.isModel;
   }
 
   function resolveAdminUserRoleLabel(user) {
     if (!user) return "Visitor";
+    if (user.membershipLabel) return user.membershipLabel;
     if (user.isBanned) return "Banned";
     const override = user.subscriptionOverride || "";
     if (override === "trial_expired") return "Membership expired";
     if (user.isAdmin) return "Administrator";
+    if (user.isModel) return "Premium Partner";
     if (override === "active") return "Premium";
-    if (user.isPremium && user.isModel) return "Premium Partner";
+    if (override === "member") return "Member";
+    if (user.isFreeGuest) return "Free";
     if (user.isPremium) return "Premium";
-    if (user.isModel) return "Partner";
+    if (override === "trial_member") return "Test account";
     return "Member";
   }
 
@@ -281,7 +303,10 @@
   }
 
   function isPremium() {
-    return Boolean(getAccountUser()?.isPremium);
+    const user = getAccountUser();
+    if (!user) return false;
+    if (user.isModel) return false;
+    return hasPremiumModelAccess(user);
   }
 
   function syncSessionUserFromProfile(profile) {
@@ -312,6 +337,9 @@
       isAdmin: profile.isAdmin,
       isPremium: profile.isPremium,
       isModel: profile.isModel,
+      isFreeGuest: profile.isFreeGuest,
+      membershipLabel: profile.membershipLabel,
+      membershipType: profile.membershipType,
       avatarUrl: profile.avatarUrl ?? session.user?.avatarUrl ?? null,
       isBanned: Boolean(profile.isBanned),
       banReason: profile.banReason || "",
@@ -618,8 +646,11 @@
     return api("/api/billing/status");
   }
 
-  async function startBillingCheckout() {
-    const data = await api("/api/billing/checkout", { method: "POST" });
+  async function startBillingCheckout(tier = "member") {
+    const data = await api("/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ tier }),
+    });
     if (data.url) {
       window.location.href = data.url;
       return data;
@@ -729,22 +760,41 @@
       };
     }
 
-    const priceLabel = `${sub.priceEur || "2.95"} € / month`;
+    const memberPrice = `${sub.priceEurMember || sub.priceEur || "2.95"} € / month`;
+    const premiumPrice = `${sub.priceEurPremium || "9.95"} € / month`;
+
+    if (sub.membershipType === "free" || sub.phase === "free") {
+      return {
+        badge: "Free",
+        badgeClass: "ok",
+        rows: [
+          { label: "Account type", value: "Free — admin-granted guest access" },
+          { label: "Member plan", value: memberPrice },
+          { label: "Premium plan", value: premiumPrice },
+        ],
+        note: "Special guest access without billing. Upgrade to Premium for Premium Partner bookings.",
+        showCheckout: true,
+        showPortal: false,
+        checkoutLabel: "Upgrade to Premium",
+        checkoutTier: "premium",
+      };
+    }
 
     if (sub.adminOverride === "trial_member") {
       return {
-        badge: "Free trial",
+        badge: "Test account",
         badgeClass: "trial",
         rows: [
-          { label: "Status", value: "Trial active (test)" },
+          { label: "Status", value: "Test phase active (billing test)" },
           { label: "Days remaining", value: String(sub.daysRemaining ?? 0) },
           { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt) },
-          { label: "Plan", value: priceLabel },
+          { label: "Member plan", value: memberPrice },
         ],
-        note: "Admin billing test — simulates a member in free trial.",
+        note: "Admin billing test — simulates a test account before paid membership.",
         showCheckout: true,
         showPortal: Boolean(sub.stripeCustomerId),
-        checkoutLabel: "Subscribe early",
+        checkoutLabel: "Subscribe as Member",
+        checkoutTier: "member",
       };
     }
 
@@ -754,7 +804,7 @@
         badgeClass: "warn",
         rows: [
           { label: "Trial ended", value: formatBillingDate(sub.trialEndsAt) },
-          { label: "Plan", value: priceLabel },
+          { label: "Member plan", value: memberPrice },
           ...(sub.adminOverride === "trial_expired"
             ? [{ label: "Mode", value: "Admin billing test" }]
             : []),
@@ -767,15 +817,29 @@
       };
     }
 
-    if (sub.adminOverride === "active") {
+    if (sub.adminOverride === "member") {
       return {
-        badge: "Active (test)",
+        badge: "Member",
         badgeClass: "ok",
         rows: [
-          { label: "Plan", value: priceLabel },
+          { label: "Plan", value: memberPrice },
           { label: "Mode", value: "Admin billing test" },
         ],
-        note: "Admin override — simulates an active paid subscription.",
+        note: "Admin override — simulates an active Member subscription.",
+        showCheckout: false,
+        showPortal: Boolean(sub.stripeCustomerId),
+      };
+    }
+
+    if (sub.adminOverride === "active") {
+      return {
+        badge: "Premium",
+        badgeClass: "ok",
+        rows: [
+          { label: "Plan", value: premiumPrice },
+          { label: "Mode", value: "Admin billing test" },
+        ],
+        note: "Admin override — simulates an active Premium subscription with Premium Partner access.",
         showCheckout: false,
         showPortal: Boolean(sub.stripeCustomerId),
       };
@@ -787,7 +851,10 @@
         badgeClass: "ok",
         rows: [
           { label: "Plan", value: "Full access — no subscription fee" },
-          { label: "Reason", value: "Administrator or premium partner account" },
+          {
+            label: "Reason",
+            value: sub.membershipType === "partner" ? "Premium Partner account" : "Administrator account",
+          },
         ],
         note: "You are not charged the monthly platform fee.",
         showCheckout: false,
@@ -795,29 +862,32 @@
       };
     }
 
-    if (sub.phase === "trial") {
+    if (sub.phase === "trial" || sub.membershipType === "test") {
       return {
-        badge: "Free trial",
+        badge: "Test account",
         badgeClass: "trial",
         rows: [
-          { label: "Status", value: "Trial active" },
+          { label: "Status", value: "Test phase active" },
           { label: "Days remaining", value: String(sub.daysRemaining ?? 0) },
-          { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt) },
-          { label: "After trial", value: priceLabel },
+          { label: "Test ends", value: formatBillingDate(sub.trialEndsAt) },
+          { label: "Member plan", value: memberPrice },
         ],
-        note: "Subscribe anytime before the trial ends to avoid interruption.",
+        note: "Subscribe as Member before the test phase ends to keep access.",
         showCheckout: true,
         showPortal: Boolean(sub.stripeCustomerId),
-        checkoutLabel: "Subscribe early",
+        checkoutLabel: "Subscribe as Member",
+        checkoutTier: "member",
       };
     }
 
     if (sub.status === "active" || sub.phase === "active") {
+      const isPremiumTier = sub.tier === "premium" || sub.membershipType === "premium";
+      const planLabel = isPremiumTier ? premiumPrice : memberPrice;
       return {
-        badge: "Active",
+        badge: isPremiumTier ? "Premium" : "Member",
         badgeClass: "ok",
         rows: [
-          { label: "Plan", value: priceLabel },
+          { label: "Plan", value: planLabel },
           { label: "Next renewal", value: formatBillingDate(sub.currentPeriodEnd) },
           {
             label: "Cancellation",
@@ -826,18 +896,24 @@
               : "Renews automatically",
           },
         ],
-        note: "",
-        showCheckout: false,
+        note: isPremiumTier
+          ? "Premium includes access to Premium Partners in the Member Pool."
+          : "Upgrade to Premium for Premium Partner access.",
+        showCheckout: !isPremiumTier,
         showPortal: true,
+        checkoutLabel: "Upgrade to Premium",
+        checkoutTier: "premium",
       };
     }
 
     if (sub.status === "trialing" || sub.phase === "trialing") {
+      const isPremiumTier = sub.tier === "premium";
+      const planLabel = isPremiumTier ? premiumPrice : memberPrice;
       return {
-        badge: "Trial (Stripe)",
+        badge: isPremiumTier ? "Premium (trial)" : "Member (trial)",
         badgeClass: "trial",
         rows: [
-          { label: "Plan", value: priceLabel },
+          { label: "Plan", value: planLabel },
           { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt || sub.currentPeriodEnd) },
           { label: "Days remaining", value: String(sub.daysRemaining ?? 0) },
         ],
@@ -849,26 +925,28 @@
 
     if (sub.requiresPayment || sub.phase === "trial_expired") {
       return {
-        badge: "Trial ended",
+        badge: "Membership expired",
         badgeClass: "warn",
         rows: [
-          { label: "Trial ended", value: formatBillingDate(sub.trialEndsAt) },
-          { label: "Plan", value: priceLabel },
+          { label: "Test ended", value: formatBillingDate(sub.trialEndsAt) },
+          { label: "Member plan", value: memberPrice },
         ],
-        note: "Continue your subscription to restore full access to sessions, chat, and invites.",
+        note: "Continue as Member to restore full access to sessions, chat, and invites.",
         showCheckout: true,
         showPortal: Boolean(sub.stripeCustomerId),
-        checkoutLabel: "Continue subscription",
+        checkoutLabel: "Continue as Member",
+        checkoutTier: "member",
         renewalDue: true,
       };
     }
 
     if (sub.status === "past_due") {
+      const planLabel = sub.tier === "premium" ? premiumPrice : memberPrice;
       return {
         badge: "Payment issue",
         badgeClass: "err",
         rows: [
-          { label: "Plan", value: priceLabel },
+          { label: "Plan", value: planLabel },
           { label: "Status", value: "Past due — update your payment method" },
         ],
         note: "Update billing in the customer portal to restore access.",
@@ -881,13 +959,14 @@
       badge: sub.status === "none" ? "No subscription" : sub.status,
       badgeClass: "muted",
       rows: [
-        { label: "Plan", value: priceLabel },
-        { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt) },
+        { label: "Member plan", value: memberPrice },
+        { label: "Test ends", value: formatBillingDate(sub.trialEndsAt) },
       ],
       note: "",
       showCheckout: !sub.accessGranted,
       showPortal: Boolean(sub.stripeCustomerId),
-      checkoutLabel: "Subscribe",
+      checkoutLabel: "Subscribe as Member",
+      checkoutTier: "member",
     };
   }
 
@@ -962,6 +1041,7 @@
     if (portalBtn instanceof HTMLButtonElement) {
       portalBtn.hidden = !info.showPortal;
     }
+    if (section) section.dataset.checkoutTier = info.checkoutTier || "member";
     if (errEl) errEl.hidden = true;
   }
 
@@ -998,7 +1078,8 @@
       }
       if (errEl) errEl.hidden = true;
       try {
-        await startBillingCheckout();
+        const tier = section.dataset.checkoutTier || "member";
+        await startBillingCheckout(tier);
       } catch (err) {
         if (errEl) {
           errEl.hidden = false;
@@ -1040,7 +1121,7 @@
       }
       if (errEl) errEl.hidden = true;
       try {
-        await startBillingCheckout();
+        await startBillingCheckout("member");
       } catch (err) {
         if (errEl) {
           errEl.hidden = false;
@@ -1632,7 +1713,7 @@
 
     if (premiumMenuBtn) {
       premiumMenuBtn.hidden = !(loggedIn && !isPremium() && !isAccountGuest());
-      premiumMenuBtn.title = "Premium (coming soon) — extended model pool and booking tools.";
+      premiumMenuBtn.title = `Upgrade to Premium (${getAccountUser()?.subscription?.priceEurPremium || "9.95"} €/month) — access Premium Partners in the Member Pool.`;
     }
 
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
@@ -1859,13 +1940,23 @@
     const headerPremiumBtn = document.getElementById("headerPremiumBtn");
     if (closeBtn) closeBtn.addEventListener("click", closePremiumLoginModal);
     if (menuBtn) {
-      menuBtn.addEventListener("click", () => {
+      menuBtn.addEventListener("click", async () => {
         if (global.dualPeerUi?.closeAccountMenu) global.dualPeerUi.closeAccountMenu();
         if (!isLoggedIn()) {
           openPremiumLoginModal();
           return;
         }
         if (isAccountGuest()) return;
+        if (isPremium()) {
+          location.hash = "premium-modelpool";
+          global.MemberProfile?.setRemoteTab?.("modelpool");
+          return;
+        }
+        try {
+          await startBillingCheckout("premium");
+        } catch (err) {
+          console.warn("[auth] premium checkout failed:", err);
+        }
       });
     }
     if (modal) {
@@ -2041,8 +2132,8 @@
 
   function adminFlagCell(field, checked, { disabled = false } = {}) {
     const labels = {
-      isFreeMembership: "Free membership",
-      isModel: "Partner",
+      isFreeMembership: "Free account",
+      isModel: "Premium Partner",
       isAdmin: "Admin",
       isBanned: "Banned",
     };
@@ -2059,8 +2150,9 @@
     const value = user.subscriptionOverride || "trial_member";
     return `<td class="admin-billing-cell">
       <select class="admin-input admin-billing-override" data-field="subscriptionOverride" title="Simulate billing state for Mr_X test account">
-        <option value="trial_member"${value === "trial_member" ? " selected" : ""}>Trial (Member)</option>
-        <option value="active"${value === "active" ? " selected" : ""}>Premium</option>
+        <option value="trial_member"${value === "trial_member" ? " selected" : ""}>Test account</option>
+        <option value="member"${value === "member" ? " selected" : ""}>Member (2.95 €)</option>
+        <option value="active"${value === "active" ? " selected" : ""}>Premium (9.95 €)</option>
         <option value="trial_expired"${value === "trial_expired" ? " selected" : ""}>Trial expired</option>
       </select>
     </td>`;
@@ -3112,6 +3204,7 @@
     isAccountGuest,
     isAdmin,
     isPremium,
+    hasPremiumModelAccess,
     canManageInvites,
     canAccessMailSettings,
     getSession,

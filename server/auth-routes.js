@@ -32,6 +32,9 @@ import {
   assertSubscriptionAccess,
   isStripeConfigured,
   normalizeSubscriptionOverride,
+  resolveMembershipLabel,
+  getSubscriptionRow,
+  hasPremiumModelPoolAccess,
 } from "./billing.js";
 import { normalizeAppearanceTheme } from "./mail-design.js";
 
@@ -77,6 +80,10 @@ function isAdminAccount(row) {
 
 function isPremiumAccount(row) {
   return Boolean(row?.is_premium);
+}
+
+function isFreeGuestAccount(row) {
+  return Boolean(row?.is_free_guest);
 }
 
 function isModelAccount(row) {
@@ -1250,12 +1257,19 @@ authRouter.post("/invites", requireAuth, async (req, res) => {
 });
 
 authRouter.get("/models/premium", requireAuth, (req, res) => {
+  if (!hasPremiumModelPoolAccess(req.authUser)) {
+    return res.status(403).json({
+      ok: false,
+      error: "premium_required",
+      message: "Premium membership is required to browse Premium Partners.",
+    });
+  }
   const db = getDb();
   const rows = db
     .prepare(
       `SELECT id, username, display_name, account_type, is_premium, is_admin, is_model
        FROM users
-       WHERE is_premium = 1 AND is_model = 1 AND id != ?
+       WHERE is_model = 1 AND id != ?
        ORDER BY created_at ASC`
     )
     .all(req.authUser.id);
@@ -1283,6 +1297,13 @@ authRouter.post("/book-model", requireAuth, (req, res) => {
       return res.status(402).json({ ok: false, error: err.code, subscription: err.subscription });
     }
     throw err;
+  }
+  if (!hasPremiumModelPoolAccess(req.authUser)) {
+    return res.status(403).json({
+      ok: false,
+      error: "premium_required",
+      message: "Premium membership is required to book Premium Partners.",
+    });
   }
   const db = getDb();
   const guestUserId = req.authUser.id;
@@ -1388,28 +1409,35 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason, subscription_override
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, is_free_guest, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason, subscription_override
        FROM users
        ORDER BY created_at ASC`
     )
     .all();
-  const users = rows.map((row) => ({
-    id: row.id,
-    username: row.username,
-    email: row.email || "",
-    displayName: row.display_name || row.username,
-    accountType: normalizeAccountType(row.account_type),
-    isAdmin: Boolean(row.is_admin),
-    isPremium: Boolean(row.is_premium),
-    isModel: Boolean(row.is_model),
-    nationality: row.nationality || "",
-    languages: row.languages || "",
-    location: row.location || "",
-    emailVerified: Boolean(row.email_verified_at),
-    createdAt: row.created_at,
-    subscriptionOverride: normalizeSubscriptionOverride(row.subscription_override),
-    ...banFieldsForProfile(row),
-  }));
+  const users = rows.map((row) => {
+    const subRow = getSubscriptionRow(db, row.id);
+    const membership = resolveMembershipLabel(row, subRow);
+    return {
+      id: row.id,
+      username: row.username,
+      email: row.email || "",
+      displayName: row.display_name || row.username,
+      accountType: normalizeAccountType(row.account_type),
+      isAdmin: Boolean(row.is_admin),
+      isPremium: Boolean(row.is_premium),
+      isModel: Boolean(row.is_model),
+      isFreeGuest: isFreeGuestAccount(row),
+      membershipLabel: membership.label,
+      membershipType: membership.type,
+      nationality: row.nationality || "",
+      languages: row.languages || "",
+      location: row.location || "",
+      emailVerified: Boolean(row.email_verified_at),
+      createdAt: row.created_at,
+      subscriptionOverride: normalizeSubscriptionOverride(row.subscription_override),
+      ...banFieldsForProfile(row),
+    };
+  });
   res.json({ ok: true, users });
 });
 
@@ -1466,10 +1494,9 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       ? req.body.isFreeMembership
         ? 1
         : 0
-      : Number(existing.is_premium) && !Number(existing.is_model) && !Number(existing.is_admin)
-        ? 1
-        : 0;
-  const isPremium = isAdmin ? 1 : isModel ? 1 : isFreeMembership ? 1 : 0;
+      : Number(existing.is_free_guest || 0);
+  const isPremium = isAdmin ? 1 : isModel ? 1 : isFreeMembership ? 0 : Number(existing.is_premium || 0);
+  const isFreeGuest = isAdmin || isModel ? 0 : isFreeMembership;
   const password = req.body?.password != null ? String(req.body.password || "") : "";
   const nextBanned =
     req.body?.isBanned != null ? Boolean(req.body.isBanned) : isUserBanned(existing);
@@ -1501,7 +1528,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   }
 
   db.prepare(
-    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ?, nationality = ?, languages = ?, location = ?, banned_at = ?, ban_reason = ?, subscription_override = ? WHERE id = ?`
+    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ?, is_free_guest = ?, nationality = ?, languages = ?, location = ?, banned_at = ?, ban_reason = ?, subscription_override = ? WHERE id = ?`
   ).run(
     email,
     displayName,
@@ -1509,6 +1536,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
     isAdmin,
     isPremium,
     isModel,
+    isFreeGuest,
     nationality,
     languages,
     location,
@@ -1532,10 +1560,11 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
 
   const updated = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason, subscription_override
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, is_free_guest, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason, subscription_override
        FROM users WHERE id = ?`
     )
     .get(existing.id);
+  const membership = resolveMembershipLabel(updated, getSubscriptionRow(db, updated.id));
   res.json({
     ok: true,
     user: {
@@ -1547,6 +1576,9 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       isAdmin: Boolean(updated.is_admin),
       isPremium: Boolean(updated.is_premium),
       isModel: Boolean(updated.is_model),
+      isFreeGuest: isFreeGuestAccount(updated),
+      membershipLabel: membership.label,
+      membershipType: membership.type,
       nationality: updated.nationality || "",
       languages: updated.languages || "",
       location: updated.location || "",

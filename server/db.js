@@ -167,6 +167,14 @@ function runMigrations(database) {
   if (!userColsAfter.includes("subscription_override")) {
     database.exec(`ALTER TABLE users ADD COLUMN subscription_override TEXT NOT NULL DEFAULT ''`);
   }
+  userColsAfter = tableColumns(database, "users");
+  if (!userColsAfter.includes("is_free_guest")) {
+    database.exec(`ALTER TABLE users ADD COLUMN is_free_guest INTEGER NOT NULL DEFAULT 0`);
+    database.exec(
+      `UPDATE users SET is_free_guest = 1, is_premium = 0
+       WHERE is_premium = 1 AND is_model = 0 AND is_admin = 0`
+    );
+  }
   database.exec(`
     CREATE TABLE IF NOT EXISTS chat_threads (
       id TEXT PRIMARY KEY,
@@ -302,6 +310,11 @@ function runMigrations(database) {
     CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer ON subscriptions(stripe_customer_id);
     CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
   `);
+
+  const subCols = tableColumns(database, "subscriptions");
+  if (!subCols.includes("subscription_tier")) {
+    database.exec(`ALTER TABLE subscriptions ADD COLUMN subscription_tier TEXT`);
+  }
 }
 
 function backfillModelPool(database) {
