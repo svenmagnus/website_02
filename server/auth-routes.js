@@ -27,7 +27,12 @@ import {
   withMailTimeout,
   resolveSmtpSecure,
 } from "./mail.js";
-import { subscriptionFieldsForProfile, assertSubscriptionAccess, isStripeConfigured } from "./billing.js";
+import {
+  subscriptionFieldsForProfile,
+  assertSubscriptionAccess,
+  isStripeConfigured,
+  normalizeSubscriptionOverride,
+} from "./billing.js";
 import { normalizeAppearanceTheme } from "./mail-design.js";
 
 const BCRYPT_ROUNDS = 12;
@@ -1383,7 +1388,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason, subscription_override
        FROM users
        ORDER BY created_at ASC`
     )
@@ -1402,6 +1407,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
     location: row.location || "",
     emailVerified: Boolean(row.email_verified_at),
     createdAt: row.created_at,
+    subscriptionOverride: normalizeSubscriptionOverride(row.subscription_override),
     ...banFieldsForProfile(row),
   }));
   res.json({ ok: true, users });
@@ -1465,6 +1471,10 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       : normalizeBanReasonInput(existing.ban_reason);
   const bannedAt = nextBanned ? existing.banned_at || Date.now() : null;
   const storedBanReason = nextBanned ? banReason : "";
+  const subscriptionOverride =
+    req.body?.subscriptionOverride != null
+      ? normalizeSubscriptionOverride(req.body.subscriptionOverride)
+      : normalizeSubscriptionOverride(existing.subscription_override);
 
   if (existing.id === req.authUser.id && !isAdmin) {
     return res.status(400).json({
@@ -1482,7 +1492,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   }
 
   db.prepare(
-    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ?, nationality = ?, languages = ?, location = ?, banned_at = ?, ban_reason = ? WHERE id = ?`
+    `UPDATE users SET email = ?, display_name = ?, account_type = ?, is_admin = ?, is_premium = ?, is_model = ?, nationality = ?, languages = ?, location = ?, banned_at = ?, ban_reason = ?, subscription_override = ? WHERE id = ?`
   ).run(
     email,
     displayName,
@@ -1495,6 +1505,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
     location,
     bannedAt,
     storedBanReason,
+    subscriptionOverride,
     existing.id
   );
 
@@ -1512,7 +1523,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
 
   const updated = db
     .prepare(
-      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason
+      `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason, subscription_override
        FROM users WHERE id = ?`
     )
     .get(existing.id);
@@ -1532,6 +1543,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       location: updated.location || "",
       emailVerified: Boolean(updated.email_verified_at),
       createdAt: updated.created_at,
+      subscriptionOverride: normalizeSubscriptionOverride(updated.subscription_override),
       ...banFieldsForProfile(updated),
     },
   });

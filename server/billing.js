@@ -8,6 +8,12 @@ export function stripeBrandName() {
   return String(process.env.STRIPE_BRAND_NAME || process.env.MAIL_SITE_NAME || "Tangent Club").trim();
 }
 
+export function normalizeSubscriptionOverride(value) {
+  const v = String(value || "").trim().toLowerCase();
+  if (v === "trial_expired" || v === "active") return v;
+  return "";
+}
+
 let stripeClient;
 let brandingSyncPromise = null;
 
@@ -64,6 +70,7 @@ export function resolveSubscriptionAccess(user, subRow = null) {
   const db = getDb();
   const row = subRow ?? getSubscriptionRow(db, user.id);
   const trialEndsAt = computeLocalTrialEndsAt(user, row);
+  const adminOverride = normalizeSubscriptionOverride(user?.subscription_override);
   const base = {
     enforced: isSubscriptionEnforced(),
     exempt: isSubscriptionExempt(user),
@@ -75,7 +82,28 @@ export function resolveSubscriptionAccess(user, subRow = null) {
     stripeCustomerId: row?.stripe_customer_id || null,
     currentPeriodEnd: row?.current_period_end || null,
     cancelAtPeriodEnd: Boolean(row?.cancel_at_period_end),
+    adminOverride: adminOverride || null,
   };
+
+  if (adminOverride === "trial_expired") {
+    return {
+      ...base,
+      exempt: false,
+      accessGranted: false,
+      requiresPayment: true,
+      phase: "trial_expired",
+      daysRemaining: 0,
+    };
+  }
+
+  if (adminOverride === "active") {
+    return {
+      ...base,
+      accessGranted: true,
+      requiresPayment: false,
+      phase: "active",
+    };
+  }
 
   if (!base.enforced) {
     return {
@@ -145,6 +173,7 @@ export function subscriptionFieldsForProfile(user) {
       daysRemaining: access.daysRemaining,
       currentPeriodEnd: access.currentPeriodEnd,
       cancelAtPeriodEnd: access.cancelAtPeriodEnd,
+      adminOverride: access.adminOverride,
     },
   };
 }

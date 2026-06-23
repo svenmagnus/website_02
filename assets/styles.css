@@ -3013,6 +3013,30 @@ footer {
 
 .admin-actions-cell {
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: 1%;
+}
+
+#adminUsersModal .admin-actions-cell .primary,
+#adminUsersModal .admin-actions-cell .secondary,
+#adminUsersModal .admin-actions-cell .admin-delete-btn {
+  width: auto !important;
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+.admin-billing-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.admin-billing-override {
+  width: 6.5rem;
+  max-width: 6.5rem;
+  font-size: 0.68rem;
+  padding: 0.22rem 0.3rem;
 }
 
 .admin-delete-btn {
@@ -3031,8 +3055,8 @@ footer {
 
 .admin-save-btn {
   font-weight: 600;
-  padding: 0.32rem 0.5rem;
-  font-size: 0.76rem;
+  padding: 0.25rem 0.38rem;
+  font-size: 0.72rem;
   min-width: 0;
   line-height: 1.2;
 }

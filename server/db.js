@@ -163,6 +163,10 @@ function runMigrations(database) {
   if (!userColsAfter.includes("ban_reason")) {
     database.exec(`ALTER TABLE users ADD COLUMN ban_reason TEXT NOT NULL DEFAULT ''`);
   }
+  userColsAfter = tableColumns(database, "users");
+  if (!userColsAfter.includes("subscription_override")) {
+    database.exec(`ALTER TABLE users ADD COLUMN subscription_override TEXT NOT NULL DEFAULT ''`);
+  }
   database.exec(`
     CREATE TABLE IF NOT EXISTS chat_threads (
       id TEXT PRIMARY KEY,

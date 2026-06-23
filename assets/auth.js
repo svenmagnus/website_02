@@ -124,7 +124,9 @@
 
   function isSubscriptionBlocked(profile) {
     const sub = profile?.subscription;
-    return Boolean(sub?.enforced && !sub?.accessGranted && !sub?.exempt);
+    if (!sub) return false;
+    if (sub.adminOverride === "trial_expired") return true;
+    return Boolean(sub.enforced && !sub.accessGranted && !sub.exempt);
   }
 
   /** Display role for header, account menu, and admin table. */
@@ -613,6 +615,38 @@
       };
     }
 
+    const priceLabel = `${sub.priceEur || "2.95"} € / month`;
+
+    if (sub.adminOverride === "trial_expired") {
+      return {
+        badge: "Trial ended (test)",
+        badgeClass: "warn",
+        rows: [
+          { label: "Trial ended", value: formatBillingDate(sub.trialEndsAt) },
+          { label: "Required plan", value: priceLabel },
+          { label: "Mode", value: "Admin billing test" },
+        ],
+        note: "Admin override — simulates expired trial including paywall overlay.",
+        showCheckout: true,
+        showPortal: Boolean(sub.stripeCustomerId),
+        checkoutLabel: "Subscribe now",
+      };
+    }
+
+    if (sub.adminOverride === "active") {
+      return {
+        badge: "Active (test)",
+        badgeClass: "ok",
+        rows: [
+          { label: "Plan", value: priceLabel },
+          { label: "Mode", value: "Admin billing test" },
+        ],
+        note: "Admin override — simulates an active paid subscription.",
+        showCheckout: false,
+        showPortal: Boolean(sub.stripeCustomerId),
+      };
+    }
+
     if (sub.exempt) {
       return {
         badge: "Included",
@@ -626,8 +660,6 @@
         showPortal: false,
       };
     }
-
-    const priceLabel = `${sub.priceEur || "2.95"} € / month`;
 
     if (sub.phase === "trial") {
       return {
@@ -1795,6 +1827,17 @@
     return `<td class="admin-flag-cell"><label class="admin-flag-toggle" title="${label}"><input type="checkbox" class="admin-flag-input" data-field="${field}"${chk}${dis} aria-label="${label}" /><span class="admin-flag-mark" aria-hidden="true"></span></label></td>`;
   }
 
+  function adminBillingOverrideCell(override) {
+    const value = override || "";
+    return `<td class="admin-billing-cell">
+      <select class="admin-input admin-billing-override" data-field="subscriptionOverride" title="Simulate billing state for testing (ignores premium-partner exemption)">
+        <option value=""${value === "" ? " selected" : ""}>Auto</option>
+        <option value="trial_expired"${value === "trial_expired" ? " selected" : ""}>Trial expired</option>
+        <option value="active"${value === "active" ? " selected" : ""}>Force active</option>
+      </select>
+    </td>`;
+  }
+
   function buildAdminUserRow(user) {
     const tr = document.createElement("tr");
     tr.dataset.userId = user.id;
@@ -1816,6 +1859,7 @@
       <td><input type="text" class="admin-input admin-ban-reason-input" data-field="banReason" maxlength="500" placeholder="ban reason (optional)" value="${escAdminAttr(user.banReason)}" /></td>
       ${adminFlagCell("isBanned", user.isBanned)}
       <td><input type="password" class="admin-input" data-field="password" placeholder="new password (optional)" minlength="8" autocomplete="new-password" /></td>
+      ${adminBillingOverrideCell(user.subscriptionOverride)}
       <td class="admin-actions-cell">
         <button type="button" class="primary admin-save-btn">Save</button>
         <button type="button" class="secondary admin-pool-btn" title="Add to your model pool">Pool</button>
@@ -1993,6 +2037,7 @@
         isAdmin: Boolean(isAdminEl?.checked),
         isBanned: Boolean(isBannedEl?.checked),
         banReason: tr.querySelector('[data-field="banReason"]')?.value || "",
+        subscriptionOverride: tr.querySelector('[data-field="subscriptionOverride"]')?.value || "",
         password: tr.querySelector('[data-field="password"]')?.value || "",
       };
       btn.disabled = true;
@@ -2003,12 +2048,23 @@
         const pwd = tr.querySelector('[data-field="password"]');
         if (pwd) pwd.value = "";
         if (res.user?.username === getSession()?.user?.username) {
-          const nextUser = userToProfile(res.user);
+          try {
+            await fetchProfile();
+          } catch (_) {
+            /* profile refetch optional */
+          }
+          const profile = getCachedProfile() || getSession()?.user;
+          const nextUser = userToProfile(profile || res.user);
           if (nextUser?.isBanned) {
             handleAccountBannedError({ code: "account_banned", data: { banReason: nextUser.banReason } });
             return;
           }
           setSession(getSession().token, { ...getSession().user, ...nextUser });
+          if (isSubscriptionBlocked(profile)) {
+            updateSubscriptionOverlay(profile.subscription);
+          } else {
+            hideSubscriptionOverlay();
+          }
         }
       } catch (err) {
         setStatus(err.message || "Save failed.", "err");
