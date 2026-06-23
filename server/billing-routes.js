@@ -13,7 +13,7 @@ import {
   resolveSubscriptionAccess,
   syncSubscriptionFromStripe,
   grantOneTimePremium,
-  userHasPremiumAccess,
+  userHasPremiumAddon,
   MEMBER_PRICE_EUR,
   PREMIUM_PRICE_EUR,
   TRIAL_DAYS,
@@ -89,7 +89,7 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
     if (!premiumStripePriceId()) {
       return res.status(503).json({ ok: false, error: "premium_not_configured" });
     }
-    if (userHasPremiumAccess(user)) {
+    if (userHasPremiumAddon(user)) {
       return res.status(400).json({ ok: false, error: "subscription_active" });
     }
   } else if (access.accessGranted && ["active", "trialing"].includes(access.status)) {
@@ -122,7 +122,7 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
         metadata: { userId: user.id, tier: "premium", purchaseType: "one_time" },
         custom_text: {
           submit: {
-            message: `${brandName} — one-time Premium access (${PREMIUM_PRICE_EUR} €). Monthly billing can be enabled later when models launch.`,
+            message: `${brandName} — one-time Premium add-on (${PREMIUM_PRICE_EUR} €). Member subscription (${MEMBER_PRICE_EUR} €/month) remains required for platform access.`,
           },
         },
       });

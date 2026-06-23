@@ -106,9 +106,34 @@ export function hasPremiumModelPoolAccess(user, access = null) {
   if (isAdminUser(user)) return true;
   if (isModelUser(user)) return false;
   const sub = access || resolveSubscriptionAccess(user);
+  if (!sub.accessGranted) return false;
   if (sub.adminOverride === "active") return true;
-  if (sub.tier === "premium" && sub.accessGranted) return true;
-  return Boolean(user.is_premium) && !isModelUser(user) && sub.accessGranted;
+  const row = getSubscriptionRow(getDb(), user.id);
+  if (hasOneTimePremium(row)) return true;
+  return Boolean(user.is_premium) && !isModelUser(user);
+}
+
+function hasPremiumAddon(user, row) {
+  if (!user || isModelUser(user) || isAdminUser(user) || isFreeGuestUser(user)) return false;
+  return hasOneTimePremium(row) || Boolean(user.is_premium);
+}
+
+function finalizeAccess(user, row, access) {
+  const result = { ...access, hasPremiumPurchased: false, hasPremiumModelAccess: false };
+  if (!hasPremiumAddon(user, row)) {
+    result.hasPremiumModelAccess = hasPremiumModelPoolAccess(user, result);
+    return result;
+  }
+  result.hasPremiumPurchased = true;
+  if (hasOneTimePremium(row)) {
+    result.premiumBillingMode = "one_time";
+  }
+  if (result.accessGranted) {
+    result.tier = "premium";
+    result.membershipType = "premium";
+  }
+  result.hasPremiumModelAccess = hasPremiumModelPoolAccess(user, result);
+  return result;
 }
 
 export function getSubscriptionRow(db, userId) {
@@ -128,7 +153,6 @@ function daysRemaining(untilMs) {
 }
 
 const ACTIVE_STRIPE_STATUSES = new Set(["active", "trialing"]);
-const LIFETIME_PREMIUM_STATUS = "lifetime";
 
 function hasOneTimePremium(row) {
   return Boolean(row?.premium_one_time_at);
@@ -170,7 +194,7 @@ export function resolveSubscriptionAccess(user, subRow = null) {
   };
 
   if (adminOverride === "trial_expired") {
-    return {
+    return finalizeAccess(user, row, {
       ...base,
       exempt: false,
       accessGranted: false,
@@ -178,12 +202,11 @@ export function resolveSubscriptionAccess(user, subRow = null) {
       phase: "trial_expired",
       membershipType: "expired",
       daysRemaining: 0,
-      hasPremiumModelAccess: false,
-    };
+    });
   }
 
   if (adminOverride === "active") {
-    return {
+    return finalizeAccess(user, row, {
       ...base,
       accessGranted: true,
       requiresPayment: false,
@@ -192,11 +215,11 @@ export function resolveSubscriptionAccess(user, subRow = null) {
       membershipType: "premium",
       priceEur: PREMIUM_PRICE_EUR,
       hasPremiumModelAccess: true,
-    };
+    });
   }
 
   if (adminOverride === "member") {
-    return {
+    return finalizeAccess(user, row, {
       ...base,
       accessGranted: true,
       requiresPayment: false,
@@ -204,13 +227,12 @@ export function resolveSubscriptionAccess(user, subRow = null) {
       tier: "member",
       membershipType: "member",
       priceEur: MEMBER_PRICE_EUR,
-      hasPremiumModelAccess: false,
-    };
+    });
   }
 
   if (adminOverride === "trial_member") {
     const trialActive = Date.now() < trialEndsAt;
-    return {
+    return finalizeAccess(user, row, {
       ...base,
       exempt: false,
       accessGranted: trialActive,
@@ -218,12 +240,11 @@ export function resolveSubscriptionAccess(user, subRow = null) {
       phase: trialActive ? "trial" : "trial_expired",
       membershipType: trialActive ? "test" : "expired",
       daysRemaining: daysRemaining(trialEndsAt),
-      hasPremiumModelAccess: false,
-    };
+    });
   }
 
   if (isFreeGuestUser(user)) {
-    return {
+    return finalizeAccess(user, row, {
       ...base,
       accessGranted: true,
       requiresPayment: false,
@@ -231,45 +252,27 @@ export function resolveSubscriptionAccess(user, subRow = null) {
       tier: null,
       membershipType: "free",
       priceEur: MEMBER_PRICE_EUR,
-      hasPremiumModelAccess: false,
-    };
-  }
-
-  if (row && hasOneTimePremium(row)) {
-    return {
-      ...base,
-      accessGranted: true,
-      requiresPayment: false,
-      phase: "active",
-      tier: "premium",
-      membershipType: "premium",
-      priceEur: PREMIUM_PRICE_EUR,
-      premiumBillingMode: "one_time",
-      status: LIFETIME_PREMIUM_STATUS,
-      hasPremiumModelAccess: true,
-    };
+    });
   }
 
   if (!base.enforced) {
-    return {
+    return finalizeAccess(user, row, {
       ...base,
       accessGranted: true,
       requiresPayment: false,
       phase: "not_required",
       membershipType: isModelUser(user) ? "partner" : isAdminUser(user) ? "admin" : "member",
-      hasPremiumModelAccess: hasPremiumModelPoolAccess(user, { ...base, accessGranted: true }),
-    };
+    });
   }
 
   if (base.exempt) {
-    return {
+    return finalizeAccess(user, row, {
       ...base,
       accessGranted: true,
       requiresPayment: false,
       phase: "exempt",
       membershipType: isModelUser(user) ? "partner" : "admin",
-      hasPremiumModelAccess: hasPremiumModelPoolAccess(user, { ...base, accessGranted: true }),
-    };
+    });
   }
 
   const stripeStatus = String(row?.status || "none");
@@ -277,9 +280,9 @@ export function resolveSubscriptionAccess(user, subRow = null) {
     if (stripeStatus === "trialing" && row?.trial_ends_at && row.trial_ends_at < Date.now()) {
       /* fall through */
     } else {
-      const tier = stripeTier;
+      const tier = stripeTier === "premium" && !hasOneTimePremium(row) ? "premium" : "member";
       const membershipType = tier === "premium" ? "premium" : "member";
-      const access = {
+      return finalizeAccess(user, row, {
         ...base,
         accessGranted: true,
         requiresPayment: false,
@@ -288,34 +291,29 @@ export function resolveSubscriptionAccess(user, subRow = null) {
         membershipType,
         priceEur: priceEurForTier(tier),
         daysRemaining: row?.trial_ends_at ? daysRemaining(row.trial_ends_at) : 0,
-        hasPremiumModelAccess: tier === "premium",
-      };
-      access.hasPremiumModelAccess = hasPremiumModelPoolAccess(user, access);
-      return access;
+      });
     }
   }
 
   if (Date.now() < trialEndsAt) {
-    return {
+    return finalizeAccess(user, row, {
       ...base,
       accessGranted: true,
       requiresPayment: false,
       phase: "trial",
       membershipType: "test",
       daysRemaining: daysRemaining(trialEndsAt),
-      hasPremiumModelAccess: false,
-    };
+    });
   }
 
-  return {
+  return finalizeAccess(user, row, {
     ...base,
     accessGranted: false,
     requiresPayment: true,
     phase: stripeStatus === "none" ? "trial_expired" : stripeStatus,
     membershipType: "expired",
     daysRemaining: 0,
-    hasPremiumModelAccess: false,
-  };
+  });
 }
 
 export function resolveMembershipLabel(user, subRow = null) {
@@ -367,6 +365,7 @@ export function subscriptionFieldsForProfile(user) {
       cancelAtPeriodEnd: access.cancelAtPeriodEnd,
       adminOverride: access.adminOverride,
       hasPremiumModelAccess: access.hasPremiumModelAccess,
+      hasPremiumPurchased: access.hasPremiumPurchased,
       premiumBillingMode: access.premiumBillingMode || (isPremiumOneTimeBilling() ? "one_time" : "subscription"),
     },
   };
@@ -450,8 +449,6 @@ export function grantOneTimePremium(db, userId, { stripeCustomerId = null } = {}
   const now = Date.now();
   upsertSubscriptionRow(db, userId, {
     stripe_customer_id: stripeCustomerId || undefined,
-    status: LIFETIME_PREMIUM_STATUS,
-    subscription_tier: "premium",
     premium_one_time_at: now,
   });
   const user = db.prepare("SELECT id, is_model, is_admin FROM users WHERE id = ?").get(userId);
@@ -460,12 +457,10 @@ export function grantOneTimePremium(db, userId, { stripeCustomerId = null } = {}
   }
 }
 
-export function userHasPremiumAccess(user, subRow = null) {
+export function userHasPremiumAddon(user, subRow = null) {
   const db = getDb();
   const row = subRow ?? getSubscriptionRow(db, user?.id);
-  if (hasOneTimePremium(row)) return true;
-  const access = resolveSubscriptionAccess(user, row);
-  return access.tier === "premium" && access.accessGranted;
+  return hasPremiumAddon(user, row);
 }
 
 export function syncSubscriptionFromStripe(subscription) {
@@ -473,20 +468,12 @@ export function syncSubscriptionFromStripe(subscription) {
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
-  const existing = getSubscriptionRow(db, userId);
-  if (hasOneTimePremium(existing)) {
-    upsertSubscriptionRow(db, userId, {
-      stripe_customer_id:
-        typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id,
-      stripe_subscription_id: subscription.id,
-    });
-    return;
-  }
   const priceId =
     subscription.items?.data?.[0]?.price?.id ||
     (typeof subscription.plan === "object" ? subscription.plan?.id : subscription.plan);
   const tier = tierFromStripePrice(priceId);
   const status = subscription.status;
+  const memberTier = tier === "premium" ? "member" : tier;
 
   upsertSubscriptionRow(db, userId, {
     stripe_customer_id: typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id,
@@ -495,10 +482,13 @@ export function syncSubscriptionFromStripe(subscription) {
     trial_ends_at: subscription.trial_end ? subscription.trial_end * 1000 : null,
     current_period_end: subscription.current_period_end ? subscription.current_period_end * 1000 : null,
     cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
-    subscription_tier: ACTIVE_STRIPE_STATUSES.has(status) ? tier : null,
+    subscription_tier: ACTIVE_STRIPE_STATUSES.has(status) ? memberTier : null,
   });
 
-  syncUserPremiumFlag(db, userId, tier, status);
+  const existing = getSubscriptionRow(db, userId);
+  if (!hasOneTimePremium(existing)) {
+    syncUserPremiumFlag(db, userId, tier, status);
+  }
 }
 
 export async function getOrCreateStripeCustomer(db, user) {

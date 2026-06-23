@@ -250,7 +250,9 @@
     if (!user) return false;
     if (user.isAdmin) return true;
     if (user.isModel) return false;
+    if (!user.subscription?.accessGranted) return false;
     if (user.subscription?.hasPremiumModelAccess) return true;
+    if (user.subscription?.hasPremiumPurchased && user.isPremium) return true;
     return Boolean(user.isPremium) && !user.isModel;
   }
 
@@ -779,7 +781,7 @@
           { label: "Member plan", value: memberPrice },
           { label: "Premium plan", value: premiumPrice },
         ],
-        note: "Special guest access without billing. Upgrade to Premium for Premium Partner bookings.",
+        note: "Special guest access without billing. Premium add-on is separate from Member billing.",
         showCheckout: true,
         showPortal: false,
         checkoutLabel: "Upgrade to Premium",
@@ -910,9 +912,11 @@
         ],
         note: isPremiumTier
           ? isLifetimePremium
-            ? "Premium access is active. Monthly Premium billing can be enabled later when models launch."
-            : "Premium includes access to Premium Partners in the Member Pool."
-          : "Upgrade to Premium for Premium Partner access.",
+            ? `Premium add-on active. Member subscription (${memberPrice}) is still required for platform access.`
+            : "Premium includes access to Premium Partners in the Member Pool. Member subscription remains required."
+          : sub.hasPremiumPurchased
+            ? `Premium add-on purchased. Continue Member subscription (${memberPrice}) for platform access.`
+            : `Upgrade to Premium (${premiumPrice}) for Premium Partner access — Member (${memberPrice}) remains required.`,
         showCheckout: isPremiumTier && !isLifetimePremium ? false : !isPremiumTier,
         showPortal: !isLifetimePremium,
         checkoutLabel: "Upgrade to Premium",
@@ -945,7 +949,7 @@
           { label: "Test ended", value: formatBillingDate(sub.trialEndsAt) },
           { label: "Member plan", value: memberPrice },
         ],
-        note: "Continue as Member to restore full access to sessions, chat, and invites.",
+        note: "Continue Member subscription to restore access. Premium add-on remains on your account.",
         showCheckout: true,
         showPortal: Boolean(sub.stripeCustomerId),
         checkoutLabel: "Continue as Member",
@@ -1727,7 +1731,7 @@
 
     if (premiumMenuBtn) {
       premiumMenuBtn.hidden = !(loggedIn && !isPremium() && !isAccountGuest());
-      premiumMenuBtn.title = `Upgrade to Premium (${formatPremiumPrice(getAccountUser()?.subscription)}) — access Premium Partners in the Member Pool.`;
+      premiumMenuBtn.title = `Premium add-on (${formatPremiumPrice(getAccountUser()?.subscription)}) — Member 2.95 €/month still required. Unlocks Premium Partners in the Member Pool.`;
     }
 
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
