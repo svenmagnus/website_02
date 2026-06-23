@@ -118,7 +118,7 @@
           </section>
 
           <section class="settings-section" id="settingsBillingSection">
-            <h2>Membership &amp; billing</h2>
+            <h2 id="billing">Membership &amp; billing</h2>
             <p class="settings-hint" id="settingsBillingIntro">
               Your platform access — free trial, subscription status, and renewal dates.
             </p>
@@ -132,6 +132,9 @@
               <div class="settings-billing-actions">
                 <button type="button" class="primary" id="settingsBillingCheckoutBtn" hidden>
                   Subscribe
+                </button>
+                <button type="button" class="secondary" id="settingsBillingPremiumCheckoutBtn" hidden>
+                  Upgrade to Premium
                 </button>
                 <button type="button" class="secondary" id="settingsBillingPortalBtn" hidden>
                   Manage billing
@@ -274,7 +277,7 @@
 
     <script src="assets/api-config.js?v=8611"></script>
     <script src="assets/ui-shell.js?v=8629"></script>
-    <script src="assets/auth.js?v=8629"></script>
+    <script src="assets/auth.js?v=8656"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         if (window.dualPeerUi) window.dualPeerUi.initSettingsPage();

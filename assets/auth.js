@@ -830,6 +830,27 @@
     return `${sub.priceEurPremium || "9.95"} € / month`;
   }
 
+  function accountHasPremiumMembership(user) {
+    if (!user) return false;
+    if (user.isAdmin || user.isModel || user.isFreeGuest) return false;
+    if (resolveAccountRoleLabel(user) === "Premium") return true;
+    const sub = user.subscription;
+    return (
+      isPremium() ||
+      Boolean(sub?.hasPremiumPurchased) ||
+      sub?.membershipType === "premium" ||
+      sub?.tier === "premium" ||
+      sub?.adminOverride === "active"
+    );
+  }
+
+  function accountIsTestPhase(user) {
+    if (!user || user.isAdmin || user.isModel || user.isFreeGuest) return false;
+    if (resolveAccountRoleLabel(user) === "Test account") return true;
+    const sub = user.subscription;
+    return sub?.phase === "trial" || sub?.membershipType === "test";
+  }
+
   function updatePremiumMenuItem() {
     const btn = document.getElementById("btnPremiumFromMenu");
     const label = document.getElementById("premiumMenuLabel");
@@ -841,17 +862,51 @@
     const premiumPrice = formatPremiumPrice(sub);
     const memberPrice = `${sub?.priceEurMember || "2.95"} € / month`;
 
-    if (label) label.textContent = "Become Premium";
-    if (hint) {
-      hint.textContent = `${premiumPrice} add-on · Member ${memberPrice} required`;
-    }
-    btn.title =
-      `Purchase the Premium add-on (${premiumPrice}) for Premium Partner access in the Member Pool. ` +
-      `Member subscription (${memberPrice}) remains required for platform access.`;
+    delete btn.dataset.billingAction;
 
-    const purchased = Boolean(sub?.hasPremiumPurchased || user?.isPremium);
-    const showUpgrade = isLoggedIn() && !isAccountGuest() && !purchased && !isPremium();
-    btn.hidden = !showUpgrade;
+    if (!isLoggedIn() || isAccountGuest() || accountHasPremiumMembership(user)) {
+      btn.hidden = true;
+      btn.disabled = false;
+      return;
+    }
+
+    if (accountIsTestPhase(user)) {
+      if (label) label.textContent = "Become a Member";
+      if (hint) {
+        hint.textContent = `${memberPrice} · Premium add-on ${premiumPrice} in Settings`;
+      }
+      btn.title = "View Member and Premium options in Settings.";
+      btn.dataset.billingAction = "settings";
+      btn.hidden = false;
+      btn.disabled = false;
+      return;
+    }
+
+    if (sub?.requiresPayment || sub?.phase === "trial_expired") {
+      if (label) label.textContent = "Become a Member";
+      if (hint) hint.textContent = `${memberPrice} to restore access`;
+      btn.title = "Continue your Member subscription in Settings.";
+      btn.dataset.billingAction = "settings";
+      btn.hidden = false;
+      btn.disabled = false;
+      return;
+    }
+
+    if (resolveAccountRoleLabel(user) === "Member") {
+      if (label) label.textContent = "Become Premium";
+      if (hint) {
+        hint.textContent = `${premiumPrice} add-on · Member ${memberPrice} required`;
+      }
+      btn.title =
+        `Purchase the Premium add-on (${premiumPrice}) for Premium Partner access in the Member Pool. ` +
+        `Member subscription (${memberPrice}) remains required for platform access.`;
+      btn.dataset.billingAction = "premium";
+      btn.hidden = false;
+      btn.disabled = false;
+      return;
+    }
+
+    btn.hidden = true;
     btn.disabled = false;
   }
 
@@ -907,12 +962,17 @@
           { label: "Days remaining", value: String(sub.daysRemaining ?? 0) },
           { label: "Trial ends", value: formatBillingDate(sub.trialEndsAt) },
           { label: "Member plan", value: memberPrice },
+          { label: "Premium add-on", value: premiumPrice },
         ],
-        note: "Admin billing test — simulates a test account before paid membership.",
+        note:
+          "Admin billing test — subscribe as Member or add Premium. Premium requires an active Member subscription.",
         showCheckout: true,
         showPortal: Boolean(sub.stripeCustomerId),
         checkoutLabel: "Subscribe as Member",
         checkoutTier: "member",
+        showPremiumCheckout: true,
+        premiumCheckoutLabel: "Upgrade to Premium",
+        premiumCheckoutTier: "premium",
       };
     }
 
@@ -989,12 +1049,17 @@
           { label: "Days remaining", value: String(sub.daysRemaining ?? 0) },
           { label: "Test ends", value: formatBillingDate(sub.trialEndsAt) },
           { label: "Member plan", value: memberPrice },
+          { label: "Premium add-on", value: premiumPrice },
         ],
-        note: "Subscribe as Member before the test phase ends to keep access.",
+        note:
+          "Subscribe as Member before the test phase ends. Premium add-on unlocks Premium Partners in the Member Pool.",
         showCheckout: true,
         showPortal: Boolean(sub.stripeCustomerId),
         checkoutLabel: "Subscribe as Member",
         checkoutTier: "member",
+        showPremiumCheckout: true,
+        premiumCheckoutLabel: "Upgrade to Premium",
+        premiumCheckoutTier: "premium",
       };
     }
 
@@ -1105,6 +1170,7 @@
     const details = document.getElementById("settingsBillingDetails");
     const noteEl = document.getElementById("settingsBillingNote");
     const checkoutBtn = document.getElementById("settingsBillingCheckoutBtn");
+    const premiumCheckoutBtn = document.getElementById("settingsBillingPremiumCheckoutBtn");
     const portalBtn = document.getElementById("settingsBillingPortalBtn");
     const errEl = document.getElementById("settingsBillingError");
     const intro = document.getElementById("settingsBillingIntro");
@@ -1123,6 +1189,7 @@
       if (details) details.innerHTML = "";
       if (noteEl) noteEl.textContent = "";
       if (checkoutBtn) checkoutBtn.hidden = true;
+      if (premiumCheckoutBtn) premiumCheckoutBtn.hidden = true;
       if (portalBtn) portalBtn.hidden = true;
       return;
     }
@@ -1165,10 +1232,17 @@
       checkoutBtn.hidden = !info.showCheckout;
       checkoutBtn.textContent = info.checkoutLabel || subscriptionCheckoutLabel(sub);
     }
+    if (premiumCheckoutBtn instanceof HTMLButtonElement) {
+      premiumCheckoutBtn.hidden = !info.showPremiumCheckout;
+      premiumCheckoutBtn.textContent = info.premiumCheckoutLabel || "Upgrade to Premium";
+    }
     if (portalBtn instanceof HTMLButtonElement) {
       portalBtn.hidden = !info.showPortal;
     }
-    if (section) section.dataset.checkoutTier = info.checkoutTier || "member";
+    if (section) {
+      section.dataset.checkoutTier = info.checkoutTier || "member";
+      section.dataset.premiumCheckoutTier = info.premiumCheckoutTier || "premium";
+    }
     if (errEl) errEl.hidden = true;
   }
 
@@ -1196,6 +1270,7 @@
     if (!section) return;
 
     const checkoutBtn = document.getElementById("settingsBillingCheckoutBtn");
+    const premiumCheckoutBtn = document.getElementById("settingsBillingPremiumCheckoutBtn");
     const portalBtn = document.getElementById("settingsBillingPortalBtn");
     const errEl = document.getElementById("settingsBillingError");
 
@@ -1214,6 +1289,24 @@
         }
       } finally {
         if (checkoutBtn instanceof HTMLButtonElement) checkoutBtn.disabled = false;
+      }
+    });
+
+    premiumCheckoutBtn?.addEventListener("click", async () => {
+      if (premiumCheckoutBtn instanceof HTMLButtonElement) {
+        premiumCheckoutBtn.disabled = true;
+      }
+      if (errEl) errEl.hidden = true;
+      try {
+        const tier = section.dataset.premiumCheckoutTier || "premium";
+        await startBillingCheckout(tier);
+      } catch (err) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = err.message || "Checkout failed.";
+        }
+      } finally {
+        if (premiumCheckoutBtn instanceof HTMLButtonElement) premiumCheckoutBtn.disabled = false;
       }
     });
 
@@ -2113,6 +2206,19 @@
           return;
         }
         if (isAccountGuest()) return;
+        const action = menuBtn.dataset.billingAction || "premium";
+        if (action === "settings") {
+          window.location.href = "settings.html#billing";
+          return;
+        }
+        if (action === "member") {
+          try {
+            await startBillingCheckout("member");
+          } catch (err) {
+            console.warn("[auth] member checkout failed:", err);
+          }
+          return;
+        }
         if (isPremium()) {
           location.hash = "premium-modelpool";
           global.MemberProfile?.setRemoteTab?.("modelpool");
