@@ -258,26 +258,68 @@
 
   function resolveAdminUserRoleLabel(user) {
     if (!user) return "Visitor";
-    if (user.membershipLabel) return user.membershipLabel;
     if (user.isBanned) return "Banned";
-    const override = user.subscriptionOverride || "";
-    if (override === "trial_expired") return "Membership expired";
     if (user.isAdmin) return "Administrator";
     if (user.isModel) return "Premium Partner";
+    const override = user.subscriptionOverride || "";
+    if (override === "trial_expired") return "Membership expired";
     if (override === "active") return "Premium";
     if (override === "member") return "Member";
+    if (override === "trial_member") return "Test account";
+    if (user.membershipLabel) return user.membershipLabel;
     if (user.isFreeGuest) return "Free";
     if (user.isPremium) return "Premium";
-    if (override === "trial_member") return "Test account";
     return "Member";
   }
 
   function resolveAdminUserRoleBadgeClass(user) {
     if (!user) return "is-visitor";
     if (user.isBanned) return "is-expired";
+    if (user.isAdmin) return "is-admin";
+    if (user.isModel) return "is-premium-partner";
     const override = user.subscriptionOverride || "";
     if (override === "trial_expired") return "is-expired";
+    if (override === "active") return "is-premium";
+    if (override === "member" || override === "trial_member") return "is-member";
     return resolveAccountRoleBadgeClass(user);
+  }
+
+  function adminUserFromBillingOverride(override, base = {}) {
+    const o = String(override || "trial_member");
+    const membership = {
+      trial_member: { label: "Test account", type: "test" },
+      member: { label: "Member", type: "member" },
+      active: { label: "Premium", type: "premium" },
+      trial_expired: { label: "Membership expired", type: "expired" },
+    }[o] || { label: "Member", type: "member" };
+    return {
+      ...base,
+      subscriptionOverride: o,
+      membershipLabel: membership.label,
+      membershipType: membership.type,
+      isPremium: o === "active",
+    };
+  }
+
+  function normalizeSavedAdminUser(saved, patch, username) {
+    if (!saved) return null;
+    const merged = { ...saved, memberSince: saved.memberSince || saved.createdAt };
+    if (username.toLowerCase() === ADMIN_BILLING_TEST_USERNAME) {
+      const override =
+        patch?.subscriptionOverride ||
+        saved.subscriptionOverride ||
+        "trial_member";
+      return adminUserFromBillingOverride(override, merged);
+    }
+    return merged;
+  }
+
+  function refreshAdminUserRow(tr, saved, patch, username) {
+    if (!tr || !saved) return tr;
+    const merged = normalizeSavedAdminUser(saved, patch, username);
+    const newRow = buildAdminUserRow(merged);
+    tr.replaceWith(newRow);
+    return newRow;
   }
 
   function adminRoleBadgeHtml(user) {
@@ -2138,6 +2180,7 @@
     if (!modal) return;
     modal.hidden = false;
     modal.removeAttribute("aria-hidden");
+    document.body.classList.add("has-auth-modal-open");
   }
 
   function closeAdminUserProfileModal() {
@@ -2145,6 +2188,10 @@
     if (!modal) return;
     modal.hidden = true;
     modal.setAttribute("aria-hidden", "true");
+    const usersModal = document.getElementById("adminUsersModal");
+    const authModalOpen = global.dualPeerUi?.getOpenAuthModal?.();
+    if (!usersModal?.hidden || authModalOpen) return;
+    document.body.classList.remove("has-auth-modal-open");
   }
 
   async function showAdminUserProfile(userId) {
@@ -2210,7 +2257,7 @@
       <td class="admin-status-cell">
         ${adminRoleBadgeHtml(user)}
       </td>
-      <td class="admin-member-since-cell" title="Account registration date">${escAdminHtml(formatAdminProfileDate(user.memberSince))}</td>
+      <td class="admin-member-since-cell" title="Account registration date">${escAdminHtml(formatAdminProfileDate(user.memberSince || user.createdAt))}</td>
       ${adminFlagCell("isFreeMembership", isFreeMembershipUser(user), {
         disabled: user.isAdmin || user.isModel,
       })}
@@ -2235,6 +2282,9 @@
   }
 
   function initAdminUsersModal() {
+    if (global.__dualPeerAdminUsersBound) return;
+    global.__dualPeerAdminUsersBound = true;
+
     const modal = document.getElementById("adminUsersModal");
     const openBtn = document.getElementById("btnAdminUsers");
     const closeBtn = document.getElementById("adminUsersModalClose");
@@ -2267,9 +2317,18 @@
     };
 
     const open = async () => {
+      const cached = getCachedProfile();
+      if (cached?.isAdmin && !isAdmin()) {
+        syncSessionUserFromProfile(cached);
+      }
       if (!canAccessMailSettings()) return;
+      closeAdminUserProfileModal();
       if (global.dualPeerUi?.openAuthModal) global.dualPeerUi.openAuthModal("adminUsersModal");
-      else modal.hidden = false;
+      else {
+        modal.hidden = false;
+        modal.removeAttribute("aria-hidden");
+        document.body.classList.add("has-auth-modal-open");
+      }
       await load();
     };
 
@@ -2415,9 +2474,19 @@
       setStatus("Saving profile…");
       try {
         const res = await updateAdminUser(userId, patch);
-        setStatus(`Saved ${res.user?.username || "profile"}.`, "ok");
-        const pwd = tr.querySelector('[data-field="password"]');
-        if (pwd) pwd.value = "";
+        const merged = normalizeSavedAdminUser(res.user, patch, username);
+        const roleLabel = resolveAdminUserRoleLabel(merged || res.user || {});
+        const billingChanged =
+          username.toLowerCase() === ADMIN_BILLING_TEST_USERNAME && patch.subscriptionOverride != null;
+        setStatus(
+          billingChanged
+            ? `Saved ${res.user?.username || "profile"} — Role: ${roleLabel}. Mr_X must sign in again to apply.`
+            : `Saved ${res.user?.username || "profile"}.`,
+          "ok"
+        );
+        if (res.user && merged) {
+          refreshAdminUserRow(tr, res.user, patch, username);
+        }
         if (res.user?.username === getSession()?.user?.username) {
           try {
             await fetchProfile();
@@ -2440,7 +2509,8 @@
       } catch (err) {
         setStatus(err.message || "Save failed.", "err");
       } finally {
-        btn.disabled = false;
+        const saveBtn = tbody.querySelector(`tr[data-user-id="${userId}"] .admin-save-btn`);
+        if (saveBtn) saveBtn.disabled = false;
       }
     });
 

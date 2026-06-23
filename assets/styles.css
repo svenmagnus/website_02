@@ -656,7 +656,8 @@ body.subscription-paywall #subscriptionOverlay,
 .login-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  /* Above header/account menu (10050–10052) so admin & auth modals stay usable */
+  z-index: 10060;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5039,7 +5040,7 @@ body.layout-resize-active * {
 }
 
 .admin-user-profile-overlay {
-  z-index: 10001;
+  z-index: 10061;
 }
 
 .admin-user-profile-card {

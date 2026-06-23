@@ -35,6 +35,7 @@ import {
   resolveMembershipLabel,
   getSubscriptionRow,
   hasPremiumModelPoolAccess,
+  applyBillingTestOverrideState,
 } from "./billing.js";
 import { normalizeAppearanceTheme } from "./mail-design.js";
 
@@ -1498,7 +1499,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
         ? 1
         : 0
       : Number(existing.is_free_guest || 0);
-  const isPremium = isAdmin ? 1 : isModel ? 1 : isFreeMembership ? 0 : Number(existing.is_premium || 0);
+  let isPremium = isAdmin ? 1 : isModel ? 1 : isFreeMembership ? 0 : Number(existing.is_premium || 0);
   const isFreeGuest = isAdmin || isModel ? 0 : isFreeMembership;
   const password = req.body?.password != null ? String(req.body.password || "") : "";
   const nextBanned =
@@ -1510,9 +1511,15 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
   const bannedAt = nextBanned ? existing.banned_at || Date.now() : null;
   const storedBanReason = nextBanned ? banReason : "";
   const isBillingTestUser = String(existing.username || "").toLowerCase() === "mr_x";
-  let subscriptionOverride = normalizeSubscriptionOverride(existing.subscription_override);
+  const prevBillingOverride = normalizeSubscriptionOverride(existing.subscription_override);
+  let subscriptionOverride = prevBillingOverride;
   if (req.body?.subscriptionOverride != null && isBillingTestUser) {
     subscriptionOverride = normalizeSubscriptionOverride(req.body.subscriptionOverride);
+    if (subscriptionOverride === "active") {
+      isPremium = 1;
+    } else if (!isAdmin && !isModel) {
+      isPremium = 0;
+    }
   }
 
   if (existing.id === req.authUser.id && !isAdmin) {
@@ -1561,6 +1568,11 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
     db.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`).run(hash, existing.id);
   }
 
+  if (isBillingTestUser && req.body?.subscriptionOverride != null && subscriptionOverride !== prevBillingOverride) {
+    applyBillingTestOverrideState(db, existing.id, subscriptionOverride);
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(existing.id);
+  }
+
   const updated = db
     .prepare(
       `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, is_free_guest, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason, subscription_override
@@ -1582,6 +1594,7 @@ authRouter.patch("/admin/users/:id", requireAuth, requireAdminAccount, (req, res
       isFreeGuest: isFreeGuestAccount(updated),
       membershipLabel: membership.label,
       membershipType: membership.type,
+      memberSince: updated.created_at,
       nationality: updated.nationality || "",
       languages: updated.languages || "",
       location: updated.location || "",

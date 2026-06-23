@@ -445,6 +445,45 @@ function syncUserPremiumFlag(db, userId, tier, status) {
   }
 }
 
+/** Sync subscriptions + is_premium for Mr_X billing-test override changes. */
+export function applyBillingTestOverrideState(db, userId, override) {
+  const normalized = normalizeSubscriptionOverride(override);
+  const now = Date.now();
+  if (!db.prepare("SELECT id FROM users WHERE id = ?").get(userId)) return;
+
+  if (!getSubscriptionRow(db, userId)) {
+    upsertSubscriptionRow(db, userId, { status: "none" });
+  }
+
+  switch (normalized) {
+    case "active":
+      db.prepare(
+        `UPDATE subscriptions SET status = 'active', subscription_tier = 'member', premium_one_time_at = ?, updated_at = ? WHERE user_id = ?`
+      ).run(now, now, userId);
+      db.prepare("UPDATE users SET is_premium = 1 WHERE id = ?").run(userId);
+      break;
+    case "member":
+      db.prepare(
+        `UPDATE subscriptions SET status = 'active', subscription_tier = 'member', premium_one_time_at = NULL, updated_at = ? WHERE user_id = ?`
+      ).run(now, userId);
+      db.prepare("UPDATE users SET is_premium = 0 WHERE id = ?").run(userId);
+      break;
+    case "trial_expired":
+      db.prepare(
+        `UPDATE subscriptions SET status = 'none', subscription_tier = NULL, premium_one_time_at = NULL, trial_ends_at = ?, updated_at = ? WHERE user_id = ?`
+      ).run(now - 1000, now, userId);
+      db.prepare("UPDATE users SET is_premium = 0 WHERE id = ?").run(userId);
+      break;
+    case "trial_member":
+    default:
+      db.prepare(
+        `UPDATE subscriptions SET status = 'none', subscription_tier = NULL, premium_one_time_at = NULL, trial_ends_at = NULL, updated_at = ? WHERE user_id = ?`
+      ).run(now, userId);
+      db.prepare("UPDATE users SET is_premium = 0 WHERE id = ?").run(userId);
+      break;
+  }
+}
+
 export function grantOneTimePremium(db, userId, { stripeCustomerId = null } = {}) {
   const now = Date.now();
   upsertSubscriptionRow(db, userId, {
