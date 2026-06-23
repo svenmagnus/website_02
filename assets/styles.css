@@ -303,6 +303,32 @@ button.linkish {
   font-size: 1rem;
 }
 
+.account-dropdown-item--stacked {
+  align-items: flex-start;
+}
+
+.account-dropdown-item--stacked > i {
+  margin-top: 0.15rem;
+}
+
+.account-dropdown-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.account-dropdown-item-label {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.account-dropdown-item-hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 .account-dropdown-danger {
   color: var(--danger);
 }

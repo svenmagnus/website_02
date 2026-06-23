@@ -746,6 +746,31 @@
     return `${sub.priceEurPremium || "9.95"} € / month`;
   }
 
+  function updatePremiumMenuItem() {
+    const btn = document.getElementById("btnPremiumFromMenu");
+    const label = document.getElementById("premiumMenuLabel");
+    const hint = document.getElementById("premiumMenuHint");
+    if (!btn) return;
+
+    const user = getAccountUser();
+    const sub = user?.subscription;
+    const premiumPrice = formatPremiumPrice(sub);
+    const memberPrice = `${sub?.priceEurMember || "2.95"} € / month`;
+
+    if (label) label.textContent = "Become Premium";
+    if (hint) {
+      hint.textContent = `${premiumPrice} add-on · Member ${memberPrice} required`;
+    }
+    btn.title =
+      `Purchase the Premium add-on (${premiumPrice}) for Premium Partner access in the Member Pool. ` +
+      `Member subscription (${memberPrice}) remains required for platform access.`;
+
+    const purchased = Boolean(sub?.hasPremiumPurchased || user?.isPremium);
+    const showUpgrade = isLoggedIn() && !isAccountGuest() && !purchased && !isPremium();
+    btn.hidden = !showUpgrade;
+    btn.disabled = false;
+  }
+
   function describeSubscriptionForSettings(sub) {
     if (!sub) {
       return {
@@ -1730,8 +1755,7 @@
     document.body.classList.toggle("account-guest", loggedIn && isAccountGuest());
 
     if (premiumMenuBtn) {
-      premiumMenuBtn.hidden = !(loggedIn && !isPremium() && !isAccountGuest());
-      premiumMenuBtn.title = `Premium add-on (${formatPremiumPrice(getAccountUser()?.subscription)}) — Member 2.95 €/month still required. Unlocks Premium Partners in the Member Pool.`;
+      updatePremiumMenuItem();
     }
 
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
