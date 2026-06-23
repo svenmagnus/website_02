@@ -129,6 +129,33 @@
     return Boolean(sub.enforced && !sub.accessGranted && !sub.exempt);
   }
 
+  function isSubscriptionRenewalDue(sub) {
+    if (!sub) return false;
+    if (sub.adminOverride === "trial_expired") return true;
+    return Boolean(sub.requiresPayment || sub.phase === "trial_expired");
+  }
+
+  function subscriptionRenewalUrl() {
+    return "continue-subscription.html";
+  }
+
+  function isContinueSubscriptionPage() {
+    return document.body.classList.contains("continue-subscription-page");
+  }
+
+  function subscriptionCheckoutLabel(sub) {
+    if (!sub) return "Subscribe";
+    if (isSubscriptionRenewalDue(sub)) return "Continue subscription";
+    if (sub.phase === "trial" && sub.daysRemaining > 0) return "Subscribe early";
+    return "Subscribe now";
+  }
+
+  function maybeRedirectSubscriptionRenewal(profile) {
+    if (!isSubscriptionBlocked(profile) || isContinueSubscriptionPage()) return false;
+    location.replace(subscriptionRenewalUrl());
+    return true;
+  }
+
   /** Display role for header, account menu, and admin table. */
   function resolveAccountRoleLabel(user) {
     if (!user) return "Visitor";
@@ -287,10 +314,7 @@
     closePremiumLoginModal();
     const profile = getCachedProfile();
     if (isSubscriptionBlocked(profile)) {
-      updateSubscriptionOverlay(profile.subscription);
-      global.dispatchEvent(
-        new CustomEvent("dualpeer-subscription-required", { detail: profile.subscription })
-      );
+      window.location.href = subscriptionRenewalUrl();
       return;
     }
     hideSubscriptionOverlay();
@@ -539,6 +563,8 @@
 
     if (priceAmount) priceAmount.textContent = `${subscription.priceEur || "2.95"} €`;
 
+    const renewalDue = isSubscriptionRenewalDue(subscription);
+
     if (subscription.phase === "trial" && subscription.daysRemaining > 0) {
       if (hint) {
         hint.textContent =
@@ -548,6 +574,12 @@
         trialBanner.hidden = false;
         trialBanner.textContent = `${subscription.daysRemaining} day(s) left in your free trial.`;
       }
+    } else if (renewalDue) {
+      if (hint) {
+        hint.textContent =
+          "Your free trial has ended. Continue your subscription to restore access to private sessions, chat, and Lovense sync.";
+      }
+      if (trialBanner) trialBanner.hidden = true;
     } else {
       if (hint) {
         hint.textContent =
@@ -560,10 +592,7 @@
       portalBtn.hidden = !["active", "trialing", "past_due", "canceled"].includes(subscription.status);
     }
     if (checkoutBtn) {
-      checkoutBtn.textContent =
-        subscription.phase === "trial" && subscription.daysRemaining > 0
-          ? "Subscribe early"
-          : "Subscribe now";
+      checkoutBtn.textContent = subscriptionCheckoutLabel(subscription);
     }
 
     overlay.hidden = false;
@@ -619,17 +648,20 @@
 
     if (sub.adminOverride === "trial_expired") {
       return {
-        badge: "Trial ended (test)",
+        badge: "Trial ended",
         badgeClass: "warn",
         rows: [
           { label: "Trial ended", value: formatBillingDate(sub.trialEndsAt) },
-          { label: "Required plan", value: priceLabel },
-          { label: "Mode", value: "Admin billing test" },
+          { label: "Plan", value: priceLabel },
+          ...(sub.adminOverride === "trial_expired"
+            ? [{ label: "Mode", value: "Admin billing test" }]
+            : []),
         ],
-        note: "Admin override — simulates expired trial including paywall overlay.",
+        note: "Continue your subscription to restore full access to sessions, chat, and invites.",
         showCheckout: true,
         showPortal: Boolean(sub.stripeCustomerId),
-        checkoutLabel: "Subscribe now",
+        checkoutLabel: "Continue subscription",
+        renewalDue: true,
       };
     }
 
@@ -719,12 +751,13 @@
         badgeClass: "warn",
         rows: [
           { label: "Trial ended", value: formatBillingDate(sub.trialEndsAt) },
-          { label: "Required plan", value: priceLabel },
+          { label: "Plan", value: priceLabel },
         ],
-        note: "Subscribe to restore full access to sessions, chat, and invites.",
+        note: "Continue your subscription to restore full access to sessions, chat, and invites.",
         showCheckout: true,
         showPortal: Boolean(sub.stripeCustomerId),
-        checkoutLabel: "Subscribe now",
+        checkoutLabel: "Continue subscription",
+        renewalDue: true,
       };
     }
 
@@ -767,11 +800,16 @@
     const portalBtn = document.getElementById("settingsBillingPortalBtn");
     const errEl = document.getElementById("settingsBillingError");
     const intro = document.getElementById("settingsBillingIntro");
+    const renewalIntro = document.getElementById("renewalIntro");
 
     if (!isLoggedIn()) {
       if (intro) {
         intro.innerHTML =
           'Sign in to view your membership status. <a href="login.html">Log in</a>';
+      }
+      if (renewalIntro) {
+        renewalIntro.innerHTML =
+          'Sign in to continue your membership. <a href="login.html">Log in</a>';
       }
       if (badge) badge.hidden = true;
       if (details) details.innerHTML = "";
@@ -787,6 +825,11 @@
     if (intro) {
       intro.textContent =
         "Your platform access — free trial, subscription status, and renewal dates.";
+    }
+
+    if (renewalIntro && info.renewalDue) {
+      renewalIntro.textContent =
+        "Your free trial has ended. Continue your subscription to restore access to private sessions, chat, and Lovense sync.";
     }
 
     if (badge) {
@@ -812,7 +855,7 @@
 
     if (checkoutBtn instanceof HTMLButtonElement) {
       checkoutBtn.hidden = !info.showCheckout;
-      checkoutBtn.textContent = info.checkoutLabel || "Subscribe";
+      checkoutBtn.textContent = info.checkoutLabel || subscriptionCheckoutLabel(sub);
     }
     if (portalBtn instanceof HTMLButtonElement) {
       portalBtn.hidden = !info.showPortal;
@@ -907,7 +950,8 @@
       } finally {
         if (checkoutBtn instanceof HTMLButtonElement) {
           checkoutBtn.disabled = false;
-          checkoutBtn.textContent = "Subscribe now";
+          const sub = getCachedProfile()?.subscription;
+          checkoutBtn.textContent = subscriptionCheckoutLabel(sub);
         }
       }
     });
@@ -926,6 +970,65 @@
 
     logoutBtn?.addEventListener("click", () => {
       logout();
+    });
+  }
+
+  function initContinueSubscriptionPage() {
+    if (!isContinueSubscriptionPage()) return;
+
+    document.getElementById("renewalLogoutBtn")?.addEventListener("click", () => {
+      logout();
+    });
+
+    onReady(async () => {
+      if (!isLoggedIn()) {
+        location.replace("login.html");
+        return;
+      }
+
+      const params = new URLSearchParams(location.search);
+      if (params.get("billing") === "success") {
+        try {
+          await fetchProfile();
+        } catch (_) {
+          /* profile refetch optional */
+        }
+        const url = new URL(location.href);
+        url.searchParams.delete("billing");
+        history.replaceState(null, "", url.pathname + url.search + url.hash);
+      }
+
+      try {
+        const profile = getCachedProfile() || (await fetchProfile());
+        if (!isSubscriptionBlocked(profile)) {
+          location.replace("index.html");
+          return;
+        }
+        updateAccountMenuAuthState();
+        renderSettingsBilling(profile);
+      } catch (err) {
+        if (handleAccountBannedError(err)) return;
+        const errEl = document.getElementById("settingsBillingError");
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = err.message || "Could not load membership status.";
+        }
+      }
+    });
+  }
+
+  function initSettingsPaywallRedirect() {
+    if (!document.body.classList.contains("settings-page")) return;
+    onReady(async () => {
+      if (!isLoggedIn()) return;
+      try {
+        const profile = getCachedProfile() || (await fetchProfile());
+        if (isSubscriptionBlocked(profile)) {
+          location.replace(subscriptionRenewalUrl());
+        }
+      } catch (_) {
+        /* ignore */
+      }
     });
   }
 
@@ -2131,10 +2234,7 @@
         await login(user?.value, pass?.value);
         const profile = await fetchProfile();
         if (isSubscriptionBlocked(profile)) {
-          updateSubscriptionOverlay(profile.subscription);
-          global.dispatchEvent(
-            new CustomEvent("dualpeer-subscription-required", { detail: profile.subscription })
-          );
+          window.location.href = subscriptionRenewalUrl();
           return;
         }
         if (document.getElementById("premiumLoginModal")) {
@@ -2700,15 +2800,20 @@
         }
         await login(usernameEl?.value, passwordEl?.value);
         if (isLoginPage) {
-          window.location.href = "index.html?onboard=1";
+          let profile = null;
+          try {
+            profile = await fetchProfile();
+          } catch (_) {
+            /* profile optional for redirect */
+          }
+          window.location.href = isSubscriptionBlocked(profile)
+            ? subscriptionRenewalUrl()
+            : "index.html?onboard=1";
           return;
         }
         const profile = await fetchProfile();
         if (isSubscriptionBlocked(profile)) {
-          updateSubscriptionOverlay(profile.subscription);
-          global.dispatchEvent(
-            new CustomEvent("dualpeer-subscription-required", { detail: profile.subscription })
-          );
+          window.location.href = subscriptionRenewalUrl();
           return;
         }
         enterAppAfterAuth({ showProfile: true });
@@ -2770,6 +2875,10 @@
       }
 
       const profile = getCachedProfile() || getSession()?.user;
+      if (maybeRedirectSubscriptionRenewal(profile)) {
+        readyResolve();
+        return;
+      }
       if (isSubscriptionBlocked(profile)) {
         if (global.dualPeerSiteAccess?.applySubscriptionPaywall) {
           global.dualPeerSiteAccess.applySubscriptionPaywall();
@@ -2837,6 +2946,8 @@
     initAdminUsersModal();
     initSubscriptionOverlay();
     initSettingsBillingSection();
+    initContinueSubscriptionPage();
+    initSettingsPaywallRedirect();
     bootstrap();
   }
 
@@ -2889,6 +3000,9 @@
     openPremiumLoginModal,
     closePremiumLoginModal,
     isSubscriptionBlocked,
+    isSubscriptionRenewalDue,
+    subscriptionRenewalUrl,
+    subscriptionCheckoutLabel,
     onReady,
   };
 
