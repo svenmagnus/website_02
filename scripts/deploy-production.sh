@@ -17,6 +17,7 @@ ssh -i "$KEY" "$HOST" bash -s <<'REMOTE'
 set -euo pipefail
 cd /home/tangent/website_02
 sudo -u tangent git pull
+chown -R tangent:tangent /home/tangent/website_02
 cd server && sudo -u tangent npm install --omit=dev
 systemctl restart tangent-club
 systemctl is-active tangent-club
