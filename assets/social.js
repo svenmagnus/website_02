@@ -2179,7 +2179,7 @@
       for (const p of partners) {
         const opt = document.createElement("option");
         opt.value = p.id;
-        opt.textContent = `${p.displayName} (@${p.username}) · Model`;
+        opt.textContent = `${p.displayName} (@${p.username})`;
         sel.appendChild(opt);
       }
       const coupledId = getCoupledPartnerId();

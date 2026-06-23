@@ -487,6 +487,41 @@ html[data-theme="cb-light"] .header-role-badge.is-guest {
   color: var(--muted);
 }
 
+.header-role-badge.is-member {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.header-role-badge.is-premium-partner,
+.header-role-badge.is-premium {
+  color: #ffba3a;
+  border-color: rgba(255, 186, 58, 0.55);
+  background: rgba(255, 186, 58, 0.1);
+}
+
+.header-role-badge.is-partner {
+  color: var(--partner);
+  border-color: color-mix(in srgb, var(--partner) 45%, var(--border));
+  background: color-mix(in srgb, var(--partner) 10%, transparent);
+}
+
+.account-role.is-member {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.account-role.is-premium-partner,
+.account-role.is-premium {
+  color: #ffba3a;
+  font-weight: 700;
+}
+
+.account-role.is-partner {
+  color: var(--partner);
+  font-weight: 700;
+}
+
 .premium-glow-btn {
   border: 1px solid rgba(255, 186, 58, 0.75);
   border-radius: 999px;
@@ -2996,6 +3031,21 @@ footer {
 
 .admin-save-btn {
   font-weight: 600;
+  padding: 0.32rem 0.5rem;
+  font-size: 0.76rem;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.admin-pool-btn {
+  padding: 0.32rem 0.45rem;
+  font-size: 0.76rem;
+}
+
+.admin-actions-cell .admin-delete-btn {
+  padding: 0.32rem 0.45rem;
+  font-size: 0.76rem;
+  margin-left: 0.25rem;
 }
 
 .admin-status-cell {
@@ -3022,6 +3072,37 @@ footer {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.admin-status-badge--member {
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.admin-status-badge--premium-partner,
+.admin-status-badge--premium {
+  background: color-mix(in srgb, #ffba3a 18%, transparent);
+  color: #ffba3a;
+  border: 1px solid color-mix(in srgb, #ffba3a 40%, var(--border));
+}
+
+.admin-status-badge--partner {
+  background: color-mix(in srgb, var(--partner) 14%, transparent);
+  color: var(--partner);
+  border: 1px solid color-mix(in srgb, var(--partner) 35%, var(--border));
+}
+
+.admin-status-badge--admin {
+  background: color-mix(in srgb, #f97316 22%, transparent);
+  color: #fdba74;
+  border: 1px solid color-mix(in srgb, #f97316 40%, var(--border));
+}
+
+.admin-status-badge--visitor {
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  color: var(--muted);
+  border: 1px solid var(--border);
 }
 
 .admin-status-badge--guest {

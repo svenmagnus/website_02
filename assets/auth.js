@@ -127,6 +127,31 @@
     return Boolean(sub?.enforced && !sub?.accessGranted && !sub?.exempt);
   }
 
+  /** Display role for header, account menu, and admin table. */
+  function resolveAccountRoleLabel(user) {
+    if (!user) return "Visitor";
+    if (user.isAdmin) return "Administrator";
+    if (user.isPremium && user.isModel) return "Premium Partner";
+    if (user.isPremium) return "Premium";
+    if (user.isModel) return "Partner";
+    return "Member";
+  }
+
+  function resolveAccountRoleBadgeClass(user) {
+    if (!user) return "is-visitor";
+    if (user.isAdmin) return "is-admin";
+    if (user.isPremium && user.isModel) return "is-premium-partner";
+    if (user.isPremium) return "is-premium";
+    if (user.isModel) return "is-partner";
+    return "is-member";
+  }
+
+  function adminRoleBadgeHtml(user) {
+    const label = resolveAccountRoleLabel(user);
+    const cls = resolveAccountRoleBadgeClass(user).replace(/^is-/, "admin-status-badge--");
+    return `<span class="admin-status-badge ${cls}">${label}</span>`;
+  }
+
   function getAccountUser() {
     return getSession()?.user || null;
   }
@@ -1299,22 +1324,27 @@
   }
 
   function getHeaderRoleLabel() {
-    if (!isLoggedIn()) return "Visitor";
-    if (isAdmin()) return "Administrator";
-    return "Model";
+    return resolveAccountRoleLabel(getSession()?.user);
   }
 
   function updateHeaderRoleBadge() {
     const badge = document.getElementById("headerRoleBadge");
     if (!badge) return;
-    const label = getHeaderRoleLabel();
+    const user = getSession()?.user;
+    const label = resolveAccountRoleLabel(user);
     badge.textContent = label;
-    badge.classList.remove("is-host", "is-guest", "is-admin", "is-visitor", "is-model");
-    if (label === "Model") badge.classList.add("is-model");
-    else if (label === "Host") badge.classList.add("is-host");
-    else if (label === "Guest") badge.classList.add("is-guest");
-    else if (label === "Administrator") badge.classList.add("is-admin");
-    else badge.classList.add("is-visitor");
+    badge.classList.remove(
+      "is-host",
+      "is-guest",
+      "is-admin",
+      "is-visitor",
+      "is-model",
+      "is-member",
+      "is-premium",
+      "is-premium-partner",
+      "is-partner"
+    );
+    badge.classList.add(resolveAccountRoleBadgeClass(user));
   }
 
   function updateAccountMenuAuthState() {
@@ -1338,16 +1368,12 @@
     if (roleEl) {
       if (!loggedIn) {
         roleEl.textContent = "Not signed in";
-        roleEl.classList.remove("is-host", "is-guest", "is-admin");
+        roleEl.classList.remove("is-host", "is-guest", "is-admin", "is-member", "is-premium", "is-premium-partner", "is-partner");
       } else {
-        roleEl.textContent = isAdmin()
-          ? "Administrator"
-          : isPremium()
-            ? "Premium Model"
-            : "Model";
-        roleEl.classList.toggle("is-model", !isAdmin());
-        roleEl.classList.remove("is-host", "is-guest");
-        roleEl.classList.toggle("is-admin", isAdmin());
+        const user = session?.user;
+        roleEl.textContent = resolveAccountRoleLabel(user);
+        roleEl.classList.remove("is-host", "is-guest", "is-admin", "is-member", "is-premium", "is-premium-partner", "is-partner", "is-model");
+        roleEl.classList.add(resolveAccountRoleBadgeClass(user));
       }
     }
 
@@ -1658,10 +1684,7 @@
     const avatarSrc = profile.avatarUrl
       ? global.DualPeerAuth?.resolveAssetUrl?.(profile.avatarUrl) || profile.avatarUrl
       : "";
-    const badges = [];
-    if (profile.isAdmin) badges.push("Admin");
-    if (profile.isPremium) badges.push("Premium");
-    if (profile.isModel) badges.push("Model");
+    const badges = [resolveAccountRoleLabel(profile)];
     if (profile.isBanned) badges.push("Banned");
     const dynamics = adminPlayPrefLabels(profile.playPrefs?.dynamics, PP.DYNAMICS);
     const kinks = adminPlayPrefLabels(profile.playPrefs?.kinks, PP.KINKS);
@@ -1689,6 +1712,7 @@
         </div>
       </div>
       <dl class="admin-profile-dl">
+        <div><dt>Role</dt><dd>${escAdminHtml(resolveAccountRoleLabel(profile))}</dd></div>
         <div><dt>Email</dt><dd>${escAdminHtml(profile.email || "—")}${profile.emailVerified ? " ✓ verified" : ""}</dd></div>
         <div><dt>Gender</dt><dd>${escAdminHtml(adminGenderLabel(profile.gender))}</dd></div>
         <div><dt>Nationality</dt><dd>${escAdminHtml(profile.nationality || "—")}</dd></div>
@@ -1764,7 +1788,7 @@
   }
 
   function adminFlagCell(field, checked, { disabled = false } = {}) {
-    const labels = { isPremium: "Premium", isModel: "Model", isAdmin: "Admin", isBanned: "Banned" };
+    const labels = { isPremium: "Premium", isModel: "Partner", isAdmin: "Admin", isBanned: "Banned" };
     const dis = disabled ? " disabled" : "";
     const chk = checked ? " checked" : "";
     const label = labels[field] || field;
@@ -1779,7 +1803,7 @@
     tr.innerHTML = `
       <td class="admin-user-name-cell"><strong class="admin-user-name" title="Double-click to view full profile">${escAdminAttr(user.username)}</strong></td>
       <td class="admin-status-cell">
-        <span class="admin-status-badge admin-status-badge--model">Model</span>
+        ${adminRoleBadgeHtml(user)}
       </td>
       <td><input type="email" class="admin-input" data-field="email" value="${escAdminAttr(user.email)}" /></td>
       <td><input type="text" class="admin-input" data-field="displayName" maxlength="32" value="${escAdminAttr(user.displayName)}" /></td>
@@ -2781,6 +2805,8 @@
     deleteProfileAvatar,
     sendInvite,
     openInviteModal,
+    resolveAccountRoleLabel,
+    resolveAccountRoleBadgeClass,
     fetchPremiumModels,
     bookModel,
     fetchBillingStatus,

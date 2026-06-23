@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8625" />
+    <link rel="stylesheet" href="assets/styles.css?v=8627" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -236,9 +236,10 @@
       <div class="login-overlay-card auth-card-wide">
         <h2 id="adminUsersModalTitle">Administrator: User Profiles</h2>
         <p class="login-overlay-hint">
-          Review all registered accounts. Everyone is a <strong>Model</strong> (symmetric roles in video: start camera or
-          join a session). Double-click a <strong>username</strong> to view the full profile.
-          Click <strong>Save</strong> on each row after edits. Use <strong>Delete</strong> to remove a user permanently.
+          Review all registered accounts. <strong>Role</strong> reflects membership tier — most users are
+          <strong>Members</strong>; check <strong>Partner</strong> for premium partners (exempt from platform fee).
+          Double-click a <strong>username</strong> to view the full profile. Click <strong>Save</strong> on each row
+          after edits.
         </p>
         <p class="status-line" id="adminUsersStatus"></p>
         <div class="admin-users-table-wrap">
@@ -253,7 +254,7 @@
                 <th>Languages</th>
                 <th>Location</th>
                 <th>Premium</th>
-                <th>Model</th>
+                <th>Partner</th>
                 <th>Admin</th>
                 <th>Ban reason</th>
                 <th>Banned</th>
@@ -269,7 +270,7 @@
           <input type="email" id="adminCreateEmail" class="admin-input" placeholder="new email" />
           <input type="password" id="adminCreatePassword" class="admin-input" placeholder="password (min 8)" />
           <input type="hidden" id="adminCreateRole" value="guest" />
-          <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsModel" /> Model</label>
+          <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsModel" /> Premium Partner</label>
           <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsAdmin" /> Admin</label>
           <button type="button" class="primary" id="adminUsersCreateBtn">Create</button>
         </div>
