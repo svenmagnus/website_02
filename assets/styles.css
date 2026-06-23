@@ -5513,6 +5513,15 @@ body.layout-resize-active * {
   text-align: center;
 }
 
+.continue-subscription-signout {
+  margin: 0.85rem 0 0;
+  text-align: center;
+}
+
+.continue-subscription-header .logout-link {
+  margin-right: 0.35rem;
+}
+
 .continue-subscription-footer {
   flex-shrink: 0;
   padding: 1rem 1.25rem 1.5rem;

@@ -1023,8 +1023,15 @@
   function initContinueSubscriptionPage() {
     if (!isContinueSubscriptionPage()) return;
 
-    document.getElementById("renewalLogoutBtn")?.addEventListener("click", () => {
-      logout();
+    const logoutFromRenewalPage = async () => {
+      await logout();
+      location.replace("landing.html");
+    };
+
+    ["renewalLogoutBtn", "renewalPageLogoutBtn", "renewalHeaderLogoutBtn"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("click", () => {
+        logoutFromRenewalPage();
+      });
     });
 
     onReady(async () => {
