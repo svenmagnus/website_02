@@ -2699,6 +2699,10 @@
           return;
         }
         await login(usernameEl?.value, passwordEl?.value);
+        if (isLoginPage) {
+          window.location.href = "index.html?onboard=1";
+          return;
+        }
         const profile = await fetchProfile();
         if (isSubscriptionBlocked(profile)) {
           updateSubscriptionOverlay(profile.subscription);
@@ -2815,6 +2819,7 @@
 
   function init() {
     maybeRedirectToPublicLanding();
+    global.dualPeerUi?.initPasswordToggles?.();
     initSiteAccessGate();
     initPublicLoginExtras();
     initPremiumLoginModal();

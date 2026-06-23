@@ -351,4 +351,10 @@
     getOpenAuthModal,
     THEME_LABELS,
   };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => initShell());
+  } else {
+    initShell();
+  }
 })(window);
