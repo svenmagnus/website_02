@@ -7,9 +7,13 @@ import {
   getOrCreateStripeCustomer,
   isStripeConfigured,
   isPremiumStripeConfigured,
+  isPremiumOneTimeBilling,
+  premiumPriceLabel,
   remainingTrialSeconds,
   resolveSubscriptionAccess,
   syncSubscriptionFromStripe,
+  grantOneTimePremium,
+  userHasPremiumAccess,
   MEMBER_PRICE_EUR,
   PREMIUM_PRICE_EUR,
   TRIAL_DAYS,
@@ -57,6 +61,8 @@ billingRouter.get("/billing/status", requireAuth, (req, res) => {
     ok: true,
     configured: isStripeConfigured(),
     premiumConfigured: isPremiumStripeConfigured(),
+    premiumOneTime: isPremiumOneTimeBilling(),
+    premiumPriceLabel: premiumPriceLabel(),
     priceEurMember: MEMBER_PRICE_EUR,
     priceEurPremium: PREMIUM_PRICE_EUR,
     trialDays: TRIAL_DAYS,
@@ -83,7 +89,7 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
     if (!premiumStripePriceId()) {
       return res.status(503).json({ ok: false, error: "premium_not_configured" });
     }
-    if (access.tier === "premium" && ["active", "trialing"].includes(access.status)) {
+    if (userHasPremiumAccess(user)) {
       return res.status(400).json({ ok: false, error: "subscription_active" });
     }
   } else if (access.accessGranted && ["active", "trialing"].includes(access.status)) {
@@ -98,13 +104,32 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
   try {
     const customerId = await getOrCreateStripeCustomer(db, user);
     const subRow = getSubscriptionRow(db, user.id);
-    const trialSeconds = requestedTier === "member" ? remainingTrialSeconds(user, subRow) : 0;
     const appUrl = getAppPublicUrl();
     const brandName = stripeBrandName();
     const tierLabel = requestedTier === "premium" ? "Premium" : "Member";
+    const premiumOneTime = requestedTier === "premium" && isPremiumOneTimeBilling();
 
     await ensureStripeCheckoutBranding(stripe);
 
+    if (premiumOneTime) {
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer: customerId,
+        client_reference_id: user.id,
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${appUrl}/index.html?billing=success&tier=premium`,
+        cancel_url: `${appUrl}/index.html?billing=cancel`,
+        metadata: { userId: user.id, tier: "premium", purchaseType: "one_time" },
+        custom_text: {
+          submit: {
+            message: `${brandName} — one-time Premium access (${PREMIUM_PRICE_EUR} €). Monthly billing can be enabled later when models launch.`,
+          },
+        },
+      });
+      return res.json({ ok: true, url: session.url, tier: requestedTier, billingMode: "one_time" });
+    }
+
+    const trialSeconds = requestedTier === "member" ? remainingTrialSeconds(user, subRow) : 0;
     const sessionParams = {
       mode: "subscription",
       customer: customerId,
@@ -132,7 +157,7 @@ billingRouter.post("/billing/checkout", requireAuth, async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
-    res.json({ ok: true, url: session.url, tier: requestedTier });
+    res.json({ ok: true, url: session.url, tier: requestedTier, billingMode: "subscription" });
   } catch (err) {
     console.error("[billing] checkout failed:", err);
     res.status(500).json({ ok: false, error: "checkout_failed", message: err.message });
@@ -190,11 +215,23 @@ export async function handleStripeWebhook(req, res) {
       case "checkout.session.completed": {
         const session = event.data.object;
         const userId = session.client_reference_id || session.metadata?.userId;
+        const tier = normalizeSubscriptionTier(session.metadata?.tier);
+        const isOneTimePremium =
+          session.mode === "payment" &&
+          (tier === "premium" || session.metadata?.purchaseType === "one_time");
+
+        if (userId && isOneTimePremium && session.payment_status === "paid") {
+          grantOneTimePremium(db, userId, {
+            stripeCustomerId: session.customer ? String(session.customer) : null,
+          });
+          break;
+        }
+
         if (userId && session.customer) {
           upsertSubscriptionRow(db, userId, {
             stripe_customer_id: String(session.customer),
             status: "trialing",
-            subscription_tier: normalizeSubscriptionTier(session.metadata?.tier) || "member",
+            subscription_tier: tier || "member",
           });
         }
         if (session.subscription) {

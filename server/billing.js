@@ -19,6 +19,16 @@ export function premiumStripePriceId() {
   return String(process.env.STRIPE_PRICE_ID_PREMIUM || "").trim();
 }
 
+/** Premium checkout: one_time (default) or subscription (monthly). */
+export function isPremiumOneTimeBilling() {
+  const mode = String(process.env.PREMIUM_BILLING_MODE || "one_time").trim().toLowerCase();
+  return mode !== "subscription";
+}
+
+export function premiumPriceLabel() {
+  return isPremiumOneTimeBilling() ? `${PREMIUM_PRICE_EUR} € one-time` : `${PREMIUM_PRICE_EUR} € / month`;
+}
+
 export function normalizeSubscriptionOverride(value) {
   const v = String(value || "").trim().toLowerCase();
   if (v === "trial_expired") return "trial_expired";
@@ -118,6 +128,11 @@ function daysRemaining(untilMs) {
 }
 
 const ACTIVE_STRIPE_STATUSES = new Set(["active", "trialing"]);
+const LIFETIME_PREMIUM_STATUS = "lifetime";
+
+function hasOneTimePremium(row) {
+  return Boolean(row?.premium_one_time_at);
+}
 
 function priceEurForTier(tier) {
   return tier === "premium" ? PREMIUM_PRICE_EUR : MEMBER_PRICE_EUR;
@@ -217,6 +232,21 @@ export function resolveSubscriptionAccess(user, subRow = null) {
       membershipType: "free",
       priceEur: MEMBER_PRICE_EUR,
       hasPremiumModelAccess: false,
+    };
+  }
+
+  if (row && hasOneTimePremium(row)) {
+    return {
+      ...base,
+      accessGranted: true,
+      requiresPayment: false,
+      phase: "active",
+      tier: "premium",
+      membershipType: "premium",
+      priceEur: PREMIUM_PRICE_EUR,
+      premiumBillingMode: "one_time",
+      status: LIFETIME_PREMIUM_STATUS,
+      hasPremiumModelAccess: true,
     };
   }
 
@@ -337,6 +367,7 @@ export function subscriptionFieldsForProfile(user) {
       cancelAtPeriodEnd: access.cancelAtPeriodEnd,
       adminOverride: access.adminOverride,
       hasPremiumModelAccess: access.hasPremiumModelAccess,
+      premiumBillingMode: access.premiumBillingMode || (isPremiumOneTimeBilling() ? "one_time" : "subscription"),
     },
   };
 }
@@ -359,8 +390,8 @@ export function upsertSubscriptionRow(db, userId, fields) {
     db.prepare(
       `INSERT INTO subscriptions (
         user_id, stripe_customer_id, stripe_subscription_id, status,
-        trial_ends_at, current_period_end, cancel_at_period_end, subscription_tier, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        trial_ends_at, current_period_end, cancel_at_period_end, subscription_tier, premium_one_time_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       userId,
       fields.stripe_customer_id || null,
@@ -370,6 +401,7 @@ export function upsertSubscriptionRow(db, userId, fields) {
       fields.current_period_end ?? null,
       fields.cancel_at_period_end ? 1 : 0,
       fields.subscription_tier ?? null,
+      fields.premium_one_time_at ?? null,
       now,
       now
     );
@@ -385,6 +417,7 @@ export function upsertSubscriptionRow(db, userId, fields) {
       current_period_end = COALESCE(?, current_period_end),
       cancel_at_period_end = COALESCE(?, cancel_at_period_end),
       subscription_tier = COALESCE(?, subscription_tier),
+      premium_one_time_at = COALESCE(?, premium_one_time_at),
       updated_at = ?
      WHERE user_id = ?`
   ).run(
@@ -395,6 +428,7 @@ export function upsertSubscriptionRow(db, userId, fields) {
     fields.current_period_end ?? null,
     fields.cancel_at_period_end == null ? null : fields.cancel_at_period_end ? 1 : 0,
     fields.subscription_tier ?? null,
+    fields.premium_one_time_at ?? null,
     now,
     userId
   );
@@ -403,6 +437,8 @@ export function upsertSubscriptionRow(db, userId, fields) {
 function syncUserPremiumFlag(db, userId, tier, status) {
   const user = db.prepare("SELECT id, is_premium, is_model, is_admin FROM users WHERE id = ?").get(userId);
   if (!user || user.is_model || user.is_admin) return;
+  const subRow = getSubscriptionRow(db, userId);
+  if (hasOneTimePremium(subRow)) return;
   const active = ACTIVE_STRIPE_STATUSES.has(String(status || ""));
   const nextPremium = active && tier === "premium" ? 1 : 0;
   if (Number(user.is_premium) !== nextPremium) {
@@ -410,11 +446,42 @@ function syncUserPremiumFlag(db, userId, tier, status) {
   }
 }
 
+export function grantOneTimePremium(db, userId, { stripeCustomerId = null } = {}) {
+  const now = Date.now();
+  upsertSubscriptionRow(db, userId, {
+    stripe_customer_id: stripeCustomerId || undefined,
+    status: LIFETIME_PREMIUM_STATUS,
+    subscription_tier: "premium",
+    premium_one_time_at: now,
+  });
+  const user = db.prepare("SELECT id, is_model, is_admin FROM users WHERE id = ?").get(userId);
+  if (user && !user.is_model && !user.is_admin) {
+    db.prepare("UPDATE users SET is_premium = 1 WHERE id = ?").run(userId);
+  }
+}
+
+export function userHasPremiumAccess(user, subRow = null) {
+  const db = getDb();
+  const row = subRow ?? getSubscriptionRow(db, user?.id);
+  if (hasOneTimePremium(row)) return true;
+  const access = resolveSubscriptionAccess(user, row);
+  return access.tier === "premium" && access.accessGranted;
+}
+
 export function syncSubscriptionFromStripe(subscription) {
   const db = getDb();
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
+  const existing = getSubscriptionRow(db, userId);
+  if (hasOneTimePremium(existing)) {
+    upsertSubscriptionRow(db, userId, {
+      stripe_customer_id:
+        typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id,
+      stripe_subscription_id: subscription.id,
+    });
+    return;
+  }
   const priceId =
     subscription.items?.data?.[0]?.price?.id ||
     (typeof subscription.plan === "object" ? subscription.plan?.id : subscription.plan);

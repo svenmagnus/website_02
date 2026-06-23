@@ -311,9 +311,13 @@ function runMigrations(database) {
     CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
   `);
 
-  const subCols = tableColumns(database, "subscriptions");
+  let subCols = tableColumns(database, "subscriptions");
   if (!subCols.includes("subscription_tier")) {
     database.exec(`ALTER TABLE subscriptions ADD COLUMN subscription_tier TEXT`);
+    subCols = tableColumns(database, "subscriptions");
+  }
+  if (!subCols.includes("premium_one_time_at")) {
+    database.exec(`ALTER TABLE subscriptions ADD COLUMN premium_one_time_at INTEGER`);
   }
 }
 

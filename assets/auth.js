@@ -737,6 +737,13 @@
     }
   }
 
+  function formatPremiumPrice(sub) {
+    if (sub?.premiumBillingMode === "one_time") {
+      return `${sub.priceEurPremium || "9.95"} € one-time`;
+    }
+    return `${sub.priceEurPremium || "9.95"} € / month`;
+  }
+
   function describeSubscriptionForSettings(sub) {
     if (!sub) {
       return {
@@ -761,7 +768,7 @@
     }
 
     const memberPrice = `${sub.priceEurMember || sub.priceEur || "2.95"} € / month`;
-    const premiumPrice = `${sub.priceEurPremium || "9.95"} € / month`;
+    const premiumPrice = formatPremiumPrice(sub);
 
     if (sub.membershipType === "free" || sub.phase === "free") {
       return {
@@ -839,7 +846,7 @@
           { label: "Plan", value: premiumPrice },
           { label: "Mode", value: "Admin billing test" },
         ],
-        note: "Admin override — simulates an active Premium subscription with Premium Partner access.",
+        note: "Admin override — simulates active Premium with Premium Partner access.",
         showCheckout: false,
         showPortal: Boolean(sub.stripeCustomerId),
       };
@@ -883,24 +890,31 @@
     if (sub.status === "active" || sub.phase === "active") {
       const isPremiumTier = sub.tier === "premium" || sub.membershipType === "premium";
       const planLabel = isPremiumTier ? premiumPrice : memberPrice;
+      const isLifetimePremium = sub.status === "lifetime" || sub.premiumBillingMode === "one_time";
       return {
         badge: isPremiumTier ? "Premium" : "Member",
         badgeClass: "ok",
         rows: [
           { label: "Plan", value: planLabel },
-          { label: "Next renewal", value: formatBillingDate(sub.currentPeriodEnd) },
-          {
-            label: "Cancellation",
-            value: sub.cancelAtPeriodEnd
-              ? `Ends ${formatBillingDate(sub.currentPeriodEnd)}`
-              : "Renews automatically",
-          },
+          ...(isLifetimePremium
+            ? [{ label: "Billing", value: "One-time payment — no renewal" }]
+            : [
+                { label: "Next renewal", value: formatBillingDate(sub.currentPeriodEnd) },
+                {
+                  label: "Cancellation",
+                  value: sub.cancelAtPeriodEnd
+                    ? `Ends ${formatBillingDate(sub.currentPeriodEnd)}`
+                    : "Renews automatically",
+                },
+              ]),
         ],
         note: isPremiumTier
-          ? "Premium includes access to Premium Partners in the Member Pool."
+          ? isLifetimePremium
+            ? "Premium access is active. Monthly Premium billing can be enabled later when models launch."
+            : "Premium includes access to Premium Partners in the Member Pool."
           : "Upgrade to Premium for Premium Partner access.",
-        showCheckout: !isPremiumTier,
-        showPortal: true,
+        showCheckout: isPremiumTier && !isLifetimePremium ? false : !isPremiumTier,
+        showPortal: !isLifetimePremium,
         checkoutLabel: "Upgrade to Premium",
         checkoutTier: "premium",
       };
@@ -1713,7 +1727,7 @@
 
     if (premiumMenuBtn) {
       premiumMenuBtn.hidden = !(loggedIn && !isPremium() && !isAccountGuest());
-      premiumMenuBtn.title = `Upgrade to Premium (${getAccountUser()?.subscription?.priceEurPremium || "9.95"} €/month) — access Premium Partners in the Member Pool.`;
+      premiumMenuBtn.title = `Upgrade to Premium (${formatPremiumPrice(getAccountUser()?.subscription)}) — access Premium Partners in the Member Pool.`;
     }
 
     const inviteMailSetup = document.getElementById("inviteModalMailSetup");
@@ -2152,7 +2166,7 @@
       <select class="admin-input admin-billing-override" data-field="subscriptionOverride" title="Simulate billing state for Mr_X test account">
         <option value="trial_member"${value === "trial_member" ? " selected" : ""}>Test account</option>
         <option value="member"${value === "member" ? " selected" : ""}>Member (2.95 €)</option>
-        <option value="active"${value === "active" ? " selected" : ""}>Premium (9.95 €)</option>
+        <option value="active"${value === "active" ? " selected" : ""}>Premium (9.95 € one-time)</option>
         <option value="trial_expired"${value === "trial_expired" ? " selected" : ""}>Trial expired</option>
       </select>
     </td>`;
