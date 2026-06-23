@@ -610,6 +610,16 @@ body.subscription-paywall .account-menu.is-open .account-dropdown {
   z-index: 10002;
 }
 
+body.subscription-paywall #subscriptionOverlay,
+#subscriptionOverlay:not([hidden]) {
+  pointer-events: none;
+}
+
+#subscriptionOverlay .subscription-overlay-card,
+#subscriptionOverlay .login-overlay-card {
+  pointer-events: auto;
+}
+
 /* Vollbild-Login über die gesamte Seite */
 .login-overlay {
   position: fixed;

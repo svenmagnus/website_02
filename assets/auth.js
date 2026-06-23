@@ -125,10 +125,13 @@
   }
 
   function isSubscriptionBlocked(profile) {
+    if (!profile) return false;
+    if (profile.isAdmin) return false;
     const sub = profile?.subscription;
     if (!sub) return false;
+    if (sub.exempt) return false;
     if (sub.adminOverride === "trial_expired") return true;
-    return Boolean(sub.enforced && !sub.accessGranted && !sub.exempt);
+    return Boolean(sub.enforced && !sub.accessGranted);
   }
 
   function isSubscriptionRenewalDue(sub) {
@@ -187,6 +190,7 @@
   }
 
   function maybeRedirectSubscriptionRenewal(profile) {
+    if (!profile || profile.isAdmin) return false;
     if (!isSubscriptionBlocked(profile) || isContinueSubscriptionPage()) return false;
 
     if (isAppIndexPath() && !isIntentionalAppEntry()) {
@@ -542,6 +546,9 @@
       throw err;
     }
     setSession(data.token, { ...data.user, ...user });
+    if (user?.isAdmin) {
+      clearSubscriptionRenewalRequired();
+    }
     return user;
   }
 
@@ -1102,6 +1109,11 @@
 
       try {
         const profile = getCachedProfile() || (await fetchProfile());
+        if (profile?.isAdmin) {
+          clearSubscriptionRenewalRequired();
+          location.replace("index.html");
+          return;
+        }
         if (!isSubscriptionBlocked(profile)) {
           location.replace("index.html");
           return;
@@ -3054,8 +3066,20 @@
     }
   });
 
+  function initPrivilegedSessionAccess() {
+    const user = getSession()?.user;
+    if (!user) return;
+    if (user.isAdmin) {
+      clearSubscriptionRenewalRequired();
+      hideSubscriptionOverlay();
+      if (global.dualPeerSiteAccess?.grant) global.dualPeerSiteAccess.grant();
+      else global.dispatchEvent(new CustomEvent("dualpeer-site-access-granted"));
+    }
+  }
+
   function init() {
     maybeRedirectToPublicLanding();
+    initPrivilegedSessionAccess();
     global.dualPeerUi?.initPasswordToggles?.();
     initSiteAccessGate();
     initPublicLoginExtras();

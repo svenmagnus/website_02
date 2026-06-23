@@ -4532,6 +4532,12 @@ function initAccessGate() {
       if (!global.DualPeerAuth.isLoggedIn()) return;
       const profile =
         global.DualPeerAuth.getCachedProfile?.() || global.DualPeerAuth.getSession?.()?.user;
+      if (profile?.isAdmin) {
+        grantSiteAccess();
+        initLovenseIfPresent();
+        ensureLovenseInitialized();
+        return;
+      }
       if (profile && global.DualPeerAuth.isSubscriptionBlocked?.(profile)) {
         applySubscriptionPaywall();
         return;
