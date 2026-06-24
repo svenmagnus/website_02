@@ -167,10 +167,16 @@
   }
 
   function close() {
-    const modal = document.getElementById("modelBookingModal");
-    if (modal) modal.hidden = true;
     activeTarget = null;
     activeMode = "guest_to_model";
+    const modal = document.getElementById("modelBookingModal");
+    if (modal) {
+      modal.hidden = true;
+      modal.setAttribute("aria-hidden", "true");
+    }
+    if (!global.dualPeerUi?.getOpenAuthModal?.()) {
+      document.body.classList.remove("has-auth-modal-open");
+    }
   }
 
   function toLocalInput(date) {
