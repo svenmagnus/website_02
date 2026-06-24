@@ -3446,12 +3446,9 @@ async function publishHostPeerIdToGuest(peerId) {
     }
     const meetingId = await global.DualPeerSocial.resolveLiveMeetingId?.();
     if (!meetingId) {
-      setStatus(
-        els.statusHost,
-        "Select your partner under Session with, then New session (instant) — or resume an existing session.",
-        "err"
+      throw new Error(
+        "Start an instant session with your partner first (Setup → Start instant session)."
       );
-      return;
     }
     await global.DualPeerSocial.publishHostPeerId(meetingId, peerId);
     setStatus(els.statusHost, `Session ID shared with partner: ${peerId}`, "ok");
@@ -3499,7 +3496,24 @@ async function joinPartnerCallWithRetry(remoteId) {
 }
 
 global.DualPeerConnect = {
-  prepareHostCall: () => ensurePeerSession({ asGuest: false, acquireMedia: false }),
+  prepareHostCall: async () => {
+    if (global.DualPeerSocial?.bootstrap) {
+      await global.DualPeerSocial.bootstrap({ loadChat: false });
+    }
+    const meeting = global.DualPeerSocial?.findActiveInstantSessionWithPartner?.();
+    if (!meeting) {
+      throw new Error(
+        "Start an instant session with your partner first (Setup → Start instant session)."
+      );
+    }
+    if (global.DualPeerSocial?.partnerPublishedPeerId?.(meeting)) {
+      const peerId = String(meeting.hostPeerId || "").trim();
+      if (peerId) {
+        return joinPartnerCallWithRetry(peerId);
+      }
+    }
+    return ensurePeerSession({ asGuest: false, acquireMedia: false });
+  },
   joinPartnerCall: (remoteId) => joinPartnerCallWithRetry(remoteId),
   hangup,
 };
@@ -4131,9 +4145,32 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
   if (peerConnectInFlight) return peerConnectInFlight;
 
   const remote = String(remoteId || els.peerIdIn?.value || "").trim();
-  const startAsGuest = asGuest ?? Boolean(remote);
-  if (startAsGuest && !remote) {
+  let startAsGuest = asGuest ?? Boolean(remote);
+
+  if (!startAsGuest && global.DualPeerSocial?.bootstrap) {
+    await global.DualPeerSocial.bootstrap({ loadChat: false });
+    const meeting = global.DualPeerSocial.findActiveInstantSessionWithPartner?.();
+    if (meeting && global.DualPeerSocial.partnerPublishedPeerId?.(meeting)) {
+      const partnerPeerId = String(meeting.hostPeerId || "").trim();
+      if (partnerPeerId) {
+        startAsGuest = true;
+        remoteId = partnerPeerId;
+      }
+    }
+  }
+
+  const guestRemoteId = String(startAsGuest ? remoteId || remote : "").trim();
+  if (startAsGuest && !guestRemoteId) {
     throw new Error("Partner Session ID missing — wait for your partner to start the camera.");
+  }
+
+  if (!startAsGuest && global.DualPeerSocial?.findActiveInstantSessionWithPartner) {
+    const meeting = global.DualPeerSocial.findActiveInstantSessionWithPartner();
+    if (!meeting) {
+      throw new Error(
+        "Start an instant session with your partner first (Setup → Start instant session)."
+      );
+    }
   }
 
   peerConnectInFlight = (async () => {
@@ -4141,7 +4178,7 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
     notifySessionRole();
 
     if (global.DualPeerSocial?.checkConnectAvailable && startAsGuest) {
-      const check = await global.DualPeerSocial.checkConnectAvailable({ hostPeerId: remote });
+      const check = await global.DualPeerSocial.checkConnectAvailable({ hostPeerId: guestRemoteId });
       if (!check?.available) {
         throw new Error(
           check?.message || "Your partner is in another session. Please try again later."
@@ -4179,10 +4216,10 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
         stream = await ensureOutboundMediaForPeer({ startLive: acquireMedia });
       }
 
-      const call = peer.call(remote, stream);
+      const call = peer.call(guestRemoteId, stream);
       if (call) bindMediaCallHandlers(call);
 
-      const conn = peer.connect(remote, { reliable: true, serialization: "json" });
+      const conn = peer.connect(guestRemoteId, { reliable: true, serialization: "json" });
       setupDataConnection(conn);
       setStatus(
         els.statusGuest,
@@ -4282,7 +4319,27 @@ els.btnStartHost.addEventListener("click", async () => {
     return;
   }
 
-  if (sessionRole && peer) {
+  const role = global.DualPeerSocial?.resolveStartCameraRole?.() || {
+    asGuest: Boolean((els.peerIdIn.value || "").trim()),
+    remoteId: (els.peerIdIn.value || "").trim(),
+  };
+  const remoteId = role.remoteId || "";
+  const startAsGuest = Boolean(role.asGuest);
+
+  if (startAsGuest && sessionRole === "host" && peer) {
+    hangup({ skipSessionPause: true });
+  }
+
+  if (sessionRole && peer && !startAsGuest) {
+    try {
+      await setLocalCameraEnabled(!isLocalCameraActive());
+    } catch (err) {
+      setPeerStatus(formatMediaAccessError(err), "err");
+    }
+    return;
+  }
+
+  if (sessionRole && peer && startAsGuest && global.appHasRemotePeer?.()) {
     try {
       await setLocalCameraEnabled(!isLocalCameraActive());
     } catch (err) {
@@ -4292,13 +4349,6 @@ els.btnStartHost.addEventListener("click", async () => {
   }
 
   micWantedEnabled = false;
-
-  const role = global.DualPeerSocial?.resolveStartCameraRole?.() || {
-    asGuest: Boolean((els.peerIdIn.value || "").trim()),
-    remoteId: (els.peerIdIn.value || "").trim(),
-  };
-  const remoteId = role.remoteId || "";
-  const startAsGuest = Boolean(role.asGuest);
 
   try {
     await ensurePeerSession({

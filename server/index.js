@@ -1046,6 +1046,7 @@ app.use(express.static(WEB_ROOT, { index: false, maxAge: 0 }));
 const server = http.createServer(app);
 const peerServer = ExpressPeerServer(server, {
   path: "/",
+  proxied: true,
   allow_discovery: true,
 });
 app.use("/peerjs", peerServer);

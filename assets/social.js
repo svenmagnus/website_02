@@ -256,16 +256,11 @@
     const explicit = String(meeting.peerUserId || "").trim();
     if (explicit) return explicit;
     const peerId = String(meeting.hostPeerId || "").trim();
-    if (!peerId) return String(meeting.host?.id || "").trim();
+    if (!peerId) return "";
     const myId = getSessionUserId();
-    const localPeerId = String(global.appLocalPeerId?.() || "").trim();
-    if (localPeerId && localPeerId === peerId) return myId;
-    if (myId && meeting.host?.id === myId && meeting.guest?.id) {
-      return String(meeting.guest.id).trim();
-    }
-    if (myId && meeting.guest?.id === myId && meeting.host?.id) {
-      return String(meeting.host.id).trim();
-    }
+    if (!myId) return String(meeting.host?.id || "").trim();
+    if (meeting.guest?.id === myId) return String(meeting.host?.id || "").trim();
+    if (meeting.host?.id === myId) return String(meeting.guest?.id || "").trim();
     return String(meeting.host?.id || "").trim();
   }
 
@@ -274,9 +269,10 @@
     if (!myId || !meeting) return false;
     const peerId = String(meeting.hostPeerId || "").trim();
     if (!peerId) return false;
+    const ownerId = String(meeting.peerUserId || "").trim();
+    if (ownerId) return ownerId === myId;
     const localPeerId = String(global.appLocalPeerId?.() || "").trim();
-    if (localPeerId && localPeerId === peerId) return true;
-    return getMeetingPeerOwnerId(meeting) === myId;
+    return Boolean(localPeerId && localPeerId === peerId);
   }
 
   function partnerPublishedPeerId(meeting) {
@@ -309,10 +305,14 @@
     await bootstrap({ loadChat: false });
     const partnerId = getCoupledPartnerId();
     const meeting = findActiveInstantSessionWithPartner(partnerId);
-    if (!meeting) return;
+    if (!meeting) {
+      throw new Error(
+        "Start an instant session with your partner first (Setup → Start instant session)."
+      );
+    }
+    await syncInstantPeerRole();
     const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
     if (partnerPublishedPeerId(live)) {
-      await enforcePartnerGuestConnection(live);
       return;
     }
     if (
@@ -325,6 +325,26 @@
     if (!global.appHasPeerConnection?.()) {
       await global.DualPeerConnect?.prepareHostCall?.();
     }
+  }
+
+  async function syncInstantPeerRole() {
+    const meeting = findActiveInstantSessionWithPartner(getCoupledPartnerId());
+    if (!meeting) return;
+    const partnerFromMeeting = getPartnerIdFromMeeting(meeting);
+    if (partnerFromMeeting && partnerFromMeeting !== state.sessionPartnerId) {
+      coupleSessionWithPartner(partnerFromMeeting, { addToMembers: false });
+    }
+    const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
+    const serverPeerId = String(live.hostPeerId || "").trim();
+    if (!serverPeerId) return;
+    if (iPublishedMeetingPeerId(live)) return;
+    if (global.appHasRemotePeer?.()) return;
+    const guestStatus = document.getElementById("statusGuest");
+    if (guestStatus && !global.appSessionRole?.()) {
+      guestStatus.textContent = `Connecting to partner (${serverPeerId.slice(0, 8)}…) …`;
+      guestStatus.className = "status-line ok";
+    }
+    await enforcePartnerGuestConnection(live, serverPeerId);
   }
 
   function clearPartnerPlaybookState() {
@@ -1845,6 +1865,7 @@
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
     syncLiveInstantSession();
+    void syncInstantPeerRole().catch(() => {});
     syncJoinedSessionState();
     await maybeRefreshChatFromServer(data.threads || []);
     await refreshPartnerPlaybookIfNeeded();
@@ -2030,11 +2051,14 @@
     if (guestJoinInFlight) return guestJoinInFlight;
 
     guestJoinInFlight = (async () => {
-      if (global.appHasPeerConnection?.()) {
-        if (global.appHasRemotePeer?.()) return;
-        if (localPeerId === peerId) return;
+      const role = global.appSessionRole?.();
+      const mustReconnect =
+        global.appHasPeerConnection?.() &&
+        !global.appHasRemotePeer?.() &&
+        (role === "host" || (localPeerId && localPeerId !== peerId));
+      if (mustReconnect) {
         global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
       if (!global.appHasPeerConnection?.()) {
         await global.DualPeerConnect?.joinPartnerCall?.(peerId);
@@ -3492,6 +3516,7 @@
     findActiveInstantSessionWithPartner,
     partnerPublishedPeerId,
     enforcePartnerGuestConnection,
+    syncInstantPeerRole,
     applyHostPeerIdFromMeetings,
     updateSessionActionHighlight,
     joinInstantMeeting,
