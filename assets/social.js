@@ -227,9 +227,13 @@
   function findActiveInstantSessionWithPartner(partnerId) {
     const uid = getSessionUserId();
     if (!uid) return null;
-    const id = String(partnerId || getCoupledPartnerId() || "").trim();
-    if (id) {
-      const match = state.meetings.find((m) => {
+    const hasExplicitPartner = arguments.length > 0 && partnerId != null && String(partnerId).trim() !== "";
+    const id = hasExplicitPartner
+      ? String(partnerId).trim()
+      : String(getCoupledPartnerId() || "").trim();
+    if (!id) return findAnyLiveInstantMeetingForUser();
+    return (
+      state.meetings.find((m) => {
         if (m.mode !== "instant" || m.status !== "live") return false;
         const hostId = m.host?.id;
         const guestId = m.guest?.id;
@@ -237,10 +241,8 @@
         const involvesUs = hostId === uid || guestId === uid;
         const involvesPartner = hostId === id || guestId === id;
         return involvesUs && involvesPartner;
-      });
-      if (match) return match;
-    }
-    return findAnyLiveInstantMeetingForUser();
+      }) || null
+    );
   }
 
   /** When you started the instant session, Start Camera must open as host — not guest via peerIdIn. */
