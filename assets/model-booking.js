@@ -77,9 +77,19 @@
     if (endEl) endEl.value = toLocalInput(end);
   }
 
+  function canBookPaidSessions() {
+    const user = global.DualPeerAuth?.getSession?.()?.user;
+    return Boolean(global.DualPeerAuth?.hasPremiumModelAccess?.(user));
+  }
+
   function open(model) {
     if (!model?.id) return;
-    if (!global.DualPeerAuth?.hasPremiumModelAccess?.()) return;
+    if (!canBookPaidSessions()) {
+      alert(
+        "Premium add-on required to request paid sessions. Open your account menu → Become Premium (Member subscription required)."
+      );
+      return;
+    }
 
     activeMode = "guest_to_model";
     activeTarget = model;
