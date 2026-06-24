@@ -128,7 +128,7 @@
       if (previousPartnerId) {
         coupleSessionWithPartner(null, { addToMembers: false });
         removeInstantSessionWithPartnerFromLocal(previousPartnerId);
-        if (global.appSessionRole?.()) {
+        if (global.appHasPeerConnection?.() || global.appSessionRole?.() || global.appLocalCameraActive?.()) {
           global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
         }
         state._pendingMeetingId = null;
@@ -1838,6 +1838,7 @@
   }
 
   async function handleRemoteSessionEnded() {
+    reconcileInstantSessionPeer();
     state._pendingMeetingId = null;
     clearPartnerPlaybookState();
     removeInstantSessionWithPartnerFromLocal();
@@ -1858,6 +1859,7 @@
     if (!state.sessionJoinedMeetingId) return;
     const meeting = state.meetings.find((m) => m.id === state.sessionJoinedMeetingId);
     if (!meeting || meeting.status !== "live" || meeting.mode !== "instant") {
+      reconcileInstantSessionPeer();
       clearPartnerPlaybookState();
       updateMeetingPanels();
       updatePartnerInstantRow();
@@ -1886,9 +1888,39 @@
     }
   }
 
+  function reconcileInstantSessionPeer() {
+    const meeting = findActiveInstantSessionWithPartner(getCoupledPartnerId());
+    if (meeting?.mode === "instant" && meeting.status === "live") return;
+
+    if (autoJoinTimer) {
+      clearTimeout(autoJoinTimer);
+      autoJoinTimer = null;
+    }
+    autoJoinPeerId = "";
+    guestJoinInFlight = null;
+    state._pendingMeetingId = null;
+
+    const peerActive =
+      global.appHasPeerConnection?.() ||
+      global.appSessionRole?.() ||
+      global.appLocalCameraActive?.();
+    if (peerActive) {
+      global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
+    }
+
+    const peerIn = document.getElementById("peerIdIn");
+    if (peerIn instanceof HTMLInputElement && peerIn.value.trim()) {
+      peerIn.value = "";
+      peerIn.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }
+
   function syncLiveInstantSession() {
     const meeting = findActiveInstantSessionWithPartner(getCoupledPartnerId());
-    if (!meeting) return;
+    if (!meeting) {
+      reconcileInstantSessionPeer();
+      return;
+    }
     const partnerFromMeeting = getPartnerIdFromMeeting(meeting);
     if (partnerFromMeeting && partnerFromMeeting !== state.sessionPartnerId) {
       coupleSessionWithPartner(partnerFromMeeting, { addToMembers: false });
@@ -1916,6 +1948,7 @@
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
     syncLiveInstantSession();
+    reconcileInstantSessionPeer();
     void syncInstantPeerRole().catch(() => {});
     syncJoinedSessionState();
     await maybeRefreshChatFromServer(data.threads || []);
@@ -2676,7 +2709,11 @@
     const btn = document.getElementById("btnStartInstantSession");
     if (btn) btn.disabled = true;
     try {
-      if (global.appSessionRole?.()) {
+      if (
+        global.appHasPeerConnection?.() ||
+        global.appSessionRole?.() ||
+        global.appLocalCameraActive?.()
+      ) {
         global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
       }
       await deleteMeeting(active.id);
