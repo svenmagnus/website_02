@@ -225,15 +225,27 @@
     return Boolean(meeting && meeting.host?.id === uid);
   }
 
+  function getMeetingPeerOwnerId(meeting) {
+    if (!meeting) return "";
+    return String(meeting.peerUserId || meeting.host?.id || "").trim();
+  }
+
+  function partnerPublishedPeerId(meeting) {
+    const myId = getSessionUserId();
+    const peerId = String(meeting?.hostPeerId || "").trim();
+    const ownerId = getMeetingPeerOwnerId(meeting);
+    return Boolean(peerId && ownerId && ownerId !== myId);
+  }
+
   function resolveStartCameraRole() {
     const partnerId = getCoupledPartnerId();
     const meeting = findActiveInstantSessionWithPartner(partnerId);
-    if (meeting?.isHost || isInstantSessionHostForPartner(partnerId)) {
+    if (meeting) {
+      const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
+      if (partnerPublishedPeerId(live)) {
+        return { asGuest: true, remoteId: String(live.hostPeerId).trim() };
+      }
       return { asGuest: false, remoteId: "" };
-    }
-    if (meeting && !meeting.isHost) {
-      const peerId = String(meeting.hostPeerId || "").trim();
-      if (peerId) return { asGuest: true, remoteId: peerId };
     }
     const partnerLive = findPartnerLiveMeeting();
     if (partnerLive?.hostPeerId) {
@@ -249,26 +261,18 @@
     if (!partnerId) return;
     const meeting = findActiveInstantSessionWithPartner(partnerId);
     if (!meeting) return;
-    if (meeting.isHost) {
+    const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
+    if (partnerPublishedPeerId(live)) {
+      if (!meeting.isHost && state.sessionJoinedMeetingId !== meeting.id) {
+        await joinInstantMeeting(live);
+      }
       if (!global.appHasPeerConnection?.()) {
-        await global.DualPeerConnect?.prepareHostCall?.();
+        await global.DualPeerConnect?.joinPartnerCall?.(String(live.hostPeerId).trim());
       }
       return;
     }
-    if (state.sessionJoinedMeetingId !== meeting.id) {
-      await joinInstantMeeting(meeting);
-    }
-    const live =
-      state.meetings.find((m) => m.id === meeting.id) ||
-      meeting;
-    const peerId = String(live.hostPeerId || "").trim();
-    if (!peerId) {
-      throw new Error(
-        "Your partner has not opened the camera yet — ask them to click Start Camera first."
-      );
-    }
     if (!global.appHasPeerConnection?.()) {
-      await global.DualPeerConnect?.joinPartnerCall?.(peerId);
+      await global.DualPeerConnect?.prepareHostCall?.();
     }
   }
 
@@ -1765,18 +1769,19 @@
     if (!partnerId) return;
     const meeting = findActiveInstantSessionWithPartner(partnerId);
     if (!meeting) return;
-    if (meeting.isHost) {
-      state._pendingMeetingId = meeting.id;
-      if (!global.appHasPeerConnection?.()) {
-        tryPrepareHostCall();
-      }
+    const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
+    if (!meeting.isHost && (!state.sessionJoinedMeetingId || state.sessionJoinedMeetingId !== meeting.id)) {
+      void joinInstantMeeting(live);
       return;
     }
-    if (!state.sessionJoinedMeetingId || state.sessionJoinedMeetingId !== meeting.id) {
-      void joinInstantMeeting(meeting);
+    if (partnerPublishedPeerId(live)) {
+      applyHostPeerIdFromMeetings();
       return;
     }
-    applyHostPeerIdFromMeetings();
+    state._pendingMeetingId = meeting.id;
+    if (!global.appHasPeerConnection?.()) {
+      tryPrepareHostCall();
+    }
   }
 
   async function refreshMeetingsFromServer() {
@@ -1842,9 +1847,9 @@
       const peerId = String(m.hostPeerId || "").trim();
       if (!peerId) continue;
       if (m.status !== "live") continue;
-      const providerId = m.host?.id;
-      if (!providerId || providerId === uid) continue;
-      if (partnerId && providerId !== partnerId) continue;
+      const ownerId = getMeetingPeerOwnerId(m);
+      if (!ownerId || ownerId === uid) continue;
+      if (partnerId && ownerId !== partnerId) continue;
       return m;
     }
     return null;
@@ -1956,7 +1961,8 @@
     const peerId = String(remoteId || "").trim();
     if (!peerId || global.appHasPeerConnection?.()) return;
     if (!isActiveInstantSession() && !isSessionJoined()) return;
-    if (isInstantSessionHostForPartner(getCoupledPartnerId())) return;
+    const meeting = findActiveInstantSessionWithPartner(getCoupledPartnerId());
+    if (meeting && !partnerPublishedPeerId(meeting)) return;
     if (autoJoinTimer && autoJoinPeerId === peerId) return;
     autoJoinPeerId = peerId;
     if (autoJoinTimer) clearTimeout(autoJoinTimer);
@@ -2063,8 +2069,29 @@
 
   function applyHostPeerIdFromMeetings(peerIdOverride) {
     const peerIn = document.getElementById("peerIdIn");
-    const partnerId = getSelectedPartnerUserId();
-    if (isInstantSessionHostForPartner(partnerId)) {
+    const partnerId = getCoupledPartnerId() || getSelectedPartnerUserId();
+    const instant = findActiveInstantSessionWithPartner(partnerId);
+    if (instant) {
+      const live = state.meetings.find((m) => m.id === instant.id) || instant;
+      const peerId = peerIdOverride || live.hostPeerId;
+      if (partnerPublishedPeerId(live)) {
+        if (peerIn instanceof HTMLInputElement && peerId && peerIn.value.trim() !== peerId) {
+          peerIn.value = peerId;
+          peerIn.placeholder = "Session ID (auto-filled) …";
+          peerIn.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        const guestStatus = document.getElementById("statusGuest");
+        if (guestStatus && !global.appSessionRole?.()) {
+          guestStatus.textContent = "Partner is live — connecting …";
+          guestStatus.className = "status-line ok";
+        }
+        if (peerId) {
+          autoJoinPeerId = "";
+          tryAutoJoinPartnerCall(peerId);
+        }
+        updateSessionActionHighlight();
+        return;
+      }
       if (peerIn instanceof HTMLInputElement && peerIn.value.trim()) {
         peerIn.value = "";
         peerIn.dispatchEvent(new Event("input", { bubbles: true }));
@@ -2594,9 +2621,14 @@
 
   async function resolveLiveMeetingId() {
     if (state._pendingMeetingId) return state._pendingMeetingId;
+    const partnerId = getCoupledPartnerId() || getSelectedPartnerUserId();
+    const instant = findActiveInstantSessionWithPartner(partnerId);
+    if (instant?.id) return instant.id;
     let id = getActiveLiveMeetingId();
     if (id) return id;
     await bootstrap();
+    const again = findActiveInstantSessionWithPartner(partnerId);
+    if (again?.id) return again.id;
     return getActiveLiveMeetingId();
   }
 

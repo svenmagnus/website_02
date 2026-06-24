@@ -243,6 +243,9 @@ function runMigrations(database) {
   if (meetingCols.length && !meetingCols.includes("created_by_user_id")) {
     database.exec(`ALTER TABLE meetings ADD COLUMN created_by_user_id TEXT`);
   }
+  if (meetingCols.length && !meetingCols.includes("peer_user_id")) {
+    database.exec(`ALTER TABLE meetings ADD COLUMN peer_user_id TEXT NOT NULL DEFAULT ''`);
+  }
 
   let userColsPresence = tableColumns(database, "users");
   if (!userColsPresence.includes("last_seen_at")) {

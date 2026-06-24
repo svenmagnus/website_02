@@ -297,6 +297,7 @@ function mapMeetingRowForClient(db, row, uid) {
     mode: row.mode,
     status: row.status,
     hostPeerId: row.host_peer_id || "",
+    peerUserId: row.peer_user_id || "",
     scheduledStartAt: row.scheduled_start_at,
     scheduledEndAt: row.scheduled_end_at,
     calendarUrl: row.calendar_url || "",
@@ -336,7 +337,7 @@ function clearSessionPartnership(db, userId, partnerId) {
   db.prepare("DELETE FROM session_members WHERE user_id = ? AND member_user_id = ?").run(partnerId, userId);
   const at = nowMs();
   db.prepare(
-    `UPDATE meetings SET status = 'cancelled', host_peer_id = '', updated_at = ?
+    `UPDATE meetings SET status = 'cancelled', host_peer_id = '', peer_user_id = '', updated_at = ?
      WHERE mode = 'instant' AND status = 'live'
        AND ((host_user_id = ? AND guest_user_id = ?) OR (host_user_id = ? AND guest_user_id = ?))`
   ).run(at, userId, partnerId, partnerId, userId);
@@ -354,7 +355,7 @@ function clearAllSessionPartnerships(db, userId) {
   for (const partnerId of partners) {
     const at = nowMs();
     db.prepare(
-      `UPDATE meetings SET status = 'cancelled', host_peer_id = '', updated_at = ?
+      `UPDATE meetings SET status = 'cancelled', host_peer_id = '', peer_user_id = '', updated_at = ?
        WHERE mode = 'instant' AND status = 'live'
          AND ((host_user_id = ? AND guest_user_id = ?) OR (host_user_id = ? AND guest_user_id = ?))`
     ).run(at, userId, partnerId, partnerId, userId);
@@ -470,10 +471,11 @@ function getActiveProviderSession(db, providerUserId) {
         `SELECT m.*, gu.display_name AS guest_display_name, gu.username AS guest_username
          FROM meetings m
          LEFT JOIN users gu ON gu.id = m.guest_user_id
-         WHERE m.host_user_id = ? AND m.status = 'live' AND TRIM(m.host_peer_id) != ''
+         WHERE m.status = 'live' AND TRIM(m.host_peer_id) != ''
+           AND (m.host_user_id = ? OR COALESCE(m.peer_user_id, '') = ?)
          ORDER BY m.updated_at DESC LIMIT 1`
       )
-      .get(providerUserId) || null
+      .get(providerUserId, providerUserId) || null
   );
 }
 
@@ -482,7 +484,7 @@ export function pauseLiveSessionsForUser(db, userId) {
   if (!userId) return;
   const at = nowMs();
   db.prepare(
-    `UPDATE meetings SET host_peer_id = '', updated_at = ?
+    `UPDATE meetings SET host_peer_id = '', peer_user_id = '', updated_at = ?
      WHERE status = 'live' AND (host_user_id = ? OR guest_user_id = ?)`
   ).run(at, userId, userId);
 }
@@ -499,11 +501,11 @@ function resolveProviderUserId(db, { providerUserId, hostPeerId }) {
   if (!peer) return null;
   const row = db
     .prepare(
-      `SELECT host_user_id FROM meetings WHERE host_peer_id = ? AND status = 'live'
+      `SELECT host_user_id, peer_user_id FROM meetings WHERE host_peer_id = ? AND status = 'live'
        ORDER BY updated_at DESC LIMIT 1`
     )
     .get(peer);
-  return row?.host_user_id || null;
+  return row?.peer_user_id || row?.host_user_id || null;
 }
 
 function partnerIdForThread(thread, userId) {
@@ -922,6 +924,7 @@ socialRouter.get("/social/bootstrap", requireAuth, (req, res) => {
       mode: m.mode,
       status: m.status,
       hostPeerId: m.host_peer_id || "",
+      peerUserId: m.peer_user_id || "",
       scheduledStartAt: m.scheduled_start_at,
       scheduledEndAt: m.scheduled_end_at,
       calendarUrl: m.calendar_url || "",
@@ -1190,22 +1193,17 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
   const at = nowMs();
 
   if (hostPeerId) {
-    if (meeting.host_user_id !== uid) {
-      return res.status(403).json({ ok: false, error: "only_host_can_publish_peer_id" });
-    }
-    db.prepare("UPDATE meetings SET host_peer_id = ?, status = 'live', updated_at = ? WHERE id = ?").run(
-      hostPeerId,
-      at,
-      meeting.id
-    );
+    db.prepare(
+      "UPDATE meetings SET host_peer_id = ?, peer_user_id = ?, status = 'live', updated_at = ? WHERE id = ?"
+    ).run(hostPeerId, uid, at, meeting.id);
     if (meeting.thread_id) {
-      const hostName = req.authUser.display_name || req.authUser.username;
+      const publisherName = req.authUser.display_name || req.authUser.username;
       insertChatMessage(
         db,
         meeting.thread_id,
         uid,
-        `${hostName}'s Session ID: ${hostPeerId}\n\n` +
-          `Partner: open Setup → Session ID is filled automatically → Join Session.`,
+        `${publisherName} shared Session ID: ${hostPeerId}\n\n` +
+          `Partner: click Start Camera — connection is automatic.`,
         { kind: "system" }
       );
     }
@@ -1220,6 +1218,7 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
       id: updated.id,
       status: updated.status,
       hostPeerId: updated.host_peer_id || "",
+      peerUserId: updated.peer_user_id || "",
     },
   });
 });
