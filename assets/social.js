@@ -120,10 +120,20 @@
   }
 
   function applyActiveMembersFromServer(list) {
+    const previousPartnerId = state.sessionPartnerId || getCoupledPartnerId();
     const partner = singleSessionPartnerFromList(list);
     state.activeMembers = partner ? [partner] : [];
     saveActiveMembersToStorage(state.activeMembers);
     if (!state.activeMembers.length) {
+      if (previousPartnerId) {
+        coupleSessionWithPartner(null, { addToMembers: false });
+        removeInstantSessionWithPartnerFromLocal(previousPartnerId);
+        if (global.appSessionRole?.()) {
+          global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
+        }
+        state._pendingMeetingId = null;
+        setPartnerInstantStatus("Partner cleared the session on their side.", "ok");
+      }
       state.sessionPartnerId = null;
       saveSessionPartnerIdToStorage(null);
     } else if (state.sessionPartnerId && !state.activeMembers.some((m) => m.id === state.sessionPartnerId)) {
@@ -518,6 +528,7 @@
   }
 
   async function clearActiveMembers({ clearStorage = true, clearChat = true } = {}) {
+    const previousPartnerId = getCoupledPartnerId();
     try {
       if (isLoggedIn()) {
         await api("/api/social/session-members", { method: "DELETE" });
@@ -525,9 +536,16 @@
     } catch (err) {
       console.warn("[social] clear session members failed:", err);
     }
+    if (global.appSessionRole?.()) {
+      global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
+    }
     state.activeMembers = [];
     state.sessionPartnerId = null;
+    state._pendingMeetingId = null;
     clearPartnerPlaybookState();
+    if (previousPartnerId) {
+      removeInstantSessionWithPartnerFromLocal(previousPartnerId);
+    }
     if (clearStorage) clearActiveMembersStorage();
     else saveSessionPartnerIdToStorage(null);
     renderActiveMembersPanel();
@@ -548,6 +566,7 @@
     renderMessages({ skipBroadcast: true });
     updateSessionActionHighlight();
     updatePartnerInstantRow();
+    broadcastMeetingsChanged();
   }
 
   function applyPartnerChatColors(partner) {
@@ -1637,6 +1656,7 @@
       updateCalendarUi();
       updateHeaderChatBadge();
       applyHostPeerIdFromMeetings();
+      syncLiveInstantSession();
       syncJoinedSessionState();
     } catch (err) {
       console.warn("[social] bootstrap failed:", err);
@@ -1707,6 +1727,25 @@
     }
   }
 
+  function syncLiveInstantSession() {
+    const partnerId = getCoupledPartnerId();
+    if (!partnerId) return;
+    const meeting = findActiveInstantSessionWithPartner(partnerId);
+    if (!meeting) return;
+    if (meeting.isHost) {
+      state._pendingMeetingId = meeting.id;
+      if (!global.appHasPeerConnection?.()) {
+        tryPrepareHostCall();
+      }
+      return;
+    }
+    if (!state.sessionJoinedMeetingId || state.sessionJoinedMeetingId !== meeting.id) {
+      void joinInstantMeeting(meeting);
+      return;
+    }
+    applyHostPeerIdFromMeetings();
+  }
+
   async function refreshMeetingsFromServer() {
     if (!isLoggedIn()) return;
     const data = await api("/api/social/bootstrap");
@@ -1717,6 +1756,7 @@
     setContactPool(data.contacts || []);
     updateMeetingPanels();
     applyHostPeerIdFromMeetings();
+    syncLiveInstantSession();
     syncJoinedSessionState();
     await maybeRefreshChatFromServer(data.threads || []);
     await refreshPartnerPlaybookIfNeeded();
@@ -1906,7 +1946,11 @@
     if (!findMyPendingProviderMeeting() && !findActiveInstantSessionWithPartner(getCoupledPartnerId())) {
       return;
     }
-    global.DualPeerConnect?.prepareHostCall?.().catch(() => {});
+    global.DualPeerConnect?.prepareHostCall?.().catch((err) => {
+      const msg = err?.message || "Could not prepare camera session.";
+      setPartnerInstantStatus(msg, "err");
+      setMeetingStatusOnAll(msg, "err");
+    });
   }
 
   function updateSessionActionHighlight() {
@@ -1999,7 +2043,6 @@
     const waiting = state.meetings.find((m) => {
       if (m.isHost) return false;
       if (m.status !== "live") return false;
-      if (!String(m.hostPeerId || "").trim() && !peerIdOverride) return false;
       if (partnerId) {
         const hostId = m.host?.id;
         if (hostId && hostId !== partnerId) return false;
@@ -2013,11 +2056,13 @@
       peerIn.dispatchEvent(new Event("input", { bubbles: true }));
       const guestStatus = document.getElementById("statusGuest");
       if (guestStatus && !global.appSessionRole?.()) {
-        guestStatus.textContent = "Session ID ready — connecting to partner …";
+        guestStatus.textContent = peerId
+          ? "Session ID ready — connecting to partner …"
+          : "Partner started a session — waiting for their camera …";
         guestStatus.className = "status-line ok";
       }
     }
-    tryAutoJoinPartnerCall(peerId);
+    if (peerId) tryAutoJoinPartnerCall(peerId);
     updateSessionActionHighlight();
   }
 
@@ -2301,23 +2346,35 @@
 
   let meetingCreateInFlight = false;
 
-  function setInstantSessionButtonMode(active) {
+  function getInstantSessionButtonMode(partnerId) {
+    const meeting = partnerId ? findActiveInstantSessionWithPartner(partnerId) : null;
+    if (meeting && !meeting.isHost) return "join";
+    if (meeting) return "stop";
+    return "start";
+  }
+
+  function setInstantSessionButtonMode(mode) {
     const btn = document.getElementById("btnStartInstantSession");
     if (!btn) return;
     const icon = btn.querySelector("i");
     const label = btn.querySelector(".setup-instant-session-label");
-    if (active) {
+    if (mode === "stop") {
       btn.dataset.sessionAction = "stop";
       btn.classList.remove("primary");
       btn.classList.add("secondary");
       if (icon) icon.className = "bi bi-stop-circle";
       if (label) label.textContent = "Stop current session";
       btn.title = "End the instant session for you and your partner";
+      return;
+    }
+    btn.dataset.sessionAction = "start";
+    btn.classList.add("primary");
+    btn.classList.remove("secondary");
+    if (icon) icon.className = "bi bi-lightning-charge";
+    if (mode === "join") {
+      if (label) label.textContent = "Join instant session";
+      btn.title = "Join your partner's instant session";
     } else {
-      btn.dataset.sessionAction = "start";
-      btn.classList.add("primary");
-      btn.classList.remove("secondary");
-      if (icon) icon.className = "bi bi-lightning-charge";
       if (label) label.textContent = "Start instant session";
       btn.title = "Start an instant session with your partner";
     }
@@ -2341,10 +2398,10 @@
     const btn = document.getElementById("btnStartInstantSession");
     if (!row || !btn) return;
     const partnerId = getCoupledPartnerId();
-    const active = partnerId ? findActiveInstantSessionWithPartner(partnerId) : null;
+    const mode = partnerId ? getInstantSessionButtonMode(partnerId) : "start";
     row.hidden = !partnerId;
     btn.disabled = !partnerId || meetingCreateInFlight;
-    setInstantSessionButtonMode(Boolean(active));
+    setInstantSessionButtonMode(mode);
     updateSessionBookingRequestButtons();
     updateSessionActionHighlight();
   }
@@ -2387,6 +2444,33 @@
       return;
     }
     if (meetingCreateInFlight) return;
+
+    const existing = findActiveInstantSessionWithPartner(id);
+    if (existing) {
+      if (existing.isHost) {
+        state._pendingMeetingId = existing.id;
+        tryPrepareHostCall();
+        setPartnerInstantStatus("Instant session live — click Start Camera when ready.", "ok");
+        setMeetingStatusOnAll("Instant session live — click Start Camera when ready.", "ok");
+        updatePartnerInstantRow();
+        return;
+      }
+      meetingCreateInFlight = true;
+      try {
+        await joinInstantMeeting(existing);
+        setPartnerInstantStatus("Joined partner's instant session — Start Camera when ready.", "ok");
+        setMeetingStatusOnAll("Joined partner's instant session.", "ok");
+      } catch (err) {
+        const errMsg = err?.message || "Could not join instant session.";
+        setPartnerInstantStatus(errMsg, "err");
+        setMeetingStatusOnAll(errMsg, "err");
+      } finally {
+        meetingCreateInFlight = false;
+        updatePartnerInstantRow();
+      }
+      return;
+    }
+
     meetingCreateInFlight = true;
     const btn = document.getElementById("btnStartInstantSession");
     if (btn) btn.disabled = true;
@@ -2396,14 +2480,17 @@
         partnerUserId: id,
         syncGoogle: state.calendar.connected,
       });
-      const msg = global.DualPeerAuth?.isAccountHost?.()
-        ? "Instant session — Start Camera and Start Micro glow pink when ready."
-        : "Instant session — click Join, then Start Camera / Start Micro (pink).";
+      const msg = "Instant session started — click Start Camera when ready (either side can start).";
       setPartnerInstantStatus(msg, "ok");
       setMeetingStatusOnAll(msg, "ok");
       document.getElementById("btnStartHost")?.focus();
       state._pendingMeetingId = meeting?.id;
-      tryPrepareHostCall();
+      if (meeting && !meeting.isHost) {
+        await joinInstantMeeting(meeting);
+      } else {
+        tryPrepareHostCall();
+      }
+      broadcastMeetingsChanged();
     } catch (err) {
       const errMsg = err?.message || "Could not start instant session.";
       setPartnerInstantStatus(errMsg, "err");
@@ -2455,8 +2542,8 @@
       method: "PATCH",
       body: JSON.stringify({ hostPeerId }),
     });
-    state._pendingMeetingId = null;
     await bootstrap();
+    state._pendingMeetingId = null;
     broadcastMeetingsChanged();
     return data.meeting;
   }

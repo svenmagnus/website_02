@@ -285,6 +285,87 @@ export function ensureSessionMemberPair(db, userA, userB) {
   ).run(userB, userA, at);
 }
 
+function mapMeetingRowForClient(db, row, uid) {
+  if (!row) return null;
+  const host = db.prepare("SELECT id, username, display_name FROM users WHERE id = ?").get(row.host_user_id);
+  const guest = row.guest_user_id
+    ? db.prepare("SELECT id, username, display_name FROM users WHERE id = ?").get(row.guest_user_id)
+    : null;
+  return {
+    id: row.id,
+    threadId: row.thread_id || "",
+    mode: row.mode,
+    status: row.status,
+    hostPeerId: row.host_peer_id || "",
+    scheduledStartAt: row.scheduled_start_at,
+    scheduledEndAt: row.scheduled_end_at,
+    calendarUrl: row.calendar_url || "",
+    googleEventId: row.google_event_id || "",
+    host: {
+      id: row.host_user_id,
+      username: host?.username,
+      displayName: host?.display_name || host?.username,
+    },
+    guest: guest
+      ? {
+          id: guest.id,
+          username: guest.username,
+          displayName: guest.display_name || guest.username,
+        }
+      : null,
+    isHost: row.host_user_id === uid,
+  };
+}
+
+function findLiveInstantBetween(db, userA, userB) {
+  return (
+    db
+      .prepare(
+        `SELECT * FROM meetings
+         WHERE mode = 'instant' AND status = 'live'
+           AND ((host_user_id = ? AND guest_user_id = ?) OR (host_user_id = ? AND guest_user_id = ?))
+         ORDER BY created_at ASC LIMIT 1`
+      )
+      .get(userA, userB, userB, userA) || null
+  );
+}
+
+function clearSessionPartnership(db, userId, partnerId) {
+  if (!userId || !partnerId || userId === partnerId) return;
+  db.prepare("DELETE FROM session_members WHERE user_id = ? AND member_user_id = ?").run(userId, partnerId);
+  db.prepare("DELETE FROM session_members WHERE user_id = ? AND member_user_id = ?").run(partnerId, userId);
+  const at = nowMs();
+  db.prepare(
+    `UPDATE meetings SET status = 'cancelled', host_peer_id = '', updated_at = ?
+     WHERE mode = 'instant' AND status = 'live'
+       AND ((host_user_id = ? AND guest_user_id = ?) OR (host_user_id = ? AND guest_user_id = ?))`
+  ).run(at, userId, partnerId, partnerId, userId);
+  const thread = ensureChatThread(db, userId, partnerId);
+  const actor = db.prepare("SELECT display_name, username FROM users WHERE id = ?").get(userId);
+  const name = actor?.display_name || actor?.username || "Partner";
+  insertChatMessage(db, thread.id, userId, `${name} cleared the session partner.`, { kind: "system" });
+}
+
+function clearAllSessionPartnerships(db, userId) {
+  const partners = db
+    .prepare("SELECT member_user_id FROM session_members WHERE user_id = ?")
+    .all(userId)
+    .map((row) => row.member_user_id);
+  for (const partnerId of partners) {
+    const at = nowMs();
+    db.prepare(
+      `UPDATE meetings SET status = 'cancelled', host_peer_id = '', updated_at = ?
+       WHERE mode = 'instant' AND status = 'live'
+         AND ((host_user_id = ? AND guest_user_id = ?) OR (host_user_id = ? AND guest_user_id = ?))`
+    ).run(at, userId, partnerId, partnerId, userId);
+    const thread = ensureChatThread(db, userId, partnerId);
+    const actor = db.prepare("SELECT display_name, username FROM users WHERE id = ?").get(userId);
+    const name = actor?.display_name || actor?.username || "Partner";
+    insertChatMessage(db, thread.id, userId, `${name} cleared the session partner.`, { kind: "system" });
+  }
+  db.prepare("DELETE FROM session_members WHERE user_id = ? OR member_user_id = ?").run(userId, userId);
+}
+
 function listSessionMembers(db, uid) {
   const rows = db
     .prepare(
@@ -683,21 +764,20 @@ socialRouter.post("/social/session-members", requireAuth, (req, res) => {
 
 socialRouter.delete("/social/session-members", requireAuth, (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM session_members WHERE user_id = ?").run(req.authUser.id);
+  const uid = req.authUser.id;
+  clearAllSessionPartnerships(db, uid);
   res.json({ ok: true, activeMembers: [] });
 });
 
 socialRouter.delete("/social/session-members/:memberUserId", requireAuth, (req, res) => {
   const db = getDb();
+  const uid = req.authUser.id;
   const memberUserId = String(req.params.memberUserId || "").trim();
   if (!memberUserId) {
     return res.status(400).json({ ok: false, error: "member_required" });
   }
-  db.prepare("DELETE FROM session_members WHERE user_id = ? AND member_user_id = ?").run(
-    req.authUser.id,
-    memberUserId
-  );
-  res.json({ ok: true, activeMembers: listSessionMembers(db, req.authUser.id) });
+  clearSessionPartnership(db, uid, memberUserId);
+  res.json({ ok: true, activeMembers: listSessionMembers(db, uid) });
 });
 
 socialRouter.get("/social/partners/:userId/playbook", requireAuth, (req, res) => {
@@ -974,17 +1054,33 @@ socialRouter.post("/social/meetings", requireAuth, async (req, res) => {
   const partner = db.prepare("SELECT * FROM users WHERE id = ?").get(partnerUserId);
   if (!partner) return res.status(404).json({ ok: false, error: "partner_not_found" });
 
-  const activeLive = getActiveProviderSession(db, req.authUser.id);
-  if (mode === "instant" && activeLive) {
-    return res.status(409).json({
-      ok: false,
-      error: "provider_session_active",
-      message: "You already have an active session. End it before starting a new one.",
-    });
+  const uid = req.authUser.id;
+
+  if (mode === "instant") {
+    const existing = findLiveInstantBetween(db, uid, partnerUserId);
+    if (existing) {
+      return res.json({
+        ok: true,
+        reused: true,
+        meeting: mapMeetingRowForClient(db, existing, uid),
+      });
+    }
+    const activeAsHost = db
+      .prepare(
+        `SELECT * FROM meetings WHERE host_user_id = ? AND status = 'live' AND mode = 'instant' LIMIT 1`
+      )
+      .get(uid);
+    if (activeAsHost) {
+      return res.status(409).json({
+        ok: false,
+        error: "provider_session_active",
+        message: "You already have an active session. End it before starting a new one.",
+      });
+    }
   }
 
   // Stream provider (camera first) = session creator; partner = consumer (Connect to Host).
-  const hostUserId = req.authUser.id;
+  const hostUserId = uid;
   const guestUserId = partnerUserId;
   ensureModelPoolEntry(db, req.authUser.id, partnerUserId);
   ensureModelPoolEntry(db, partnerUserId, req.authUser.id);
@@ -1072,16 +1168,11 @@ socialRouter.post("/social/meetings", requireAuth, async (req, res) => {
 
   res.status(201).json({
     ok: true,
-    meeting: {
-      id: meetingId,
-      mode,
-      status,
-      scheduledStartAt: scheduledStart,
-      scheduledEndAt: scheduledEnd,
-      calendarUrl,
-      googleEventId,
-      threadId: thread.id,
-    },
+    meeting: mapMeetingRowForClient(
+      db,
+      db.prepare("SELECT * FROM meetings WHERE id = ?").get(meetingId),
+      uid
+    ),
   });
 });
 
