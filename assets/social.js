@@ -207,6 +207,28 @@
     );
   }
 
+  /** When you started the instant session, Start Camera must open as host — not guest via peerIdIn. */
+  function isInstantSessionHostForPartner(partnerId) {
+    const uid = getSessionUserId();
+    if (!uid) return false;
+    const meeting = findActiveInstantSessionWithPartner(partnerId);
+    return Boolean(meeting && meeting.host?.id === uid);
+  }
+
+  function resolveStartCameraRole() {
+    const partnerId = getCoupledPartnerId();
+    if (isInstantSessionHostForPartner(partnerId)) {
+      return { asGuest: false, remoteId: "" };
+    }
+    const partnerLive = findPartnerLiveMeeting();
+    if (partnerLive?.hostPeerId) {
+      return { asGuest: true, remoteId: String(partnerLive.hostPeerId).trim() };
+    }
+    const peerIn = document.getElementById("peerIdIn");
+    const remoteId = peerIn instanceof HTMLInputElement ? peerIn.value.trim() : "";
+    return { asGuest: Boolean(remoteId), remoteId };
+  }
+
   function clearPartnerPlaybookState() {
     state.sessionJoinedMeetingId = null;
     resetPartnerPlaybookCache();
@@ -415,9 +437,22 @@
     const setupBtn = document.getElementById("btnSetupPartnerSessionRequest");
     const bookingsActions = document.getElementById("sessionBookingsActions");
     const bookingsBtn = document.getElementById("btnSessionBookingRequest");
-    if (setupBtn) setupBtn.hidden = !show;
+    const paidHint = document.getElementById("sessionBookingsPaidHint");
+    const paidLabel = isPremiumPartnerAccount() ? "Send paid session offer" : "Request paid session";
+    if (setupBtn) {
+      setupBtn.hidden = !show;
+      setupBtn.textContent = paidLabel;
+    }
+    if (bookingsBtn) {
+      bookingsBtn.disabled = !show;
+      bookingsBtn.textContent = paidLabel;
+    }
     if (bookingsActions) bookingsActions.hidden = !showSection;
-    if (bookingsBtn) bookingsBtn.disabled = !show;
+    if (paidHint) {
+      paidHint.textContent = isPremiumPartnerAccount()
+        ? "Optional — free video chat uses Start instant session above."
+        : "Optional — free video chat uses Start instant session; no payment needed.";
+    }
   }
 
   function mergeContactPools(...lists) {
@@ -708,10 +743,10 @@
     if (!hint) return;
     if (isPremiumPartnerAccount()) {
       hint.textContent =
-        "Incoming paid session requests from Premium Members. Accept or decline — they pay into escrow after you accept. You can also send a session offer when a member is selected as Partner for this session.";
+        "Free sessions: use Start instant session above — no booking required. Paid sessions: incoming requests from Premium Members (accept/decline), or send an offer with Send paid session offer.";
     } else {
       hint.textContent =
-        "Agree on a session with a model: send a request, they accept, then you pay into escrow.";
+        "Free sessions: Start instant session needs no booking. Paid sessions: send a request below — the model accepts, then you pay into escrow.";
     }
   }
 
@@ -1850,6 +1885,7 @@
     const peerId = String(remoteId || "").trim();
     if (!peerId || global.appHasPeerConnection?.()) return;
     if (!isActiveInstantSession() && !isSessionJoined()) return;
+    if (isInstantSessionHostForPartner(getCoupledPartnerId())) return;
     global.DualPeerConnect?.joinPartnerCall?.(peerId).catch(() => {});
   }
 
@@ -1939,6 +1975,15 @@
   function applyHostPeerIdFromMeetings(peerIdOverride) {
     const peerIn = document.getElementById("peerIdIn");
     const partnerId = getSelectedPartnerUserId();
+    if (isInstantSessionHostForPartner(partnerId)) {
+      if (peerIn instanceof HTMLInputElement && peerIn.value.trim()) {
+        peerIn.value = "";
+        peerIn.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      tryPrepareHostCall();
+      updateSessionActionHighlight();
+      return;
+    }
     const waiting = state.meetings.find((m) => {
       if (m.isHost) return false;
       if (m.status !== "live") return false;
@@ -3143,7 +3188,8 @@
     resetSocialClientState,
     publishHostPeerId,
     getActiveLiveMeetingId,
-    resolveLiveMeetingId,
+    resolveStartCameraRole,
+    isInstantSessionHostForPartner,
     applyHostPeerIdFromMeetings,
     updateSessionActionHighlight,
     joinInstantMeeting,

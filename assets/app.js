@@ -4208,8 +4208,12 @@ els.btnStartHost.addEventListener("click", async () => {
   hangup();
   micWantedEnabled = false;
 
-  const remoteId = (els.peerIdIn.value || "").trim();
-  const startAsGuest = Boolean(remoteId);
+  const role = global.DualPeerSocial?.resolveStartCameraRole?.() || {
+    asGuest: Boolean((els.peerIdIn.value || "").trim()),
+    remoteId: (els.peerIdIn.value || "").trim(),
+  };
+  const remoteId = role.remoteId || "";
+  const startAsGuest = Boolean(role.asGuest);
 
   try {
     await ensurePeerSession({
