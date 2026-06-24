@@ -1104,7 +1104,7 @@ socialRouter.post("/social/meetings", requireAuth, async (req, res) => {
   const title = `Tangent Club session — ${host.display_name || host.username} & ${guest.display_name || guest.username}`;
   const details =
     `${getAppPublicUrl()}/index.html\n\n` +
-    `One partner starts the camera and shares a Session ID in chat. Partner joins via Setup → Join Session.`;
+    `One partner clicks Start Camera under Setup — the other connects automatically. No manual Session ID needed.`;
   let calendarUrl = buildGoogleCalendarUrl({
     title,
     startMs: scheduledStart,
@@ -1158,13 +1158,12 @@ socialRouter.post("/social/meetings", requireAuth, async (req, res) => {
           timeStyle: "short",
         });
 
-  const hostName = host.display_name || host.username;
   insertChatMessage(
     db,
     thread.id,
     req.authUser.id,
     mode === "instant"
-      ? `${creatorName} started an instant session. ${isHostAccount(host) ? `${hostName} (host) will share the Peer ID here.` : `Waiting for host ${hostName} to share the Peer ID.`}`
+      ? `${creatorName} started an instant session. Either partner can click Start Camera under Setup — whoever starts first shares video; the other connects automatically.`
       : `${creatorName} scheduled a session for ${when}.${googleEventId ? " Synced to Google Calendar." : " See meeting list or calendar link."}`,
     { kind: "system" }
   );
@@ -1215,8 +1214,7 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
         db,
         meeting.thread_id,
         uid,
-        `${publisherName} shared Session ID: ${hostPeerId}\n\n` +
-          `Partner: click Start Camera — connection is automatic.`,
+        `${publisherName} clicked Start Camera — partner: click Start Camera under Setup to connect automatically.`,
         { kind: "system" }
       );
     }

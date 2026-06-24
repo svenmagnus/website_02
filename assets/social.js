@@ -1995,7 +1995,7 @@
     setMeetingStatusOnAll(
       meeting.hostPeerId
         ? "Joined — connected. Click Start Camera or Start Micro when ready."
-        : "Joined — waiting for partner Session ID, then camera/audio go live instantly.",
+        : "Joined — click Start Camera when ready; connection to your partner is automatic.",
       "ok"
     );
     updatePartnerInstantRow();
