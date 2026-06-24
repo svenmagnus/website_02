@@ -446,14 +446,19 @@
 
   function initTabGroup(root, { tabAttr, panelAttr, defaultTab, userPinField = false }) {
     if (!root) return;
-    root.querySelectorAll(`[${tabAttr}]`).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        setTabInGroup(root, btn.getAttribute(tabAttr), tabAttr, panelAttr, {
-          userPinField: userPinField && tabAttr === "data-panel-tab",
+    if (root.dataset.tabsBound !== "1") {
+      root.dataset.tabsBound = "1";
+      root.querySelectorAll(`[${tabAttr}]`).forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setTabInGroup(root, btn.getAttribute(tabAttr), tabAttr, panelAttr, {
+            userPinField: userPinField && tabAttr === "data-panel-tab",
+          });
         });
       });
-    });
-    setTabInGroup(root, defaultTab, tabAttr, panelAttr);
+    }
+    const active =
+      root.querySelector(`[${tabAttr}].is-active`)?.getAttribute(tabAttr) || defaultTab;
+    setTabInGroup(root, active, tabAttr, panelAttr);
   }
 
   function getConnectionTabsRoot() {
@@ -1449,13 +1454,15 @@
   }
 
   function enterProfileWorkspace({ onboarding = false } = {}) {
-    setPanelTab("profile", { userAction: Boolean(onboarding) });
     const p = loadProfile();
     renderPlayPrefsChecklists(p);
     fillProfileForm(p);
     renderTechniqueChecklist();
     refreshWelcomeBanner();
     updateProfileTabHint();
+    if (onboarding || !userPinnedTab) {
+      setPanelTab("profile", { userAction: Boolean(onboarding) });
+    }
   }
 
   function initConnectionTabs() {
@@ -1664,9 +1671,6 @@
 
     global.addEventListener("dualpeer-auth-change", () => {
       onAuthProfileSynced();
-      if (global.DualPeerAuth?.isLoggedIn?.()) {
-        enterProfileWorkspace();
-      }
     });
     global.addEventListener("dualpeer-profile-update", (e) => {
       if (e.detail?.profile) persistLocal(e.detail.profile);
@@ -1681,10 +1685,14 @@
 
     if (global.DualPeerAuth?.onReady) {
       global.DualPeerAuth.onReady(() => {
-        if (global.DualPeerAuth.isLoggedIn()) {
-          enterProfileWorkspace({
-            onboarding: new URLSearchParams(location.search).get("onboard") === "1",
-          });
+        if (!global.DualPeerAuth.isLoggedIn()) return;
+        const onboard = new URLSearchParams(location.search).get("onboard") === "1";
+        if (onboard) {
+          enterProfileWorkspace({ onboarding: true });
+        } else if (!userPinnedTab) {
+          enterProfileWorkspace();
+        } else {
+          onAuthProfileSynced();
         }
       });
     }

@@ -79,11 +79,13 @@
     }
   }
 
-  function setSession(token, user) {
+  function setSession(token, user, { notify = true } = {}) {
     localStorage.setItem(SESSION_KEY, JSON.stringify({ token, user, at: Date.now() }));
     if (user) cacheProfile(userToProfile(user));
     updateAccountMenuAuthState();
-    global.dispatchEvent(new CustomEvent("dualpeer-auth-change", { detail: { loggedIn: true, user } }));
+    if (notify) {
+      global.dispatchEvent(new CustomEvent("dualpeer-auth-change", { detail: { loggedIn: true, user } }));
+    }
   }
 
   function clearSession() {
@@ -444,7 +446,7 @@
       banReason: profile.banReason || "",
       bannedAt: profile.bannedAt || null,
       subscription: profile.subscription || null,
-    });
+    }, { notify: false });
   }
 
   function cacheProfile(profile) {
@@ -1510,7 +1512,7 @@
     const session = getSession();
     if (session?.user) {
       session.user.avatarUrl = data.avatarUrl || null;
-      setSession(session.token, session.user);
+      setSession(session.token, session.user, { notify: false });
     }
     const cached = getCachedProfile();
     if (cached) {
@@ -1531,7 +1533,7 @@
     const session = getSession();
     if (session?.user) {
       session.user.avatarUrl = null;
-      setSession(session.token, session.user);
+      setSession(session.token, session.user, { notify: false });
     }
     const cached = getCachedProfile();
     if (cached) {
