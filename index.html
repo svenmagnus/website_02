@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8659" />
+    <link rel="stylesheet" href="assets/styles.css?v=8660" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -1091,6 +1091,7 @@
             <h2 class="panel-tab-title">Member Pool</h2>
             <p class="status-line" style="margin: 0 0 0.5rem">
               Everyone you have shared sessions or chat with. <strong>Click</strong> a contact to view their profile.
+              Premium Partners: open the profile and tap <strong>Request paid session</strong> to agree on amount and time.
               <strong>Double-click</strong> to add them to <strong>Current Chat Partner</strong> (Setup, left).
               <strong>Online</strong> only while they are signed in now.
             </p>
@@ -1116,9 +1117,18 @@
               <h3 class="member-pool-section-title">Premium Partners</h3>
               <p class="status-line member-pool-premium-hint">
                 Available with <strong>Premium add-on</strong> (9.95&nbsp;€ one-time). Requires active <strong>Member</strong> subscription (2.95&nbsp;€/month).
+                Click a partner for their profile, then <strong>Request paid session</strong> to agree on amount and time before payment.
               </p>
               <div id="premiumPartnersList" class="model-pool-grid model-pool-grid--premium"></div>
               <p class="status-line" id="premiumPartnersStatus"></p>
+            </div>
+            <div id="sessionBookingsSection" class="member-pool-bookings-section" hidden>
+              <h3 class="member-pool-section-title">Session bookings</h3>
+              <p class="status-line member-pool-bookings-hint">
+                Agree on a session with a Premium Partner: you send a request, they accept, then you pay into escrow.
+              </p>
+              <div id="sessionBookingsList" class="session-bookings-list"></div>
+              <p class="status-line" id="sessionBookingsStatus">No session requests yet.</p>
             </div>
           </div>
         </div>
@@ -1329,10 +1339,10 @@
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
     <script src="assets/app.js?v=8650"></script>
-    <script src="assets/auth.js?v=8659"></script>
-    <script src="assets/model-booking.js?v=8659"></script>
+    <script src="assets/auth.js?v=8660"></script>
+    <script src="assets/model-booking.js?v=8660"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8659"></script>
+    <script src="assets/social.js?v=8660"></script>
     <script src="assets/member-profile.js?v=8651"></script>
   </body>
 </html>

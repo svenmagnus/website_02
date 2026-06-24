@@ -1,5 +1,5 @@
 /**
- * Premium Partner booking UI — visible to Premium guests booking is_model partners.
+ * Premium Partner booking UI — request → partner accepts → guest pays (escrow).
  */
 (function (global) {
   function minorToEur(minor) {
@@ -19,12 +19,13 @@
     modal.setAttribute("aria-labelledby", "modelBookingModalTitle");
     modal.innerHTML = `
       <div class="login-overlay-card auth-card-wide model-booking-card">
-        <h2 id="modelBookingModalTitle">Book Premium Partner</h2>
+        <h2 id="modelBookingModalTitle">Request paid session</h2>
         <p class="status-line" id="modelBookingIntro"></p>
         <form id="modelBookingForm" class="profile-form">
           <div class="row">
-            <label for="modelBookingAmount">Session amount (EUR)</label>
+            <label for="modelBookingAmount">Proposed session amount (EUR)</label>
             <input type="number" id="modelBookingAmount" min="1" step="0.01" required />
+            <p class="status-line profile-field-hint" id="modelBookingRateHint"></p>
             <p class="status-line profile-field-hint" id="modelBookingSplitHint"></p>
           </div>
           <div class="row">
@@ -36,12 +37,13 @@
             <input type="datetime-local" id="modelBookingEnd" required />
           </div>
           <div class="row">
-            <label for="modelBookingNote">Note for partner (optional)</label>
-            <textarea id="modelBookingNote" rows="3" maxlength="1000"></textarea>
+            <label for="modelBookingNote">Message for partner (optional)</label>
+            <textarea id="modelBookingNote" rows="3" maxlength="1000" placeholder="What you have in mind for the session…"></textarea>
           </div>
           <p class="status-line err" id="modelBookingError" hidden></p>
+          <p class="status-line ok" id="modelBookingSuccess" hidden></p>
           <div class="row profile-mail-actions">
-            <button type="submit" class="primary" id="modelBookingSubmitBtn">Create booking &amp; pay</button>
+            <button type="submit" class="primary" id="modelBookingSubmitBtn">Send request</button>
             <button type="button" class="secondary" id="modelBookingCancelBtn">Cancel</button>
           </div>
         </form>
@@ -68,22 +70,30 @@
     const modal = ensureModal();
     const intro = document.getElementById("modelBookingIntro");
     const amountEl = document.getElementById("modelBookingAmount");
+    const rateHint = document.getElementById("modelBookingRateHint");
     const splitHint = document.getElementById("modelBookingSplitHint");
     const errEl = document.getElementById("modelBookingError");
+    const okEl = document.getElementById("modelBookingSuccess");
 
     if (intro) {
       intro.textContent = model.bookingReady
-        ? `Book a paid session with ${model.displayName || model.username}. Funds are held in escrow until the session is completed.`
-        : `${model.displayName || model.username} is still setting up payouts — booking may be unavailable until Connect onboarding is complete.`;
+        ? `Propose a paid session with ${model.displayName || model.username}. They review your request first — you only pay after they accept. Funds are held in escrow until the session is completed.`
+        : `${model.displayName || model.username} is still setting up payouts — you can send a request, but payment will be available once Connect onboarding is complete.`;
     }
     if (amountEl) {
       amountEl.value = model.hourlyRateMinor ? minorToEur(model.hourlyRateMinor) : "50.00";
     }
+    if (rateHint) {
+      rateHint.textContent = model.hourlyRateMinor
+        ? `Partner rate: ${minorToEur(model.hourlyRateMinor)} € / hour (suggested — you can adjust).`
+        : "No published hourly rate yet — propose an amount that fits your session.";
+    }
     if (splitHint) {
       const share = model.platformSharePercent ?? 40;
-      splitHint.textContent = `Platform fee ${share}% · Model receives ${100 - share}% after session completion.`;
+      splitHint.textContent = `Platform fee ${share}% · Partner receives ${100 - share}% after session completion.`;
     }
     if (errEl) errEl.hidden = true;
+    if (okEl) okEl.hidden = true;
 
     const start = new Date(Date.now() + 60 * 60 * 1000);
     start.setMinutes(0, 0, 0);
@@ -108,12 +118,18 @@
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
+  function notifyBookingsChanged() {
+    global.dispatchEvent(new CustomEvent("dualpeer:bookings-changed"));
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     if (!activeModel) return;
     const errEl = document.getElementById("modelBookingError");
+    const okEl = document.getElementById("modelBookingSuccess");
     const submitBtn = document.getElementById("modelBookingSubmitBtn");
     if (errEl) errEl.hidden = true;
+    if (okEl) okEl.hidden = true;
 
     const amountEur = Number(document.getElementById("modelBookingAmount")?.value);
     const startVal = document.getElementById("modelBookingStart")?.value;
@@ -149,19 +165,19 @@
         totalAmountMinor,
         guestNote: note,
       });
-      const bookingId = created?.booking?.id;
-      if (!bookingId) throw new Error("Booking could not be created.");
+      if (!created?.booking?.id) throw new Error("Request could not be sent.");
 
-      const checkout = await global.DualPeerAuth.fundModelBooking(bookingId);
-      if (checkout?.url) {
-        window.location.href = checkout.url;
-        return;
+      if (okEl) {
+        okEl.hidden = false;
+        okEl.textContent =
+          "Request sent. Check Session bookings below — you can pay once the partner accepts.";
       }
-      throw new Error("Checkout URL missing.");
+      notifyBookingsChanged();
+      setTimeout(close, 1800);
     } catch (err) {
       if (errEl) {
         errEl.hidden = false;
-        errEl.textContent = err.message || "Booking failed.";
+        errEl.textContent = err.message || "Request failed.";
       }
     } finally {
       if (submitBtn) submitBtn.disabled = false;

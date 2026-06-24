@@ -1742,6 +1742,34 @@
     });
   }
 
+  async function fetchMyBookings(options = {}) {
+    return api("/api/bookings/mine", options);
+  }
+
+  async function acceptModelBooking(bookingId, options = {}) {
+    return api(`/api/bookings/${encodeURIComponent(bookingId)}/accept`, {
+      method: "POST",
+      body: "{}",
+      ...options,
+    });
+  }
+
+  async function rejectModelBooking(bookingId, reason = "", options = {}) {
+    return api(`/api/bookings/${encodeURIComponent(bookingId)}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+      ...options,
+    });
+  }
+
+  async function completeModelBooking(bookingId, options = {}) {
+    return api(`/api/bookings/${encodeURIComponent(bookingId)}/complete`, {
+      method: "POST",
+      body: "{}",
+      ...options,
+    });
+  }
+
   async function fetchConnectStatus(options = {}) {
     return api("/api/connect/status", options);
   }
@@ -3558,6 +3586,10 @@
     fetchPremiumModels,
     bookModel,
     fundModelBooking,
+    fetchMyBookings,
+    acceptModelBooking,
+    rejectModelBooking,
+    completeModelBooking,
     fetchConnectStatus,
     startConnectOnboarding,
     fetchBillingStatus,

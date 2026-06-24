@@ -34,6 +34,7 @@
     expandedPoolMemberId: null,
     contactPoolRenderKey: "",
     poolProfileCache: {},
+    sessionBookings: [],
   };
 
   let chatBroadcastChannel = null;
@@ -535,7 +536,7 @@
 
     const cached = state.poolProfileCache[memberId];
     if (cached) {
-      renderPoolMemberDetail(detail, cached);
+      renderPoolMemberDetail(detail, cached, findPoolMemberMeta(memberId));
       return;
     }
 
@@ -549,7 +550,7 @@
       .then((profile) => {
         if (state.expandedPoolMemberId !== memberId) return;
         if (profile) state.poolProfileCache[memberId] = profile;
-        renderPoolMemberDetail(detail, profile);
+        renderPoolMemberDetail(detail, profile, findPoolMemberMeta(memberId));
       })
       .catch((err) => {
         if (state.expandedPoolMemberId !== memberId) return;
@@ -561,12 +562,218 @@
       });
   }
 
+  function findPoolMemberMeta(memberId) {
+    if (!memberId) return null;
+    return (
+      state.contactPool.find((c) => c.id === memberId) ||
+      state.premiumPartners.find((c) => c.id === memberId) ||
+      state.modelPool.find((c) => c.id === memberId) ||
+      null
+    );
+  }
+
+  function formatBookingAmount(minor, currency = "EUR") {
+    const eur = (Number(minor || 0) / 100).toFixed(2);
+    return currency === "EUR" ? `${eur} €` : `${eur} ${currency}`;
+  }
+
+  function formatBookingWhen(startAt, endAt) {
+    if (!startAt) return "—";
+    const start = new Date(startAt);
+    const end = endAt ? new Date(endAt) : null;
+    const dateOpts = { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" };
+    const startStr = start.toLocaleString(undefined, dateOpts);
+    if (!end) return startStr;
+    const endStr = end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return `${startStr} – ${endStr}`;
+  }
+
+  function bookingStatusLabel(booking) {
+    if (booking.status === "rejected") return "Declined";
+    if (booking.status === "completed") return "Completed";
+    if (booking.escrowStatus === "released") return "Paid out";
+    if (booking.escrowStatus === "funded") return "Paid — session scheduled";
+    if (booking.status === "accepted") return "Accepted — awaiting payment";
+    if (booking.status === "pending") return "Awaiting partner";
+    return booking.status || "—";
+  }
+
+  async function loadSessionBookings() {
+    const section = document.getElementById("sessionBookingsSection");
+    if (!isLoggedIn()) {
+      state.sessionBookings = [];
+      if (section) section.hidden = true;
+      return;
+    }
+    if (section) section.hidden = false;
+    try {
+      const data = await global.DualPeerAuth?.fetchMyBookings?.();
+      state.sessionBookings = data?.bookings || [];
+    } catch (err) {
+      console.warn("[social] session bookings failed:", err);
+      state.sessionBookings = [];
+    }
+    renderSessionBookings();
+  }
+
+  function renderSessionBookings() {
+    const root = document.getElementById("sessionBookingsList");
+    const status = document.getElementById("sessionBookingsStatus");
+    if (!root) return;
+
+    const bookings = state.sessionBookings || [];
+    root.replaceChildren();
+
+    if (!bookings.length) {
+      if (status) {
+        status.hidden = false;
+        status.className = "status-line";
+        status.textContent = canAccessPremiumPartners()
+          ? "No session requests yet — open a Premium Partner profile and tap Request paid session."
+          : "No session requests yet.";
+      }
+      return;
+    }
+
+    if (status) status.hidden = true;
+
+    for (const booking of bookings) {
+      const card = document.createElement("article");
+      card.className = "session-booking-card";
+      card.dataset.bookingId = booking.id;
+
+      const head = document.createElement("div");
+      head.className = "session-booking-head";
+      const title = document.createElement("strong");
+      title.textContent =
+        booking.role === "guest"
+          ? `With ${booking.modelName || "Premium Partner"}`
+          : `From ${booking.guestName || "Member"}`;
+      const badge = document.createElement("span");
+      badge.className = "session-booking-status";
+      badge.textContent = bookingStatusLabel(booking);
+      head.appendChild(title);
+      head.appendChild(badge);
+      card.appendChild(head);
+
+      const meta = document.createElement("p");
+      meta.className = "status-line session-booking-meta";
+      meta.textContent = `${formatBookingWhen(booking.scheduledStartAt, booking.scheduledEndAt)} · ${formatBookingAmount(booking.totalAmountMinor, booking.currency)}`;
+      card.appendChild(meta);
+
+      const note = String(booking.guestNote || "").trim();
+      if (note) {
+        const noteEl = document.createElement("p");
+        noteEl.className = "status-line session-booking-note";
+        noteEl.textContent = `“${note}”`;
+        card.appendChild(noteEl);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "session-booking-actions";
+
+      if (booking.role === "model" && booking.status === "pending" && booking.escrowStatus === "not_funded") {
+        const acceptBtn = document.createElement("button");
+        acceptBtn.type = "button";
+        acceptBtn.className = "primary";
+        acceptBtn.textContent = "Accept";
+        acceptBtn.addEventListener("click", () => void handleBookingAccept(booking.id, acceptBtn));
+        actions.appendChild(acceptBtn);
+
+        const rejectBtn = document.createElement("button");
+        rejectBtn.type = "button";
+        rejectBtn.className = "secondary";
+        rejectBtn.textContent = "Decline";
+        rejectBtn.addEventListener("click", () => void handleBookingReject(booking.id, rejectBtn));
+        actions.appendChild(rejectBtn);
+      }
+
+      if (
+        booking.role === "guest" &&
+        booking.status === "accepted" &&
+        booking.escrowStatus === "not_funded"
+      ) {
+        const payBtn = document.createElement("button");
+        payBtn.type = "button";
+        payBtn.className = "primary";
+        payBtn.textContent = "Pay now (escrow)";
+        payBtn.addEventListener("click", () => void handleBookingPay(booking.id, payBtn));
+        actions.appendChild(payBtn);
+      }
+
+      if (booking.escrowStatus === "funded" && ["accepted", "in_progress"].includes(booking.status)) {
+        const completeBtn = document.createElement("button");
+        completeBtn.type = "button";
+        completeBtn.className = "secondary";
+        completeBtn.textContent = "Mark session complete";
+        completeBtn.addEventListener("click", () => void handleBookingComplete(booking.id, completeBtn));
+        actions.appendChild(completeBtn);
+      }
+
+      if (actions.childElementCount) card.appendChild(actions);
+      root.appendChild(card);
+    }
+  }
+
+  async function handleBookingAccept(bookingId, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      await global.DualPeerAuth.acceptModelBooking(bookingId);
+      await loadSessionBookings();
+    } catch (err) {
+      alert(err.message || "Could not accept request.");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function handleBookingReject(bookingId, btn) {
+    const reason = window.prompt("Optional message for the guest:") || "";
+    if (btn) btn.disabled = true;
+    try {
+      await global.DualPeerAuth.rejectModelBooking(bookingId, reason);
+      await loadSessionBookings();
+    } catch (err) {
+      alert(err.message || "Could not decline request.");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function handleBookingPay(bookingId, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      const checkout = await global.DualPeerAuth.fundModelBooking(bookingId);
+      if (checkout?.url) {
+        window.location.href = checkout.url;
+        return;
+      }
+      throw new Error("Checkout URL missing.");
+    } catch (err) {
+      alert(err.message || "Payment could not be started.");
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function handleBookingComplete(bookingId, btn) {
+    if (!window.confirm("Release escrow payout to the Premium Partner?")) return;
+    if (btn) btn.disabled = true;
+    try {
+      await global.DualPeerAuth.completeModelBooking(bookingId);
+      await loadSessionBookings();
+    } catch (err) {
+      alert(err.message || "Could not complete session.");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   async function fetchPoolMemberProfile(memberId) {
     const data = await api(`/api/social/model-pool/${encodeURIComponent(memberId)}/profile`);
     return data.profile || null;
   }
 
-  function renderPoolMemberDetail(container, profile) {
+  function renderPoolMemberDetail(container, profile, memberMeta) {
     if (!container || !profile) return;
     container.replaceChildren();
 
@@ -574,6 +781,40 @@
     title.className = "model-pool-detail-title";
     title.textContent = "About me";
     container.appendChild(title);
+
+    const isPremiumPartner =
+      Boolean(memberMeta?.isPremiumPartner || memberMeta?.isModel) && canAccessPremiumPartners();
+
+    if (isPremiumPartner) {
+      const rateBlock = document.createElement("div");
+      rateBlock.className = "model-pool-detail-rate";
+      const rateLabel = document.createElement("strong");
+      rateLabel.textContent = "Session rate";
+      const rateText = document.createElement("p");
+      rateText.className = "status-line";
+      if (memberMeta?.hourlyRateMinor) {
+        rateText.textContent = `${formatBookingAmount(memberMeta.hourlyRateMinor).replace(" €", "")} € / hour`;
+      } else {
+        rateText.textContent = "Rate on request — propose an amount when you send a session request.";
+      }
+      rateBlock.appendChild(rateLabel);
+      rateBlock.appendChild(rateText);
+      container.appendChild(rateBlock);
+
+      const bookWrap = document.createElement("div");
+      bookWrap.className = "model-pool-detail-book";
+      const bookBtn = document.createElement("button");
+      bookBtn.type = "button";
+      bookBtn.className = "primary model-pool-detail-book-btn";
+      bookBtn.textContent = "Request paid session";
+      bookBtn.title = "Propose amount and time — partner accepts before you pay";
+      bookBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        global.DualPeerModelBooking?.open?.(memberMeta);
+      });
+      bookWrap.appendChild(bookBtn);
+      container.appendChild(bookWrap);
+    }
 
     const dl = document.createElement("dl");
     dl.className = "model-pool-detail-dl";
@@ -687,7 +928,7 @@
       const profile = await fetchPoolMemberProfile(memberId);
       if (state.expandedPoolMemberId !== memberId) return;
       if (profile) state.poolProfileCache[memberId] = profile;
-      renderPoolMemberDetail(detail, profile);
+      renderPoolMemberDetail(detail, profile, findPoolMemberMeta(memberId));
     } catch (err) {
       detail.replaceChildren();
       const errEl = document.createElement("p");
@@ -821,8 +1062,8 @@
       const bookBtn = document.createElement("button");
       bookBtn.type = "button";
       bookBtn.className = "secondary model-book-btn";
-      bookBtn.textContent = "Book session";
-      bookBtn.title = "Book a paid session (escrow via Stripe)";
+      bookBtn.textContent = "Request session";
+      bookBtn.title = "Propose a paid session — partner accepts before you pay";
       bookBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         global.DualPeerModelBooking?.open?.(m);
@@ -2325,8 +2566,11 @@
     if (!isLoggedIn()) {
       state.modelPool = [];
       state.premiumPartners = [];
+      state.sessionBookings = [];
       setContactPool([]);
       renderActiveMembersPanel();
+      const bookingsSection = document.getElementById("sessionBookingsSection");
+      if (bookingsSection) bookingsSection.hidden = true;
       return;
     }
     try {
@@ -2334,6 +2578,7 @@
       state.modelPool = data.models || [];
       setContactPool([...state.contactPool, ...state.modelPool]);
       await loadPremiumPartners();
+      await loadSessionBookings();
     } catch (err) {
       console.warn("[social] model pool failed:", err);
     }
@@ -2700,6 +2945,30 @@
     });
   }
 
+  function handleBookingRedirect() {
+    const params = new URLSearchParams(location.search);
+    const bookingFlag = params.get("booking");
+    if (!bookingFlag) return;
+
+    document.querySelector('[data-remote-tab="modelpool"]')?.click();
+    void loadSessionBookings();
+
+    if (bookingFlag === "success") {
+      const st = document.getElementById("sessionBookingsStatus");
+      if (st) {
+        st.hidden = false;
+        st.className = "status-line ok";
+        st.textContent = "Payment received — session is confirmed in escrow.";
+      }
+    }
+
+    params.delete("booking");
+    params.delete("id");
+    const qs = params.toString();
+    const next = `${location.pathname}${qs ? `?${qs}` : ""}${location.hash || ""}`;
+    history.replaceState(null, "", next);
+  }
+
   function init() {
     listenBroadcast();
     mountMeetingBlocks();
@@ -2710,10 +2979,15 @@
     initLiveChatToolbar();
     initHeaderChatSend();
     handleCalendarRedirect();
+    handleBookingRedirect();
 
     global.addEventListener("dualpeer-auth-change", () => refreshAuthUi());
     global.addEventListener("dualpeer-account-role-change", () => {
       loadPremiumPartners().catch(() => {});
+      loadSessionBookings().catch(() => {});
+    });
+    global.addEventListener("dualpeer:bookings-changed", () => {
+      loadSessionBookings().catch(() => {});
     });
     global.addEventListener("dualpeer-session-role", () => {
       updateSessionActionHighlight();

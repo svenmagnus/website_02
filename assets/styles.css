@@ -4455,6 +4455,85 @@ body.has-gallery-lightbox-open {
   max-width: 28rem;
 }
 
+.member-pool-bookings-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.member-pool-bookings-hint {
+  margin-bottom: 0.65rem;
+}
+
+.session-bookings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.session-booking-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.session-booking-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.session-booking-status {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.session-booking-meta {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.session-booking-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.session-booking-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.session-booking-actions button {
+  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.model-pool-detail-rate {
+  margin: 0 0 0.75rem;
+}
+
+.model-pool-detail-rate strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.model-pool-detail-book {
+  margin: 0 0 1rem;
+}
+
+.model-pool-detail-book-btn {
+  width: 100%;
+  font-size: 0.85rem;
+}
+
 .setup-model-pool-field {
   margin: 0.75rem 0;
   padding: 0.75rem;

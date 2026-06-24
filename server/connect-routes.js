@@ -236,7 +236,7 @@ connectRouter.post("/book-model", requireAuth, async (req, res) => {
   const booking = getBookingById(db, bookingId);
   return res.status(201).json({
     ok: true,
-    message: "Booking request created. Fund escrow via checkout to confirm.",
+    message: "Session request sent. The Premium Partner will confirm before you pay.",
     booking: {
       ...booking,
       modelName: modelInfo.model.display_name || modelInfo.model.username || "Model",
@@ -263,8 +263,12 @@ connectRouter.post("/bookings/:bookingId/checkout", requireAuth, async (req, res
   if (booking.escrow_status !== "not_funded") {
     return res.status(400).json({ ok: false, error: "escrow_already_funded" });
   }
-  if (!["pending", "accepted"].includes(booking.status)) {
-    return res.status(400).json({ ok: false, error: "booking_not_payable" });
+  if (booking.status !== "accepted") {
+    return res.status(400).json({
+      ok: false,
+      error: "booking_not_accepted",
+      message: "The Premium Partner must accept your request before payment.",
+    });
   }
 
   let partner;
@@ -324,7 +328,7 @@ connectRouter.post("/bookings/:bookingId/checkout", requireAuth, async (req, res
   return res.json({ ok: true, url: session.url, bookingId });
 });
 
-/** Model accepts a funded/pending booking */
+/** Model accepts a pending session request (guest pays after acceptance) */
 connectRouter.post("/bookings/:bookingId/accept", requireAuth, (req, res) => {
   const db = getDb();
   const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(req.params.bookingId);
@@ -337,6 +341,28 @@ connectRouter.post("/bookings/:bookingId/accept", requireAuth, (req, res) => {
   }
   const now = nowMs();
   db.prepare(`UPDATE bookings SET status = 'accepted', updated_at = ? WHERE id = ?`).run(now, booking.id);
+  return res.json({ ok: true, booking: getBookingById(db, booking.id) });
+});
+
+/** Model declines a pending session request */
+connectRouter.post("/bookings/:bookingId/reject", requireAuth, (req, res) => {
+  const db = getDb();
+  const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(req.params.bookingId);
+  if (!booking) return res.status(404).json({ ok: false, error: "booking_not_found" });
+  if (booking.model_user_id !== req.authUser.id) {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+  if (booking.status !== "pending") {
+    return res.status(400).json({ ok: false, error: "invalid_status" });
+  }
+  if (booking.escrow_status !== "not_funded") {
+    return res.status(400).json({ ok: false, error: "already_funded" });
+  }
+  const reason = String(req.body?.reason || "").trim().slice(0, 500);
+  const now = nowMs();
+  db.prepare(
+    `UPDATE bookings SET status = 'rejected', cancel_reason = ?, updated_at = ? WHERE id = ?`
+  ).run(reason, now, booking.id);
   return res.json({ ok: true, booking: getBookingById(db, booking.id) });
 });
 
@@ -406,10 +432,6 @@ export async function handleConnectBookingCheckout(session) {
   const db = getDb();
   const paymentRef = session.payment_intent ? String(session.payment_intent) : String(session.id);
   markBookingFunded(db, bookingId, paymentRef);
-  db.prepare(`UPDATE bookings SET status = 'accepted', updated_at = ? WHERE id = ? AND status = 'pending'`).run(
-    Date.now(),
-    bookingId
-  );
   console.log(`[connect] booking funded bookingId=${bookingId} ref=${paymentRef}`);
   return true;
 }
