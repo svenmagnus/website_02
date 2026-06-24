@@ -339,6 +339,15 @@
     return Boolean(auth.hasPremiumModelAccess?.(user));
   }
 
+  function isPremiumPartnerAccount() {
+    return Boolean(global.DualPeerAuth?.getSession?.()?.user?.isModel);
+  }
+
+  function canUseSessionBookings() {
+    if (!isLoggedIn()) return false;
+    return isPremiumPartnerAccount() || canAccessPremiumPartners();
+  }
+
   function mergeContactPools(...lists) {
     const byId = new Map();
     for (const list of lists) {
@@ -600,12 +609,13 @@
 
   async function loadSessionBookings() {
     const section = document.getElementById("sessionBookingsSection");
-    if (!isLoggedIn()) {
+    if (!canUseSessionBookings()) {
       state.sessionBookings = [];
       if (section) section.hidden = true;
       return;
     }
     if (section) section.hidden = false;
+    updateSessionBookingsChrome();
     try {
       const data = await global.DualPeerAuth?.fetchMyBookings?.();
       state.sessionBookings = data?.bookings || [];
@@ -614,6 +624,18 @@
       state.sessionBookings = [];
     }
     renderSessionBookings();
+  }
+
+  function updateSessionBookingsChrome() {
+    const hint = document.getElementById("sessionBookingsHint");
+    if (!hint) return;
+    if (isPremiumPartnerAccount()) {
+      hint.textContent =
+        "Incoming paid session requests from Premium Members. Accept or decline — they pay into escrow after you accept.";
+    } else {
+      hint.textContent =
+        "Agree on a session with a Premium Partner: you send a request, they accept, then you pay into escrow.";
+    }
   }
 
   function renderSessionBookings() {
@@ -628,9 +650,14 @@
       if (status) {
         status.hidden = false;
         status.className = "status-line";
-        status.textContent = canAccessPremiumPartners()
-          ? "No session requests yet — open a Premium Partner profile and tap Request paid session."
-          : "No session requests yet.";
+        if (isPremiumPartnerAccount()) {
+          status.textContent = "No incoming session requests yet.";
+        } else if (canAccessPremiumPartners()) {
+          status.textContent =
+            "No session requests yet — open a Premium Partner profile in the Member Pool and tap Request paid session.";
+        } else {
+          status.textContent = "No session requests yet.";
+        }
       }
       return;
     }
@@ -2950,8 +2977,8 @@
     const bookingFlag = params.get("booking");
     if (!bookingFlag) return;
 
-    document.querySelector('[data-remote-tab="modelpool"]')?.click();
     void loadSessionBookings();
+    document.getElementById("sessionBookingsSection")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
 
     if (bookingFlag === "success") {
       const st = document.getElementById("sessionBookingsStatus");

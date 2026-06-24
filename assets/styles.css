@@ -4461,6 +4461,27 @@ body.has-gallery-lightbox-open {
   border-top: 1px solid var(--border);
 }
 
+.setup-session-bookings-section {
+  margin: 0.85rem 0 1rem;
+  padding: 0.85rem 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.setup-section-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.setup-bookings-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+}
+
 .member-pool-bookings-hint {
   margin-bottom: 0.65rem;
 }
