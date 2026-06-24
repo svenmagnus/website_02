@@ -24,6 +24,7 @@ import {
   premiumStripePriceId,
   normalizeSubscriptionTier,
 } from "./billing.js";
+import { handleConnectBookingCheckout } from "./connect-routes.js";
 
 function parseBearer(req) {
   const raw = String(req.get("authorization") || "").trim();
@@ -214,6 +215,9 @@ export async function handleStripeWebhook(req, res) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object;
+        if (await handleConnectBookingCheckout(session)) {
+          break;
+        }
         const userId = session.client_reference_id || session.metadata?.userId;
         const tier = normalizeSubscriptionTier(session.metadata?.tier);
         const isOneTimePremium =

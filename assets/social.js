@@ -817,6 +817,19 @@
     }
     card.appendChild(meta);
 
+    if (premiumPartner && variant === "pool" && canAccessPremiumPartners()) {
+      const bookBtn = document.createElement("button");
+      bookBtn.type = "button";
+      bookBtn.className = "secondary model-book-btn";
+      bookBtn.textContent = "Book session";
+      bookBtn.title = "Book a paid session (escrow via Stripe)";
+      bookBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        global.DualPeerModelBooking?.open?.(m);
+      });
+      card.appendChild(bookBtn);
+    }
+
     if (variant === "pool") {
       let clickTimer = null;
       card.addEventListener("click", (e) => {

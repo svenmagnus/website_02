@@ -168,7 +168,13 @@
     refreshProfileAvatars();
   }
 
-  const AUTH_MODAL_IDS = ["inviteModal", "premiumLoginModal", "adminUsersModal", "subscriptionOverlay"];
+  const AUTH_MODAL_IDS = [
+    "inviteModal",
+    "premiumLoginModal",
+    "adminUsersModal",
+    "subscriptionOverlay",
+    "modelBookingModal",
+  ];
 
   function initPasswordToggles(root = document) {
     root.querySelectorAll("[data-password-toggle]").forEach((btn) => {

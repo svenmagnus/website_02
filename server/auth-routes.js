@@ -1293,10 +1293,14 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT id, username, display_name, account_type, is_premium, is_admin, is_model, avatar_path, avatar_updated_at, last_seen_at
-       FROM users
-       WHERE is_model = 1 AND id != ?
-       ORDER BY created_at ASC`
+      `SELECT u.id, u.username, u.display_name, u.account_type, u.is_premium, u.is_admin, u.is_model,
+              u.avatar_path, u.avatar_updated_at, u.last_seen_at,
+              pp.platform_share_percent, pp.hourly_rate_minor,
+              pp.connect_onboarding_complete, pp.payouts_enabled
+       FROM users u
+       LEFT JOIN premium_partners pp ON pp.user_id = u.id
+       WHERE u.is_model = 1 AND u.id != ?
+       ORDER BY u.created_at ASC`
     )
     .all(req.authUser.id);
 
@@ -1308,129 +1312,19 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
     isPremium: Boolean(row.is_premium),
     isAdmin: Boolean(row.is_admin),
     isModel: Boolean(row.is_model),
+    isPremiumPartner: true,
     avatarUrl: avatarUrlForUser(row),
     online: Boolean(row.last_seen_at && row.last_seen_at > Date.now() - 90_000),
     signedIn: Boolean(row.last_seen_at && row.last_seen_at > Date.now() - 90_000),
-    availabilityText: "Availability calendar coming soon",
+    hourlyRateMinor: row.hourly_rate_minor ?? null,
+    platformSharePercent: row.platform_share_percent ?? 40,
+    bookingReady: Boolean(row.connect_onboarding_complete && row.payouts_enabled),
+    availabilityText: row.hourly_rate_minor
+      ? `From ${(row.hourly_rate_minor / 100).toFixed(2)} € / session`
+      : "Book a paid session",
   }));
 
   return res.json({ ok: true, models });
-});
-
-authRouter.post("/book-model", requireAuth, (req, res) => {
-  try {
-    assertSubscriptionAccess(req.authUser);
-  } catch (err) {
-    if (err.code === "subscription_required") {
-      return res.status(402).json({ ok: false, error: err.code, subscription: err.subscription });
-    }
-    throw err;
-  }
-  if (!hasPremiumModelPoolAccess(req.authUser)) {
-    return res.status(403).json({
-      ok: false,
-      error: "premium_required",
-      message: "Premium membership is required to book Premium Partners.",
-    });
-  }
-  const db = getDb();
-  const guestUserId = req.authUser.id;
-  const modelUserId = String(req.body?.modelUserId || "").trim();
-  const scheduledStartAt = Number(req.body?.scheduledStartAt);
-  const scheduledEndAt = Number(req.body?.scheduledEndAt);
-  const currency = normalizeCurrency(req.body?.currency || "EUR");
-  const totalAmountMinor = normalizeAmountMinor(req.body?.totalAmountMinor, 0);
-  const platformFeeMinor = normalizeAmountMinor(req.body?.platformFeeMinor, 0);
-  const modelPayoutMinor = normalizeAmountMinor(req.body?.modelPayoutMinor, 0);
-  const guestNote = String(req.body?.guestNote || "").trim().slice(0, 1000);
-
-  if (!modelUserId) {
-    return res.status(400).json({ ok: false, error: "invalid_model_user" });
-  }
-  if (modelUserId === guestUserId) {
-    return res.status(400).json({ ok: false, error: "invalid_booking_self" });
-  }
-  if (!Number.isFinite(scheduledStartAt) || !Number.isFinite(scheduledEndAt)) {
-    return res.status(400).json({ ok: false, error: "invalid_schedule" });
-  }
-  if (scheduledEndAt <= scheduledStartAt) {
-    return res.status(400).json({ ok: false, error: "invalid_schedule_range" });
-  }
-  if (!currency) {
-    return res.status(400).json({ ok: false, error: "invalid_currency" });
-  }
-  if (totalAmountMinor == null || platformFeeMinor == null || modelPayoutMinor == null) {
-    return res.status(400).json({ ok: false, error: "invalid_amount" });
-  }
-
-  const model = db
-    .prepare("SELECT id, username, display_name, is_premium FROM users WHERE id = ?")
-    .get(modelUserId);
-  if (!model) {
-    return res.status(404).json({ ok: false, error: "model_not_found" });
-  }
-
-  const bookingId = randomUUID();
-  const now = nowMs();
-  db.prepare(
-    `INSERT INTO bookings (
-      id, guest_user_id, model_user_id, status, currency,
-      total_amount_minor, platform_fee_minor, model_payout_minor,
-      escrow_status, escrow_reference,
-      scheduled_start_at, scheduled_end_at, started_at, ended_at,
-      guest_note, model_note, cancel_reason, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    bookingId,
-    guestUserId,
-    modelUserId,
-    "pending",
-    currency,
-    totalAmountMinor,
-    platformFeeMinor,
-    modelPayoutMinor,
-    "not_funded",
-    null,
-    Math.trunc(scheduledStartAt),
-    Math.trunc(scheduledEndAt),
-    null,
-    null,
-    guestNote,
-    "",
-    "",
-    now,
-    now
-  );
-
-  const created = db
-    .prepare(
-      `SELECT id, guest_user_id, model_user_id, status, currency,
-              total_amount_minor, platform_fee_minor, model_payout_minor,
-              escrow_status, scheduled_start_at, scheduled_end_at, created_at
-       FROM bookings WHERE id = ?`
-    )
-    .get(bookingId);
-
-  return res.status(201).json({
-    ok: true,
-    message: "Booking request sent successfully.",
-    booking: {
-      id: created.id,
-      guestUserId: created.guest_user_id,
-      modelUserId: created.model_user_id,
-      modelName: model.display_name || model.username || "Model",
-      modelIsPremium: Boolean(model.is_premium),
-      status: created.status,
-      currency: created.currency,
-      totalAmountMinor: created.total_amount_minor,
-      platformFeeMinor: created.platform_fee_minor,
-      modelPayoutMinor: created.model_payout_minor,
-      escrowStatus: created.escrow_status,
-      scheduledStartAt: created.scheduled_start_at,
-      scheduledEndAt: created.scheduled_end_at,
-      createdAt: created.created_at,
-    },
-  });
 });
 
 authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {

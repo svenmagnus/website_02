@@ -4444,6 +4444,17 @@ body.has-gallery-lightbox-open {
   background: rgba(255, 186, 58, 0.1);
 }
 
+.model-book-btn {
+  margin-top: 0.45rem;
+  width: 100%;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.model-booking-card {
+  max-width: 28rem;
+}
+
 .setup-model-pool-field {
   margin: 0.75rem 0;
   padding: 0.75rem;

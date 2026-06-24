@@ -347,6 +347,67 @@ function runMigrations(database) {
     );
     CREATE INDEX IF NOT EXISTS idx_model_pool_hidden_owner ON model_pool_hidden(owner_user_id);
   `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS premium_partners (
+      user_id TEXT PRIMARY KEY,
+      platform_share_percent INTEGER NOT NULL DEFAULT 40
+        CHECK (platform_share_percent >= 0 AND platform_share_percent <= 100),
+      hourly_rate_minor INTEGER,
+      stripe_connect_account_id TEXT,
+      connect_onboarding_complete INTEGER NOT NULL DEFAULT 0,
+      payouts_enabled INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_premium_partners_connect ON premium_partners(stripe_connect_account_id);
+  `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS bookings (
+      id TEXT PRIMARY KEY,
+      guest_user_id TEXT NOT NULL,
+      model_user_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'accepted', 'rejected', 'cancelled', 'in_progress', 'completed', 'expired')),
+      currency TEXT NOT NULL DEFAULT 'EUR' CHECK (length(currency) = 3),
+      total_amount_minor INTEGER NOT NULL CHECK (total_amount_minor >= 0),
+      platform_fee_minor INTEGER NOT NULL DEFAULT 0 CHECK (platform_fee_minor >= 0),
+      model_payout_minor INTEGER NOT NULL DEFAULT 0 CHECK (model_payout_minor >= 0),
+      escrow_status TEXT NOT NULL DEFAULT 'not_funded'
+        CHECK (escrow_status IN ('not_funded', 'funded', 'released', 'refunded', 'failed')),
+      escrow_reference TEXT,
+      scheduled_start_at INTEGER NOT NULL,
+      scheduled_end_at INTEGER NOT NULL,
+      started_at INTEGER,
+      ended_at INTEGER,
+      guest_note TEXT NOT NULL DEFAULT '',
+      model_note TEXT NOT NULL DEFAULT '',
+      cancel_reason TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (guest_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (model_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CHECK (scheduled_end_at > scheduled_start_at),
+      CHECK (guest_user_id != model_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_bookings_guest_user_id ON bookings(guest_user_id);
+    CREATE INDEX IF NOT EXISTS idx_bookings_model_user_id ON bookings(model_user_id);
+    CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
+    CREATE INDEX IF NOT EXISTS idx_bookings_escrow_status ON bookings(escrow_status);
+    CREATE INDEX IF NOT EXISTS idx_bookings_scheduled_start ON bookings(scheduled_start_at);
+  `);
+
+  const modelRows = database.prepare("SELECT id FROM users WHERE is_model = 1").all();
+  const now = Date.now();
+  const insPartner = database.prepare(
+    `INSERT OR IGNORE INTO premium_partners (user_id, platform_share_percent, created_at, updated_at)
+     VALUES (?, 40, ?, ?)`
+  );
+  for (const row of modelRows) {
+    insPartner.run(row.id, now, now);
+  }
 }
 
 function backfillModelPool(database) {

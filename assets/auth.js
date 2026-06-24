@@ -1733,6 +1733,23 @@
     });
   }
 
+  async function fundModelBooking(bookingId, options = {}) {
+    return api(`/api/bookings/${encodeURIComponent(bookingId)}/checkout`, {
+      method: "POST",
+      body: JSON.stringify({}),
+      timeoutMs: 20000,
+      ...options,
+    });
+  }
+
+  async function fetchConnectStatus(options = {}) {
+    return api("/api/connect/status", options);
+  }
+
+  async function startConnectOnboarding(options = {}) {
+    return api("/api/connect/onboard", { method: "POST", body: "{}", ...options });
+  }
+
   function readMailFormPayload() {
     const port = Number(document.getElementById("mailOutPort")?.value) || 587;
     let secure = false;
@@ -3540,6 +3557,9 @@
     resolveAccountRoleBadgeClass,
     fetchPremiumModels,
     bookModel,
+    fundModelBooking,
+    fetchConnectStatus,
+    startConnectOnboarding,
     fetchBillingStatus,
     startBillingCheckout,
     openBillingPortal,

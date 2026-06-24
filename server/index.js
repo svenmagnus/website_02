@@ -19,6 +19,7 @@ import { getDb, initDb } from "./db.js";
 import { authRouter } from "./auth-routes.js";
 import { billingRouter, handleStripeWebhook } from "./billing-routes.js";
 import { ensureStripeCheckoutBranding, getStripe, isStripeConfigured } from "./billing.js";
+import { connectRouter } from "./connect-routes.js";
 import { socialRouter } from "./social-routes.js";
 import {
   handleAvatarDelete,
@@ -766,6 +767,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api", authRouter);
 app.use("/api", billingRouter);
+app.use("/api", connectRouter);
 app.use("/api", socialRouter);
 
 app.post("/api/broadcast/register", (req, res) => {

@@ -33,8 +33,14 @@
         <section class="manual-section">
           <h2>How do payouts work?</h2>
           <p class="status-line">
-            Planned: escrow-based release after session completion, with partner payout minus commission.
+            Premium Partners receive <strong>60%</strong> of each booked session (platform fee
+            <strong>40%</strong>, configurable per partner). Guest payments are held in escrow on the platform account
+            until the session is marked complete — then payout is sent to your bank via <strong>Stripe Connect</strong>.
           </p>
+          <p class="status-line" id="partnerConnectStatus">Sign in as a Premium Partner to set up payouts.</p>
+          <button type="button" class="primary" id="partnerConnectOnboardBtn" hidden>
+            Set up Stripe payouts
+          </button>
         </section>
         <p class="status-line manual-footer">
           <a href="index.html">← Back to app</a>
@@ -47,5 +53,36 @@
         </p>
       </article>
     </main>
+    <script src="assets/api-config.js?v=8481"></script>
+    <script src="assets/auth.js?v=8659"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", async function () {
+        const statusEl = document.getElementById("partnerConnectStatus");
+        const btn = document.getElementById("partnerConnectOnboardBtn");
+        if (!window.DualPeerAuth?.isLoggedIn?.()) {
+          if (statusEl) statusEl.textContent = "Log in with your Premium Partner account to connect Stripe.";
+          return;
+        }
+        try {
+          const data = await window.DualPeerAuth.fetchConnectStatus();
+          const p = data?.partner;
+          if (!p) return;
+          if (statusEl) {
+            statusEl.textContent = p.bookingReady
+              ? "Payout setup complete — you can receive paid bookings."
+              : "Complete Stripe Connect onboarding to accept paid session bookings.";
+          }
+          if (btn) {
+            btn.hidden = Boolean(p.bookingReady);
+            btn.addEventListener("click", async () => {
+              const res = await window.DualPeerAuth.startConnectOnboarding();
+              if (res?.url) window.location.href = res.url;
+            });
+          }
+        } catch (_) {
+          if (statusEl) statusEl.textContent = "Payout setup is only available for Premium Partner accounts.";
+        }
+      });
+    </script>
   </body>
 </html>
