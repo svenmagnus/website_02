@@ -29,6 +29,12 @@ if [[ -f "$NGINX_SITE" ]] && ! grep -q 'client_max_body_size' "$NGINX_SITE"; the
   systemctl reload nginx
   echo "nginx: added client_max_body_size 6m"
 fi
+if [[ -f "$NGINX_SITE" ]] && ! grep -q 'proxy_set_header Upgrade' "$NGINX_SITE"; then
+  sed -i '/proxy_http_version 1.1;/a\        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection "upgrade";' "$NGINX_SITE"
+  nginx -t
+  systemctl reload nginx
+  echo "nginx: added WebSocket proxy headers for PeerJS"
+fi
 git -C /home/tangent/website_02 log -1 --oneline
 REMOTE
 echo "==> Done. Hard-refresh tangent-club.com in the browser."

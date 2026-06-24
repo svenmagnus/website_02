@@ -12,6 +12,8 @@
 import "./load-env.js";
 import cors from "cors";
 import express from "express";
+import http from "node:http";
+import { ExpressPeerServer } from "peer";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1041,8 +1043,15 @@ app.get("/", (_req, res) => {
 });
 app.use(express.static(WEB_ROOT, { index: false, maxAge: 0 }));
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`WHIP/WHEP server v17 (public ICE + UDP port range) on ${PUBLIC_BASE_URL}`);
+const server = http.createServer(app);
+const peerServer = ExpressPeerServer(server, {
+  path: "/",
+  allow_discovery: true,
+});
+app.use("/peerjs", peerServer);
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`WHIP/WHEP server v18 (PeerJS /peerjs + public ICE) on ${PUBLIC_BASE_URL}`);
   if (WEBRTC_ANNOUNCED_IP) {
     console.log(
       `  WebRTC: announced IP ${WEBRTC_ANNOUNCED_IP}, UDP ${WEBRTC_UDP_PORT_MIN}-${WEBRTC_UDP_PORT_MAX}`

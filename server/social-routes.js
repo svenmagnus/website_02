@@ -1193,6 +1193,19 @@ socialRouter.patch("/social/meetings/:id", requireAuth, (req, res) => {
   const at = nowMs();
 
   if (hostPeerId) {
+    const currentPeer = String(meeting.host_peer_id || "").trim();
+    const currentOwner = String(meeting.peer_user_id || "").trim();
+    if (currentPeer && currentOwner && currentOwner !== uid && currentPeer !== hostPeerId) {
+      return res.status(409).json({
+        ok: false,
+        error: "partner_already_publishing",
+        message: "Your partner is already live — connect to their session instead.",
+        meeting: {
+          hostPeerId: currentPeer,
+          peerUserId: currentOwner,
+        },
+      });
+    }
     db.prepare(
       "UPDATE meetings SET host_peer_id = ?, peer_user_id = ?, status = 'live', updated_at = ? WHERE id = ?"
     ).run(hostPeerId, uid, at, meeting.id);

@@ -193,19 +193,43 @@
     }
   }
 
+  function findAnyLiveInstantMeetingForUser() {
+    const uid = getSessionUserId();
+    if (!uid) return null;
+    return (
+      state.meetings.find((m) => {
+        if (m.mode !== "instant" || m.status !== "live") return false;
+        const hostId = m.host?.id;
+        const guestId = m.guest?.id;
+        return hostId === uid || guestId === uid;
+      }) || null
+    );
+  }
+
+  function getPartnerIdFromMeeting(meeting) {
+    const uid = getSessionUserId();
+    if (!meeting || !uid) return null;
+    if (meeting.host?.id === uid) return meeting.guest?.id || null;
+    if (meeting.guest?.id === uid) return meeting.host?.id || null;
+    return null;
+  }
+
   function getCoupledPartnerId() {
     if (state.sessionPartnerId) return state.sessionPartnerId;
     if (state.activeMembers.length === 1) return state.activeMembers[0].id;
     const sel = document.querySelector(".js-meeting-partner-select");
-    return sel?.value?.trim() || null;
+    const fromSel = sel?.value?.trim();
+    if (fromSel) return fromSel;
+    const live = findAnyLiveInstantMeetingForUser();
+    return live ? getPartnerIdFromMeeting(live) : null;
   }
 
   function findActiveInstantSessionWithPartner(partnerId) {
-    const id = String(partnerId || getCoupledPartnerId() || "").trim();
     const uid = getSessionUserId();
-    if (!id || !uid) return null;
-    return (
-      state.meetings.find((m) => {
+    if (!uid) return null;
+    const id = String(partnerId || getCoupledPartnerId() || "").trim();
+    if (id) {
+      const match = state.meetings.find((m) => {
         if (m.mode !== "instant" || m.status !== "live") return false;
         const hostId = m.host?.id;
         const guestId = m.guest?.id;
@@ -213,8 +237,10 @@
         const involvesUs = hostId === uid || guestId === uid;
         const involvesPartner = hostId === id || guestId === id;
         return involvesUs && involvesPartner;
-      }) || null
-    );
+      });
+      if (match) return match;
+    }
+    return findAnyLiveInstantMeetingForUser();
   }
 
   /** When you started the instant session, Start Camera must open as host — not guest via peerIdIn. */
@@ -280,29 +306,13 @@
   }
 
   async function ensureLiveInstantReadyForCamera() {
+    await bootstrap({ loadChat: false });
     const partnerId = getCoupledPartnerId();
-    if (!partnerId) return;
     const meeting = findActiveInstantSessionWithPartner(partnerId);
     if (!meeting) return;
     const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
     if (partnerPublishedPeerId(live)) {
-      const targetPeerId = String(live.hostPeerId || "").trim();
-      const localPeerId = String(global.appLocalPeerId?.() || "").trim();
-      if (
-        global.appHasPeerConnection?.() &&
-        localPeerId &&
-        targetPeerId &&
-        localPeerId !== targetPeerId &&
-        !global.appHasRemotePeer?.()
-      ) {
-        global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
-      }
-      if (!meeting.isHost && state.sessionJoinedMeetingId !== meeting.id) {
-        await joinInstantMeeting(live);
-      }
-      if (!global.appHasPeerConnection?.()) {
-        await global.DualPeerConnect?.joinPartnerCall?.(targetPeerId);
-      }
+      await enforcePartnerGuestConnection(live);
       return;
     }
     if (
@@ -1806,10 +1816,12 @@
   }
 
   function syncLiveInstantSession() {
-    const partnerId = getCoupledPartnerId();
-    if (!partnerId) return;
-    const meeting = findActiveInstantSessionWithPartner(partnerId);
+    const meeting = findActiveInstantSessionWithPartner(getCoupledPartnerId());
     if (!meeting) return;
+    const partnerFromMeeting = getPartnerIdFromMeeting(meeting);
+    if (partnerFromMeeting && partnerFromMeeting !== state.sessionPartnerId) {
+      coupleSessionWithPartner(partnerFromMeeting, { addToMembers: false });
+    }
     const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
     if (!meeting.isHost && (!state.sessionJoinedMeetingId || state.sessionJoinedMeetingId !== meeting.id)) {
       void joinInstantMeeting(live);
@@ -1839,6 +1851,13 @@
     await loadModelPool();
     renderActiveMembersPanel();
     updateSessionActionHighlight();
+    if (meetingsPollTimer) {
+      clearInterval(meetingsPollTimer);
+      meetingsPollTimer = setInterval(() => {
+        if (document.hidden || !isLoggedIn()) return;
+        refreshMeetingsFromServer().catch(() => {});
+      }, getMeetingsPollIntervalMs());
+    }
   }
 
   function getSelectedPartnerUserId() {
@@ -1994,6 +2013,49 @@
 
   let autoJoinTimer = null;
   let autoJoinPeerId = "";
+  let guestJoinInFlight = null;
+
+  async function enforcePartnerGuestConnection(meeting, peerIdOverride) {
+    const live = state.meetings.find((m) => m.id === meeting?.id) || meeting;
+    if (!live || !partnerPublishedPeerId(live)) return;
+    const peerId = String(peerIdOverride || live.hostPeerId || "").trim();
+    if (!peerId) return;
+    const localPeerId = String(global.appLocalPeerId?.() || "").trim();
+    if (localPeerId === peerId && global.appHasRemotePeer?.()) return;
+
+    if (!meeting.isHost && state.sessionJoinedMeetingId !== meeting.id) {
+      await joinInstantMeeting(live);
+    }
+
+    if (guestJoinInFlight) return guestJoinInFlight;
+
+    guestJoinInFlight = (async () => {
+      if (global.appHasPeerConnection?.()) {
+        if (global.appHasRemotePeer?.()) return;
+        if (localPeerId === peerId) return;
+        global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      if (!global.appHasPeerConnection?.()) {
+        await global.DualPeerConnect?.joinPartnerCall?.(peerId);
+      }
+    })()
+      .catch((err) => {
+        const guestStatus = document.getElementById("statusGuest");
+        if (guestStatus && !global.appHasRemotePeer?.()) {
+          guestStatus.textContent =
+            err?.message ||
+            "Could not connect to partner — ask them to click Start Camera again.";
+          guestStatus.className = "status-line err";
+        }
+        throw err;
+      })
+      .finally(() => {
+        guestJoinInFlight = null;
+      });
+
+    return guestJoinInFlight;
+  }
 
   function tryAutoJoinPartnerCall(remoteId) {
     const peerId = String(remoteId || "").trim();
@@ -2003,29 +2065,16 @@
     if (meeting && !partnerPublishedPeerId(meeting)) return;
 
     const localPeerId = String(global.appLocalPeerId?.() || "").trim();
-    if (localPeerId === peerId) return;
-
-    if (global.appHasPeerConnection?.()) {
-      if (global.appHasRemotePeer?.()) return;
-      global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
-    }
+    if (localPeerId === peerId && global.appHasRemotePeer?.()) return;
 
     if (autoJoinTimer && autoJoinPeerId === peerId) return;
     autoJoinPeerId = peerId;
     if (autoJoinTimer) clearTimeout(autoJoinTimer);
-    const delay = localPeerId ? 300 : 1200;
+    const delay = localPeerId && localPeerId !== peerId ? 200 : 600;
     autoJoinTimer = setTimeout(() => {
       autoJoinTimer = null;
-      if (global.appHasPeerConnection?.()) return;
-      global.DualPeerConnect?.joinPartnerCall?.(peerId).catch((err) => {
-        const guestStatus = document.getElementById("statusGuest");
-        if (guestStatus && !global.appHasPeerConnection?.()) {
-          guestStatus.textContent =
-            err?.message ||
-            "Partner not live yet — ask them to click Start Camera, then click Join.";
-          guestStatus.className = "status-line err";
-        }
-      });
+      if (!meeting) return;
+      void enforcePartnerGuestConnection(meeting, peerId);
     }, delay);
   }
 
@@ -2222,13 +2271,23 @@
     }
   }
 
+  function getMeetingsPollIntervalMs() {
+    const meeting = findAnyLiveInstantMeetingForUser();
+    if (!meeting) return MEETINGS_POLL_MS;
+    const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
+    if (partnerPublishedPeerId(live) && !global.appHasRemotePeer?.()) return 1200;
+    if (!String(live.hostPeerId || "").trim()) return 1500;
+    return MEETINGS_POLL_MS;
+  }
+
   function startMeetingsPolling() {
     stopMeetingsPolling();
     getMeetingsBroadcastChannel();
-    meetingsPollTimer = setInterval(() => {
+    const tick = () => {
       if (document.hidden || !isLoggedIn()) return;
       refreshMeetingsFromServer().catch(() => {});
-    }, MEETINGS_POLL_MS);
+    };
+    meetingsPollTimer = setInterval(tick, getMeetingsPollIntervalMs());
   }
 
   function stopMeetingsPolling() {
@@ -2659,14 +2718,26 @@
     if (!meetingId || !hostPeerId) {
       throw new Error("Missing meeting or Peer ID.");
     }
-    const data = await api(`/api/social/meetings/${encodeURIComponent(meetingId)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ hostPeerId }),
-    });
-    await bootstrap();
-    state._pendingMeetingId = null;
-    broadcastMeetingsChanged();
-    return data.meeting;
+    try {
+      const data = await api(`/api/social/meetings/${encodeURIComponent(meetingId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ hostPeerId }),
+      });
+      await bootstrap({ loadChat: false });
+      state._pendingMeetingId = null;
+      broadcastMeetingsChanged();
+      return data.meeting;
+    } catch (err) {
+      if (err?.status === 409 && err?.data?.meeting?.hostPeerId) {
+        await bootstrap({ loadChat: false });
+        const meeting = findActiveInstantSessionWithPartner(getCoupledPartnerId());
+        if (meeting) {
+          await enforcePartnerGuestConnection(meeting, err.data.meeting.hostPeerId);
+        }
+        return err.data.meeting;
+      }
+      throw err;
+    }
   }
 
   async function resolveLiveMeetingId() {
@@ -3418,6 +3489,9 @@
     resolveStartCameraRole,
     ensureLiveInstantReadyForCamera,
     isInstantSessionHostForPartner,
+    findActiveInstantSessionWithPartner,
+    partnerPublishedPeerId,
+    enforcePartnerGuestConnection,
     applyHostPeerIdFromMeetings,
     updateSessionActionHighlight,
     joinInstantMeeting,

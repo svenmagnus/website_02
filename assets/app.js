@@ -40,6 +40,27 @@ const PEER_OPTIONS = {
   config: PEER_CONNECTION_CONFIG,
 };
 
+function resolvePeerSignalingOptions() {
+  const opts = { ...PEER_OPTIONS };
+  const host = location.hostname;
+  const devApiPort = 8787;
+  const onSite = isTangentClubSite();
+  const local = isLocalDevHost();
+  if (!onSite && !local) return opts;
+  if (local && location.port && location.port !== String(devApiPort) && location.port !== "443") {
+    opts.host = host;
+    opts.port = devApiPort;
+    opts.path = "/peerjs";
+    opts.secure = false;
+    return opts;
+  }
+  opts.host = host;
+  opts.path = "/peerjs";
+  opts.secure = location.protocol === "https:";
+  opts.port = opts.secure ? 443 : Number(location.port) || devApiPort;
+  return opts;
+}
+
 /**
  * Option A — Cloudflare quick tunnel → local WHIP server (port 8787).
  *
@@ -3414,6 +3435,15 @@ function handleIncomingDataMessage(raw) {
 async function publishHostPeerIdToGuest(peerId) {
   if (!peerId || !global.DualPeerSocial?.publishHostPeerId) return;
   try {
+    await global.DualPeerSocial?.bootstrap?.({ loadChat: false });
+    const partnerMeeting = global.DualPeerSocial?.findActiveInstantSessionWithPartner?.();
+    if (partnerMeeting && global.DualPeerSocial?.partnerPublishedPeerId?.(partnerMeeting)) {
+      const remoteId = String(partnerMeeting.hostPeerId || "").trim();
+      if (remoteId && remoteId !== peerId) {
+        await global.DualPeerSocial?.enforcePartnerGuestConnection?.(partnerMeeting, remoteId);
+        return;
+      }
+    }
     const meetingId = await global.DualPeerSocial.resolveLiveMeetingId?.();
     if (!meetingId) {
       setStatus(
@@ -4120,7 +4150,7 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
     }
 
     const whipMode = getBroadcastMode() === "whip";
-    peer = new Peer(undefined, PEER_OPTIONS);
+    peer = new Peer(undefined, resolvePeerSignalingOptions());
 
     await new Promise((resolve, reject) => {
       const onOpen = (id) => {
@@ -4216,17 +4246,16 @@ function setupPeerHandlers() {
   peer.on("call", (call) => {
     void (async () => {
       let stream = getActiveLocalStream();
-      if (getBroadcastMode() !== "whip" && !stream) {
-        try {
-          stream = await ensureOutboundMediaForPeer({ startLive: false });
-        } catch (err) {
-          setStatus(els.statusHost, String(err.message || err), "err");
-          stream = getOutboundMediaStream();
+      const wantLive = isLocalCameraActive();
+      if (getBroadcastMode() !== "whip") {
+        const hasLiveVideo = stream?.getVideoTracks?.().some(
+          (track) => track.readyState === "live" && track.enabled
+        );
+        if (!hasLiveVideo) {
+          stream = await ensureOutboundMediaForPeer({ startLive: wantLive });
         }
-      } else {
-        stream = stream || getOutboundMediaStream();
       }
-      call.answer(stream);
+      call.answer(stream || getOutboundMediaStream());
       bindMediaCallHandlers(call);
     })();
   });
