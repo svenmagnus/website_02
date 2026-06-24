@@ -434,15 +434,10 @@
   function updateSessionBookingRequestButtons() {
     const show = canShowSessionBookingRequest();
     const showSection = canUseSessionBookings() && (isPremiumPartnerAccount() || canAccessPremiumPartners());
-    const setupBtn = document.getElementById("btnSetupPartnerSessionRequest");
     const bookingsActions = document.getElementById("sessionBookingsActions");
     const bookingsBtn = document.getElementById("btnSessionBookingRequest");
     const paidHint = document.getElementById("sessionBookingsPaidHint");
     const paidLabel = isPremiumPartnerAccount() ? "Send paid session offer" : "Request paid session";
-    if (setupBtn) {
-      setupBtn.hidden = !show;
-      setupBtn.textContent = paidLabel;
-    }
     if (bookingsBtn) {
       bookingsBtn.disabled = !show;
       bookingsBtn.textContent = paidLabel;
@@ -1881,12 +1876,29 @@
     );
   }
 
+  let autoJoinTimer = null;
+  let autoJoinPeerId = "";
+
   function tryAutoJoinPartnerCall(remoteId) {
     const peerId = String(remoteId || "").trim();
     if (!peerId || global.appHasPeerConnection?.()) return;
     if (!isActiveInstantSession() && !isSessionJoined()) return;
     if (isInstantSessionHostForPartner(getCoupledPartnerId())) return;
-    global.DualPeerConnect?.joinPartnerCall?.(peerId).catch(() => {});
+    if (autoJoinTimer && autoJoinPeerId === peerId) return;
+    autoJoinPeerId = peerId;
+    if (autoJoinTimer) clearTimeout(autoJoinTimer);
+    autoJoinTimer = setTimeout(() => {
+      autoJoinTimer = null;
+      global.DualPeerConnect?.joinPartnerCall?.(peerId).catch((err) => {
+        const guestStatus = document.getElementById("statusGuest");
+        if (guestStatus && !global.appHasPeerConnection?.()) {
+          guestStatus.textContent =
+            err?.message ||
+            "Partner not live yet — ask them to click Start Camera, then click Join.";
+          guestStatus.className = "status-line err";
+        }
+      });
+    }, 1200);
   }
 
   function tryPrepareHostCall() {
@@ -3069,9 +3081,9 @@
   }
 
   function initSessionBookingRequestButtons() {
-    const onClick = () => openSessionBookingRequest();
-    document.getElementById("btnSessionBookingRequest")?.addEventListener("click", onClick);
-    document.getElementById("btnSetupPartnerSessionRequest")?.addEventListener("click", onClick);
+    document.getElementById("btnSessionBookingRequest")?.addEventListener("click", () => {
+      openSessionBookingRequest();
+    });
   }
 
   function initPartnerInstantSession() {

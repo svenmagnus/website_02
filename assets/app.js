@@ -2104,13 +2104,16 @@ function hangup({ skipSessionPause = false } = {}) {
   stopMedia();
   els.peerIdOut.textContent = "—";
   resetConnectionLabels();
-  if (!skipSessionPause && (wasStreamProvider || hadLiveCall)) {
-    global.DualPeerSocial?.pauseActiveSession?.().catch(() => {});
-  }
-  if (hadLiveCall) endSessionChat();
   const peerIn = els.peerIdIn;
   if (peerIn instanceof HTMLInputElement) peerIn.value = "";
-  global.DualPeerSocial?.applyHostPeerIdFromMeetings?.();
+  if (!skipSessionPause && (wasStreamProvider || hadLiveCall)) {
+    void global.DualPeerSocial?.pauseActiveSession?.().then(() => {
+      global.DualPeerSocial?.applyHostPeerIdFromMeetings?.();
+    }).catch(() => {});
+  } else {
+    global.DualPeerSocial?.applyHostPeerIdFromMeetings?.();
+  }
+  if (hadLiveCall) endSessionChat();
   if (videoAccessUnlocked) applyAccountStreamingUi();
   else {
     if (els.btnStartHost) els.btnStartHost.disabled = true;
@@ -3426,10 +3429,37 @@ global.appSessionRole = () => sessionRole;
 global.appLocalCameraActive = () => isLocalCameraActive();
 global.appLocalMicEnabled = () => isLocalMicEnabled();
 global.appHasPeerConnection = () => hasPeerConnection();
+function formatPeerConnectError(err) {
+  const msg = String(err?.message || err || "");
+  if (/could not connect to peer/i.test(msg)) {
+    return "Partner is not live yet — they must click Start Camera first. Then click Join or Start Camera on your side.";
+  }
+  return msg || "Connection failed.";
+}
+
+async function joinPartnerCallWithRetry(remoteId) {
+  const id = String(remoteId || "").trim();
+  if (!id) throw new Error("Partner Session ID missing — wait for your partner to start the camera.");
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+    }
+    try {
+      return await ensurePeerSession({ asGuest: true, remoteId: id, acquireMedia: false });
+    } catch (err) {
+      lastErr = err;
+      hangup({ skipSessionPause: true });
+      const msg = String(err?.message || err || "");
+      if (!/could not connect to peer/i.test(msg)) throw err;
+    }
+  }
+  throw new Error(formatPeerConnectError(lastErr));
+}
+
 global.DualPeerConnect = {
   prepareHostCall: () => ensurePeerSession({ asGuest: false, acquireMedia: false }),
-  joinPartnerCall: (remoteId) =>
-    ensurePeerSession({ asGuest: true, remoteId, acquireMedia: false }),
+  joinPartnerCall: (remoteId) => joinPartnerCallWithRetry(remoteId),
   hangup,
 };
 
@@ -4143,7 +4173,7 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
     peer.on("error", (err) => {
       setStatus(
         sessionRole === "host" ? els.statusHost : els.statusGuest,
-        String(err.message || err),
+        formatPeerConnectError(err),
         "err"
       );
     });
@@ -4190,8 +4220,9 @@ function setupPeerHandlers() {
   });
 
   peer.on("error", (err) => {
-    setStatus(els.statusHost, String(err.message || err), "err");
-    setStatus(els.statusGuest, String(err.message || err), "err");
+    const msg = formatPeerConnectError(err);
+    setStatus(els.statusHost, msg, "err");
+    setStatus(els.statusGuest, msg, "err");
   });
 }
 
