@@ -9,6 +9,7 @@
   let meetingsBroadcastChannel = null;
   const ACTIVE_MEMBERS_KEY = "dualpeer-active-members-v1";
   const SESSION_PARTNER_KEY = "dualpeer-session-partner-v1";
+  const POOL_GENDER_FILTER_KEY = "dualpeer-member-pool-gender-filter";
   let couplingPartner = false;
   let lastPartnerPlaybookPartnerId = null;
   let lastPartnerPlaybookFingerprint = "";
@@ -33,6 +34,7 @@
     sessionJoinedMeetingId: null,
     expandedPoolMemberId: null,
     contactPoolRenderKey: "",
+    poolGenderFilter: "all",
     poolProfileCache: {},
     sessionBookings: [],
   };
@@ -467,6 +469,7 @@
       id: raw.id,
       username: raw.username,
       displayName: raw.displayName || raw.username || "Member",
+      gender: String(raw.gender || "").trim().toLowerCase(),
       avatarUrl: raw.avatarUrl || null,
       signedIn: Boolean(raw.signedIn || raw.online),
       isModel: Boolean(raw.isModel || raw.isPremiumPartner),
@@ -739,6 +742,68 @@
     nonbinary: "Non-binary",
     other: "Other",
   };
+  const POOL_GENDER_FILTER_OPTIONS = [
+    { id: "all", label: "All" },
+    { id: "male", label: "Men" },
+    { id: "female", label: "Women" },
+    { id: "other", label: "Other" },
+  ];
+
+  function loadPoolGenderFilter() {
+    try {
+      const stored = localStorage.getItem(POOL_GENDER_FILTER_KEY);
+      if (POOL_GENDER_FILTER_OPTIONS.some((o) => o.id === stored)) return stored;
+    } catch (_) {
+      /* ignore */
+    }
+    return "all";
+  }
+
+  function savePoolGenderFilter(filterId) {
+    try {
+      localStorage.setItem(POOL_GENDER_FILTER_KEY, filterId);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function contactMatchesPoolGenderFilter(contact, filterId) {
+    if (!filterId || filterId === "all") return true;
+    const gender = String(contact?.gender || "").trim().toLowerCase();
+    if (filterId === "male") return gender === "male";
+    if (filterId === "female") return gender === "female";
+    if (filterId === "other") return gender === "nonbinary" || gender === "other";
+    return true;
+  }
+
+  function poolGenderFilterLabel(filterId) {
+    return POOL_GENDER_FILTER_OPTIONS.find((o) => o.id === filterId)?.label || "All";
+  }
+
+  function filterContactsByGender(contacts, filterId) {
+    return (contacts || []).filter((c) => contactMatchesPoolGenderFilter(c, filterId));
+  }
+
+  function syncPoolGenderFilterUi(filterId) {
+    const root = document.getElementById("memberPoolGenderFilter");
+    if (!root) return;
+    root.querySelectorAll("[data-pool-gender-filter]").forEach((btn) => {
+      const on = btn.getAttribute("data-pool-gender-filter") === filterId;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function setPoolGenderFilter(filterId) {
+    const next =
+      POOL_GENDER_FILTER_OPTIONS.some((o) => o.id === filterId) ? filterId : "all";
+    if (state.poolGenderFilter === next) return;
+    state.poolGenderFilter = next;
+    state.contactPoolRenderKey = "";
+    savePoolGenderFilter(next);
+    syncPoolGenderFilterUi(next);
+    renderContactPoolPanel();
+  }
   const POOL_BODY_LABELS = {
     slim: "Slim",
     athletic: "Athletic",
@@ -769,10 +834,10 @@
     return `${m.id}:${m.signedIn ? 1 : 0}:${live}:${m.isPremiumPartner ? 1 : 0}`;
   }
 
-  function contactPoolRenderKey(regularContacts, premiumContacts, showPremium) {
+  function contactPoolRenderKey(regularContacts, premiumContacts, showPremium, genderFilter) {
     const regular = (regularContacts || []).map(poolCardRenderToken).join("|");
     const premium = showPremium ? (premiumContacts || []).map(poolCardRenderToken).join("|") : "";
-    return `${regular}::${premium}`;
+    return `${genderFilter || "all"}::${regular}::${premium}`;
   }
 
   function findPoolEntryByMemberId(memberId) {
@@ -3027,6 +3092,19 @@
     });
   }
 
+  function initMemberPoolGenderFilter() {
+    const root = document.getElementById("memberPoolGenderFilter");
+    if (!root || root.dataset.bound === "1") return;
+    root.dataset.bound = "1";
+    state.poolGenderFilter = loadPoolGenderFilter();
+    root.querySelectorAll("[data-pool-gender-filter]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setPoolGenderFilter(btn.getAttribute("data-pool-gender-filter") || "all");
+      });
+    });
+    syncPoolGenderFilterUi(state.poolGenderFilter);
+  }
+
   function initAddToModelPool() {
     const btn = document.getElementById("btnAddModelToPool");
     const input = document.getElementById("setupAddModelUsername");
@@ -3153,29 +3231,42 @@
     const showPremium = canAccessPremiumPartners();
     if (premiumSection) premiumSection.hidden = !showPremium;
 
-    const regularContacts = state.contactPool.filter((c) => !c.isPremiumPartner);
+    const genderFilter = state.poolGenderFilter || "all";
+    const allRegular = state.contactPool.filter((c) => !c.isPremiumPartner);
     const poolPartners = state.contactPool.filter((c) => c.isPremiumPartner);
     const premiumContacts = mergeContactPools(state.premiumPartners, poolPartners);
-    const renderKey = contactPoolRenderKey(regularContacts, premiumContacts, showPremium);
+    const regularContacts = filterContactsByGender(allRegular, genderFilter);
+    const filteredPremiumContacts = filterContactsByGender(premiumContacts, genderFilter);
+    const renderKey = contactPoolRenderKey(
+      regularContacts,
+      filteredPremiumContacts,
+      showPremium,
+      genderFilter
+    );
 
     if (renderKey === state.contactPoolRenderKey && root.childElementCount > 0) {
       restoreExpandedPoolMemberPreview();
       return;
     }
     state.contactPoolRenderKey = renderKey;
+    syncPoolGenderFilterUi(genderFilter);
 
     root.replaceChildren();
     if (!regularContacts.length) {
       if (status) {
         status.className = "status-line";
         status.textContent =
-          "No contacts yet — invite someone or complete a session to build your pool.";
+          genderFilter === "all"
+            ? "No contacts yet — invite someone or complete a session to build your pool."
+            : `No ${poolGenderFilterLabel(genderFilter).toLowerCase()} in your pool — try another filter or add contacts.`;
       }
     } else {
       if (status) {
         status.className = "status-line ok";
+        const filterNote =
+          genderFilter === "all" ? "" : ` (${poolGenderFilterLabel(genderFilter)})`;
         status.textContent =
-          `${regularContacts.length} contact${regularContacts.length === 1 ? "" : "s"} · click for profile · double-click for Current Chat Partner`;
+          `${regularContacts.length} contact${regularContacts.length === 1 ? "" : "s"}${filterNote} · click for profile · double-click for Current Chat Partner`;
       }
       for (const m of regularContacts) {
         root.appendChild(
@@ -3210,11 +3301,13 @@
       return;
     }
 
-    if (!premiumContacts.length) {
+    if (!filteredPremiumContacts.length) {
       if (premiumStatus) {
         premiumStatus.className = "status-line";
         premiumStatus.textContent =
-          "No models in your pool yet — they appear here when you add or book them.";
+          genderFilter === "all"
+            ? "No models in your pool yet — they appear here when you add or book them."
+            : `No ${poolGenderFilterLabel(genderFilter).toLowerCase()} among models — try another filter.`;
       }
       restoreExpandedPoolMemberPreview();
       return;
@@ -3222,9 +3315,11 @@
 
     if (premiumStatus) {
       premiumStatus.className = "status-line ok";
-      premiumStatus.textContent = `${premiumContacts.length} Model${premiumContacts.length === 1 ? "" : "s"} · click for profile · double-click for Current Chat Partner`;
+      const filterNote =
+        genderFilter === "all" ? "" : ` (${poolGenderFilterLabel(genderFilter)})`;
+      premiumStatus.textContent = `${filteredPremiumContacts.length} Model${filteredPremiumContacts.length === 1 ? "" : "s"}${filterNote} · click for profile · double-click for Current Chat Partner`;
     }
-    for (const m of premiumContacts) {
+    for (const m of filteredPremiumContacts) {
       premiumRoot.appendChild(
         buildPoolEntry(m, {
           variant: "pool",
@@ -3546,6 +3641,7 @@
     listenBroadcast();
     mountMeetingBlocks();
     initMeetingBlocks();
+    initMemberPoolGenderFilter();
     initAddToModelPool();
     initMembersToolbar();
     initPartnerInstantSession();

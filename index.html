@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8664" />
+    <link rel="stylesheet" href="assets/styles.css?v=8676" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -1122,6 +1122,48 @@
               <button type="button" class="secondary" id="btnAddModelToPool">Add to pool</button>
             </div>
             <p class="status-line" id="setupAddModelStatus" hidden></p>
+            <div class="member-pool-gender-filter-row">
+              <span class="member-pool-gender-filter-label" id="memberPoolGenderFilterLabel">Show</span>
+              <div
+                class="theme-segmented member-pool-gender-filter"
+                id="memberPoolGenderFilter"
+                role="group"
+                aria-labelledby="memberPoolGenderFilterLabel"
+              >
+                <button
+                  type="button"
+                  class="theme-segment"
+                  data-pool-gender-filter="all"
+                  aria-pressed="true"
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  class="theme-segment"
+                  data-pool-gender-filter="male"
+                  aria-pressed="false"
+                >
+                  Men
+                </button>
+                <button
+                  type="button"
+                  class="theme-segment"
+                  data-pool-gender-filter="female"
+                  aria-pressed="false"
+                >
+                  Women
+                </button>
+                <button
+                  type="button"
+                  class="theme-segment"
+                  data-pool-gender-filter="other"
+                  aria-pressed="false"
+                >
+                  Other
+                </button>
+              </div>
+            </div>
             <h3 class="member-pool-section-title">Contacts</h3>
             <div id="modelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="modelPoolStatus">Sign in to load your member pool.</p>
@@ -1346,7 +1388,7 @@
     <script src="assets/auth.js?v=8675"></script>
     <script src="assets/model-booking.js?v=8660"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
-    <script src="assets/social.js?v=8674"></script>
+    <script src="assets/social.js?v=8676"></script>
     <script src="assets/member-profile.js?v=8675"></script>
   </body>
 </html>

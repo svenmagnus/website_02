@@ -4412,6 +4412,27 @@ body.has-gallery-lightbox-open {
   margin-top: 0.35rem;
 }
 
+.member-pool-gender-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: 0.85rem 0 0.15rem;
+}
+
+.member-pool-gender-filter-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.member-pool-gender-filter {
+  flex: 1 1 14rem;
+  max-width: 100%;
+}
+
 .member-pool-section-title {
   margin: 1rem 0 0.5rem;
   font-size: 0.82rem;

@@ -83,6 +83,7 @@ function userPublicRow(row) {
     id: row.id,
     username: row.username,
     displayName: row.display_name || row.username,
+    gender: String(row.gender || "").trim().toLowerCase(),
     accountType: row.account_type === "host" ? "host" : "guest",
     avatarUrl: avatarUrlForUser(row),
     chatColors: chatColorsFromRow(row),
@@ -543,7 +544,7 @@ socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
   touchPresence(db, uid);
   const rows = db
     .prepare(
-      `SELECT mp.*, u.username, u.display_name, u.last_seen_at, u.avatar_path, u.avatar_updated_at, u.is_model
+      `SELECT mp.*, u.username, u.display_name, u.gender, u.last_seen_at, u.avatar_path, u.avatar_updated_at, u.is_model
        FROM model_pool mp
        JOIN users u ON u.id = mp.model_user_id
        WHERE mp.owner_user_id = ? AND NOT EXISTS (
@@ -558,6 +559,7 @@ socialRouter.get("/social/model-pool", requireAuth, (req, res) => {
     id: row.model_user_id,
     username: row.username,
     displayName: row.display_name || row.username,
+    gender: String(row.gender || "").trim().toLowerCase(),
     registeredAt: row.registered_at || row.created_at,
     online: isUserOnline(db, row.model_user_id),
     signedIn: isUserOnline(db, row.model_user_id),

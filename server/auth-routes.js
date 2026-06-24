@@ -1293,7 +1293,7 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
   const db = getDb();
   const rows = db
     .prepare(
-      `SELECT u.id, u.username, u.display_name, u.account_type, u.is_premium, u.is_admin, u.is_model,
+      `SELECT u.id, u.username, u.display_name, u.gender, u.account_type, u.is_premium, u.is_admin, u.is_model,
               u.avatar_path, u.avatar_updated_at, u.last_seen_at,
               pp.platform_share_percent, pp.hourly_rate_minor,
               pp.connect_onboarding_complete, pp.payouts_enabled
@@ -1308,6 +1308,7 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
     id: row.id,
     username: row.username,
     displayName: row.display_name || row.username,
+    gender: String(row.gender || "").trim().toLowerCase(),
     accountType: normalizeAccountType(row.account_type),
     isPremium: Boolean(row.is_premium),
     isAdmin: Boolean(row.is_admin),
