@@ -257,10 +257,17 @@
     }
     if (state.sessionJoinedMeetingId !== meeting.id) {
       await joinInstantMeeting(meeting);
-      return;
     }
-    const peerId = String(meeting.hostPeerId || "").trim();
-    if (peerId && !global.appHasPeerConnection?.()) {
+    const live =
+      state.meetings.find((m) => m.id === meeting.id) ||
+      meeting;
+    const peerId = String(live.hostPeerId || "").trim();
+    if (!peerId) {
+      throw new Error(
+        "Your partner has not opened the camera yet — ask them to click Start Camera first."
+      );
+    }
+    if (!global.appHasPeerConnection?.()) {
       await global.DualPeerConnect?.joinPartnerCall?.(peerId);
     }
   }
@@ -2076,19 +2083,36 @@
       return true;
     });
     const peerId = peerIdOverride || waiting?.hostPeerId;
-    if (peerIn instanceof HTMLInputElement && peerId && peerIn.value.trim() !== peerId) {
+    const peerIdChanged =
+      peerIn instanceof HTMLInputElement &&
+      peerId &&
+      peerIn.value.trim() !== peerId;
+    if (peerIdChanged) {
       peerIn.value = peerId;
       peerIn.placeholder = "Session ID (auto-filled) …";
       peerIn.dispatchEvent(new Event("input", { bubbles: true }));
       const guestStatus = document.getElementById("statusGuest");
       if (guestStatus && !global.appSessionRole?.()) {
-        guestStatus.textContent = peerId
-          ? "Session ID ready — connecting to partner …"
-          : "Partner started a session — waiting for their camera …";
+        guestStatus.textContent = "Session ID ready — connecting to partner …";
+        guestStatus.className = "status-line ok";
+      }
+    } else if (
+      peerIn instanceof HTMLInputElement &&
+      waiting &&
+      !peerId &&
+      !global.appSessionRole?.()
+    ) {
+      const guestStatus = document.getElementById("statusGuest");
+      if (guestStatus) {
+        guestStatus.textContent =
+          "Session live — waiting for partner to click Start Camera …";
         guestStatus.className = "status-line ok";
       }
     }
-    if (peerId) tryAutoJoinPartnerCall(peerId);
+    if (peerId) {
+      autoJoinPeerId = "";
+      tryAutoJoinPartnerCall(peerId);
+    }
     updateSessionActionHighlight();
   }
 
@@ -2374,10 +2398,8 @@
 
   function getInstantSessionButtonMode(partnerId) {
     const meeting = partnerId ? findActiveInstantSessionWithPartner(partnerId) : null;
-    if (!meeting) return "start";
-    if (meeting.isHost) return "stop";
-    if (state.sessionJoinedMeetingId === meeting.id) return "active";
-    return "join";
+    if (meeting) return "stop";
+    return "start";
   }
 
   function setInstantSessionButtonMode(mode) {
@@ -2394,26 +2416,12 @@
       btn.title = "End the instant session for you and your partner";
       return;
     }
-    if (mode === "active") {
-      btn.dataset.sessionAction = "active";
-      btn.classList.remove("primary");
-      btn.classList.add("secondary");
-      if (icon) icon.className = "bi bi-broadcast";
-      if (label) label.textContent = "Session active";
-      btn.title = "Instant session is live — use Start Camera below";
-      return;
-    }
     btn.dataset.sessionAction = "start";
     btn.classList.add("primary");
     btn.classList.remove("secondary");
     if (icon) icon.className = "bi bi-lightning-charge";
-    if (mode === "join") {
-      if (label) label.textContent = "Join instant session";
-      btn.title = "Join your partner's instant session";
-    } else {
-      if (label) label.textContent = "Start instant session";
-      btn.title = "Start an instant session with your partner";
-    }
+    if (label) label.textContent = "Start instant session";
+    btn.title = "Start an instant session with your partner";
   }
 
   function setPartnerInstantStatus(msg, cls = "ok") {
@@ -3216,11 +3224,6 @@
       const partnerId = getCoupledPartnerId();
       if (action === "stop") {
         stopCurrentInstantSession();
-        return;
-      }
-      if (action === "active") {
-        setPartnerInstantStatus("Session is live — use Start Camera below.", "ok");
-        document.getElementById("btnStartHost")?.focus();
         return;
       }
       startInstantSessionForPartner(partnerId);

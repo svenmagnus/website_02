@@ -4081,6 +4081,10 @@ function bindMediaCallHandlers(call) {
 
 async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {}) {
   if (hasPeerConnection()) {
+    if (acquireMedia && getBroadcastMode() !== "whip") {
+      await ensureOutboundMediaForPeer({ startLive: true });
+      await enableLocalCameraPublishing();
+    }
     return { role: sessionRole, alreadyConnected: true };
   }
   if (peerConnectInFlight) return peerConnectInFlight;
@@ -4227,6 +4231,15 @@ function setupPeerHandlers() {
 }
 
 els.btnStartHost.addEventListener("click", async () => {
+  try {
+    await global.DualPeerSocial?.ensureLiveInstantReadyForCamera?.();
+  } catch (prepErr) {
+    const msg = String(prepErr?.message || prepErr || "Could not prepare session.");
+    setStatus(els.statusGuest, msg, "err");
+    setStatus(els.statusHost, msg, "err");
+    return;
+  }
+
   if (sessionRole && peer) {
     try {
       await setLocalCameraEnabled(!isLocalCameraActive());
@@ -4236,16 +4249,7 @@ els.btnStartHost.addEventListener("click", async () => {
     return;
   }
 
-  hangup();
   micWantedEnabled = false;
-
-  try {
-    await global.DualPeerSocial?.ensureLiveInstantReadyForCamera?.();
-  } catch (prepErr) {
-    setStatus(els.statusGuest, String(prepErr?.message || prepErr), "err");
-    setStatus(els.statusHost, String(prepErr?.message || prepErr), "err");
-    return;
-  }
 
   const role = global.DualPeerSocial?.resolveStartCameraRole?.() || {
     asGuest: Boolean((els.peerIdIn.value || "").trim()),
