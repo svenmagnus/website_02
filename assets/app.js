@@ -2136,7 +2136,16 @@ function updatePeerConnectionStatus() {
   const dataOk = !!(dataConn && dataConn.open);
 
   if (sessionRole === "host") {
-    if (!videoOk && !dataOk) return;
+    if (!videoOk && !dataOk) {
+      if (isLocalCameraActive()) {
+        setStatus(
+          els.statusHost,
+          "Your camera is live — waiting for partner to connect.",
+          "ok"
+        );
+      }
+      return;
+    }
     if (videoOk && dataOk) {
       const remoteLive = isRemoteVideoPublishing();
       setStatus(
@@ -3426,9 +3435,11 @@ async function publishHostPeerIdToGuest(peerId) {
 }
 
 global.appSessionRole = () => sessionRole;
+global.appLocalPeerId = () => (peer && !peer.destroyed ? String(peer.id || "") : "");
 global.appLocalCameraActive = () => isLocalCameraActive();
 global.appLocalMicEnabled = () => isLocalMicEnabled();
 global.appHasPeerConnection = () => hasPeerConnection();
+global.appHasRemotePeer = () => !!(dataConn?.open || hasRemoteVideo());
 function formatPeerConnectError(err) {
   const msg = String(err?.message || err || "");
   if (/could not connect to peer/i.test(msg)) {
@@ -4168,7 +4179,9 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
       setStatus(
         els.statusHost,
         acquireMedia
-          ? "Waiting for partner to connect … share Session ID if needed."
+          ? isLocalCameraActive()
+            ? "Your camera is live — waiting for partner to connect."
+            : "Waiting for partner to connect …"
           : "Session ready — click Start Camera to go live for your partner.",
         "ok"
       );

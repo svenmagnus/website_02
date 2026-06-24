@@ -227,7 +227,30 @@
 
   function getMeetingPeerOwnerId(meeting) {
     if (!meeting) return "";
-    return String(meeting.peerUserId || meeting.host?.id || "").trim();
+    const explicit = String(meeting.peerUserId || "").trim();
+    if (explicit) return explicit;
+    const peerId = String(meeting.hostPeerId || "").trim();
+    if (!peerId) return String(meeting.host?.id || "").trim();
+    const myId = getSessionUserId();
+    const localPeerId = String(global.appLocalPeerId?.() || "").trim();
+    if (localPeerId && localPeerId === peerId) return myId;
+    if (myId && meeting.host?.id === myId && meeting.guest?.id) {
+      return String(meeting.guest.id).trim();
+    }
+    if (myId && meeting.guest?.id === myId && meeting.host?.id) {
+      return String(meeting.host.id).trim();
+    }
+    return String(meeting.host?.id || "").trim();
+  }
+
+  function iPublishedMeetingPeerId(meeting) {
+    const myId = getSessionUserId();
+    if (!myId || !meeting) return false;
+    const peerId = String(meeting.hostPeerId || "").trim();
+    if (!peerId) return false;
+    const localPeerId = String(global.appLocalPeerId?.() || "").trim();
+    if (localPeerId && localPeerId === peerId) return true;
+    return getMeetingPeerOwnerId(meeting) === myId;
   }
 
   function partnerPublishedPeerId(meeting) {
@@ -263,12 +286,30 @@
     if (!meeting) return;
     const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
     if (partnerPublishedPeerId(live)) {
+      const targetPeerId = String(live.hostPeerId || "").trim();
+      const localPeerId = String(global.appLocalPeerId?.() || "").trim();
+      if (
+        global.appHasPeerConnection?.() &&
+        localPeerId &&
+        targetPeerId &&
+        localPeerId !== targetPeerId &&
+        !global.appHasRemotePeer?.()
+      ) {
+        global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
+      }
       if (!meeting.isHost && state.sessionJoinedMeetingId !== meeting.id) {
         await joinInstantMeeting(live);
       }
       if (!global.appHasPeerConnection?.()) {
-        await global.DualPeerConnect?.joinPartnerCall?.(String(live.hostPeerId).trim());
+        await global.DualPeerConnect?.joinPartnerCall?.(targetPeerId);
       }
+      return;
+    }
+    if (
+      global.appHasPeerConnection?.() &&
+      iPublishedMeetingPeerId(live) &&
+      !global.appHasRemotePeer?.()
+    ) {
       return;
     }
     if (!global.appHasPeerConnection?.()) {
@@ -1779,9 +1820,6 @@
       return;
     }
     state._pendingMeetingId = meeting.id;
-    if (!global.appHasPeerConnection?.()) {
-      tryPrepareHostCall();
-    }
   }
 
   async function refreshMeetingsFromServer() {
@@ -1959,15 +1997,26 @@
 
   function tryAutoJoinPartnerCall(remoteId) {
     const peerId = String(remoteId || "").trim();
-    if (!peerId || global.appHasPeerConnection?.()) return;
+    if (!peerId) return;
     if (!isActiveInstantSession() && !isSessionJoined()) return;
     const meeting = findActiveInstantSessionWithPartner(getCoupledPartnerId());
     if (meeting && !partnerPublishedPeerId(meeting)) return;
+
+    const localPeerId = String(global.appLocalPeerId?.() || "").trim();
+    if (localPeerId === peerId) return;
+
+    if (global.appHasPeerConnection?.()) {
+      if (global.appHasRemotePeer?.()) return;
+      global.DualPeerConnect?.hangup?.({ skipSessionPause: true });
+    }
+
     if (autoJoinTimer && autoJoinPeerId === peerId) return;
     autoJoinPeerId = peerId;
     if (autoJoinTimer) clearTimeout(autoJoinTimer);
+    const delay = localPeerId ? 300 : 1200;
     autoJoinTimer = setTimeout(() => {
       autoJoinTimer = null;
+      if (global.appHasPeerConnection?.()) return;
       global.DualPeerConnect?.joinPartnerCall?.(peerId).catch((err) => {
         const guestStatus = document.getElementById("statusGuest");
         if (guestStatus && !global.appHasPeerConnection?.()) {
@@ -1977,12 +2026,17 @@
           guestStatus.className = "status-line err";
         }
       });
-    }, 1200);
+    }, delay);
   }
 
   function tryPrepareHostCall() {
     if (global.appHasPeerConnection?.()) return;
-    if (!findMyPendingProviderMeeting() && !findActiveInstantSessionWithPartner(getCoupledPartnerId())) {
+    const meeting = findActiveInstantSessionWithPartner(getCoupledPartnerId());
+    if (meeting && partnerPublishedPeerId(meeting)) {
+      applyHostPeerIdFromMeetings();
+      return;
+    }
+    if (!findMyPendingProviderMeeting() && !meeting) {
       return;
     }
     global.DualPeerConnect?.prepareHostCall?.().catch((err) => {
@@ -2096,7 +2150,6 @@
         peerIn.value = "";
         peerIn.dispatchEvent(new Event("input", { bubbles: true }));
       }
-      tryPrepareHostCall();
       updateSessionActionHighlight();
       return;
     }
@@ -2520,7 +2573,6 @@
     if (existing) {
       if (existing.isHost) {
         state._pendingMeetingId = existing.id;
-        tryPrepareHostCall();
         setPartnerInstantStatus("Instant session live — click Start Camera when ready.", "ok");
         setMeetingStatusOnAll("Instant session live — click Start Camera when ready.", "ok");
         updatePartnerInstantRow();
@@ -2558,8 +2610,6 @@
       state._pendingMeetingId = meeting?.id;
       if (meeting && !meeting.isHost) {
         await joinInstantMeeting(meeting);
-      } else {
-        tryPrepareHostCall();
       }
       broadcastMeetingsChanged();
     } catch (err) {
