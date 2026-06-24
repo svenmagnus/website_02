@@ -57,7 +57,9 @@ function resolvePeerSignalingOptions() {
   opts.host = host;
   opts.path = "/peerjs";
   opts.secure = location.protocol === "https:";
-  opts.port = opts.secure ? 443 : Number(location.port) || devApiPort;
+  if (!opts.secure) {
+    opts.port = Number(location.port) || devApiPort;
+  }
   return opts;
 }
 
@@ -4134,13 +4136,56 @@ function bindMediaCallHandlers(call) {
   setTimeout(() => cacheLocalVideoSender(), 300);
 }
 
+function createPeerConnection(requestedId) {
+  const id =
+    requestedId != null && String(requestedId).trim() ? String(requestedId).trim() : undefined;
+  const instance = new Peer(id, resolvePeerSignalingOptions());
+  return new Promise((resolve, reject) => {
+    const onOpen = () => {
+      instance.off("error", onError);
+      resolve(instance);
+    };
+    const onError = (err) => {
+      instance.off("open", onOpen);
+      try {
+        instance.destroy();
+      } catch (_) {
+        /* ignore */
+      }
+      reject(err);
+    };
+    instance.once("open", onOpen);
+    instance.once("error", onError);
+  });
+}
+
+function getInstantMeetingPeerId() {
+  const meeting = global.DualPeerSocial?.findActiveInstantSessionWithPartner?.();
+  if (!meeting?.id || !global.DualPeerSocial?.getMeetingPeerId) return "";
+  return String(global.DualPeerSocial.getMeetingPeerId(meeting.id) || "").trim();
+}
+
 async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {}) {
+  const meetingPeerId = getInstantMeetingPeerId();
+
   if (hasPeerConnection()) {
-    if (acquireMedia && getBroadcastMode() !== "whip") {
+    const meeting = global.DualPeerSocial?.findActiveInstantSessionWithPartner?.();
+    const shouldBeGuest = Boolean(meeting && global.DualPeerSocial?.partnerPublishedPeerId?.(meeting));
+    const wrongHost =
+      sessionRole === "host" &&
+      meetingPeerId &&
+      peer?.id &&
+      peer.id !== meetingPeerId &&
+      !global.appHasRemotePeer?.();
+    if (shouldBeGuest && wrongHost) {
+      hangup({ skipSessionPause: true });
+    } else if (acquireMedia && getBroadcastMode() !== "whip") {
       await ensureOutboundMediaForPeer({ startLive: true });
       await enableLocalCameraPublishing();
+      return { role: sessionRole, alreadyConnected: true };
+    } else if (!wrongHost) {
+      return { role: sessionRole, alreadyConnected: true };
     }
-    return { role: sessionRole, alreadyConnected: true };
   }
   if (peerConnectInFlight) return peerConnectInFlight;
 
@@ -4151,15 +4196,13 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
     await global.DualPeerSocial.bootstrap({ loadChat: false });
     const meeting = global.DualPeerSocial.findActiveInstantSessionWithPartner?.();
     if (meeting && global.DualPeerSocial.partnerPublishedPeerId?.(meeting)) {
-      const partnerPeerId = String(meeting.hostPeerId || "").trim();
-      if (partnerPeerId) {
-        startAsGuest = true;
-        remoteId = partnerPeerId;
-      }
+      startAsGuest = true;
+      remoteId = String(meeting.hostPeerId || global.DualPeerSocial.getMeetingPeerId?.(meeting.id) || "").trim();
     }
   }
 
-  const guestRemoteId = String(startAsGuest ? remoteId || remote : "").trim();
+  let guestRemoteId = String(startAsGuest ? remoteId || remote || meetingPeerId : "").trim();
+  if (startAsGuest && !guestRemoteId && meetingPeerId) guestRemoteId = meetingPeerId;
   if (startAsGuest && !guestRemoteId) {
     throw new Error("Partner Session ID missing — wait for your partner to start the camera.");
   }
@@ -4187,20 +4230,25 @@ async function ensurePeerSession({ asGuest, remoteId, acquireMedia = false } = {
     }
 
     const whipMode = getBroadcastMode() === "whip";
-    peer = new Peer(undefined, resolvePeerSignalingOptions());
 
-    await new Promise((resolve, reject) => {
-      const onOpen = (id) => {
-        peer.off("error", onError);
-        resolve(id);
-      };
-      const onError = (err) => {
-        peer.off("open", onOpen);
-        reject(err);
-      };
-      peer.once("open", onOpen);
-      peer.once("error", onError);
-    });
+    if (!startAsGuest && meetingPeerId) {
+      try {
+        peer = await createPeerConnection(meetingPeerId);
+        sessionRole = "host";
+      } catch (err) {
+        if (err?.type === "unavailable-id") {
+          startAsGuest = true;
+          guestRemoteId = meetingPeerId;
+          sessionRole = "guest";
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (!peer) {
+      peer = await createPeerConnection(startAsGuest ? undefined : meetingPeerId || undefined);
+    }
 
     els.peerIdOut.textContent = peer.id;
     setupPeerHandlers();

@@ -337,7 +337,7 @@
       coupleSessionWithPartner(partnerFromMeeting, { addToMembers: false });
     }
     const live = state.meetings.find((m) => m.id === meeting.id) || meeting;
-    const serverPeerId = String(live.hostPeerId || "").trim();
+    const serverPeerId = String(live.hostPeerId || getMeetingPeerId(live.id) || "").trim();
     if (!serverPeerId) return;
     if (iPublishedMeetingPeerId(live)) return;
     if (global.appHasRemotePeer?.()) return;
@@ -517,6 +517,28 @@
     return contact;
   }
 
+  function getMeetingPeerId(meetingId) {
+    const compact = String(meetingId || "").replace(/-/g, "");
+    if (!compact) return "";
+    return `tc${compact}`.slice(0, 20);
+  }
+
+  function getSessionBookingPartnerContext() {
+    const partner = getActiveSessionPartner();
+    if (!partner?.id) return null;
+    if (isPremiumPartnerAccount()) {
+      const guest = resolveGuestForBooking(partner.id);
+      return guest ? { partner: guest, role: "member" } : null;
+    }
+    const model = resolveModelForBooking(partner.id);
+    return model ? { partner: model, role: "model" } : null;
+  }
+
+  function shouldShowSessionBookingsSection() {
+    if (!canUseSessionBookings()) return false;
+    return Boolean(getSessionBookingPartnerContext());
+  }
+
   function canShowSessionBookingRequest() {
     if (!canUseSessionBookings()) return false;
     if (isPremiumPartnerAccount()) {
@@ -553,11 +575,13 @@
 
   function updateSessionBookingRequestButtons() {
     const show = canShowSessionBookingRequest();
-    const showSection = canUseSessionBookings() && (isPremiumPartnerAccount() || canAccessPremiumPartners());
+    const showSection = shouldShowSessionBookingsSection();
+    const bookingsSection = document.getElementById("sessionBookingsSection");
     const bookingsActions = document.getElementById("sessionBookingsActions");
     const bookingsBtn = document.getElementById("btnSessionBookingRequest");
     const paidHint = document.getElementById("sessionBookingsPaidHint");
     const paidLabel = isPremiumPartnerAccount() ? "Send paid session offer" : "Request paid session";
+    if (bookingsSection) bookingsSection.hidden = !showSection;
     if (bookingsBtn) {
       bookingsBtn.disabled = !show;
       bookingsBtn.textContent = paidLabel;
@@ -568,6 +592,7 @@
         ? "Optional — free video chat uses Start instant session above."
         : "Optional — free video chat uses Start instant session; no payment needed.";
     }
+    updateSessionBookingsChrome();
   }
 
   function mergeContactPools(...lists) {
@@ -844,7 +869,7 @@
 
   async function loadSessionBookings() {
     const section = document.getElementById("sessionBookingsSection");
-    if (!canUseSessionBookings()) {
+    if (!shouldShowSessionBookingsSection()) {
       state.sessionBookings = [];
       if (section) section.hidden = true;
       return;
@@ -864,13 +889,37 @@
 
   function updateSessionBookingsChrome() {
     const hint = document.getElementById("sessionBookingsHint");
+    const badge = document.getElementById("sessionBookingsModelBadge");
+    const ctx = getSessionBookingPartnerContext();
+    if (badge) {
+      if (ctx?.role === "model") {
+        const name = ctx.partner.displayName || ctx.partner.username || "Model";
+        badge.hidden = false;
+        badge.textContent = `Model · ${name}`;
+        badge.title = "Paid sessions with this model";
+      } else if (ctx?.role === "member" && isPremiumPartnerAccount()) {
+        const name = ctx.partner.displayName || ctx.partner.username || "Member";
+        badge.hidden = false;
+        badge.textContent = `Member · ${name}`;
+        badge.className = "model-signed-in-badge";
+        badge.title = "Paid sessions with this member";
+      } else {
+        badge.hidden = true;
+        badge.textContent = "";
+        badge.className = "model-premium-partner-badge";
+      }
+    }
     if (!hint) return;
     if (isPremiumPartnerAccount()) {
-      hint.textContent =
-        "Free sessions: use Start instant session above — no booking required. Paid sessions: incoming requests from Premium Members (accept/decline), or send an offer with Send paid session offer.";
+      hint.textContent = ctx
+        ? `Paid sessions with ${ctx.partner.displayName || ctx.partner.username}. Free video uses Start instant session above.`
+        : "Select a member under Partner for this session to manage paid sessions.";
+    } else if (ctx?.role === "model") {
+      const name = ctx.partner.displayName || ctx.partner.username || "this model";
+      hint.textContent = `Paid sessions with model ${name}. Free video uses Start instant session — no booking required.`;
     } else {
       hint.textContent =
-        "Free sessions: Start instant session needs no booking. Paid sessions: send a request below — the model accepts, then you pay into escrow.";
+        "Select a model under Partner for this session to request a paid session.";
     }
   }
 
@@ -2041,7 +2090,7 @@
   async function enforcePartnerGuestConnection(meeting, peerIdOverride) {
     const live = state.meetings.find((m) => m.id === meeting?.id) || meeting;
     if (!live || !partnerPublishedPeerId(live)) return;
-    const peerId = String(peerIdOverride || live.hostPeerId || "").trim();
+    const peerId = String(peerIdOverride || live.hostPeerId || getMeetingPeerId(live.id) || "").trim();
     if (!peerId) return;
     const localPeerId = String(global.appLocalPeerId?.() || "").trim();
     if (localPeerId === peerId && global.appHasRemotePeer?.()) return;
@@ -2202,7 +2251,7 @@
     const instant = findActiveInstantSessionWithPartner(partnerId);
     if (instant) {
       const live = state.meetings.find((m) => m.id === instant.id) || instant;
-      const peerId = peerIdOverride || live.hostPeerId;
+      const peerId = peerIdOverride || live.hostPeerId || getMeetingPeerId(live.id);
       if (partnerPublishedPeerId(live)) {
         if (peerIn instanceof HTMLInputElement && peerId && peerIn.value.trim() !== peerId) {
           peerIn.value = peerId;
@@ -3182,23 +3231,28 @@
       setPartnerInstantStatus("");
       updatePartnerInstantRow();
       updateSessionBookingRequestButtons();
+      const bookingsSection = document.getElementById("sessionBookingsSection");
+      if (bookingsSection) bookingsSection.hidden = true;
       return;
     }
     state.activeMembers = [partner];
     if (status) {
       status.className = "status-line ok";
-      status.textContent = `Partner for this session: ${partner.displayName || partner.username}.`;
+      const modelBadge = isBookableModelContact(partner) ? " (Model)" : "";
+      status.textContent = `Partner for this session: ${partner.displayName || partner.username}${modelBadge}.`;
     }
     root.appendChild(
       buildMemberCard(partner, {
         variant: "active",
         selected: true,
+        premiumPartner: isBookableModelContact(partner),
         onSelect: (member) => coupleSessionWithPartner(member.id, { addToMembers: true }),
         onRemove: (id) => removeActiveMember(id),
       })
     );
     updatePartnerInstantRow();
     updateSessionBookingRequestButtons();
+    void loadSessionBookings();
   }
 
   async function refreshMembersWorkspace() {
@@ -3515,6 +3569,7 @@
     resolveStartCameraRole,
     ensureLiveInstantReadyForCamera,
     isInstantSessionHostForPartner,
+    getMeetingPeerId,
     findActiveInstantSessionWithPartner,
     partnerPublishedPeerId,
     enforcePartnerGuestConnection,
