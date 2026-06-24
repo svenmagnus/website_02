@@ -227,8 +227,13 @@
 
   function resolveStartCameraRole() {
     const partnerId = getCoupledPartnerId();
-    if (isInstantSessionHostForPartner(partnerId)) {
+    const meeting = findActiveInstantSessionWithPartner(partnerId);
+    if (meeting?.isHost || isInstantSessionHostForPartner(partnerId)) {
       return { asGuest: false, remoteId: "" };
+    }
+    if (meeting && !meeting.isHost) {
+      const peerId = String(meeting.hostPeerId || "").trim();
+      if (peerId) return { asGuest: true, remoteId: peerId };
     }
     const partnerLive = findPartnerLiveMeeting();
     if (partnerLive?.hostPeerId) {
@@ -237,6 +242,27 @@
     const peerIn = document.getElementById("peerIdIn");
     const remoteId = peerIn instanceof HTMLInputElement ? peerIn.value.trim() : "";
     return { asGuest: Boolean(remoteId), remoteId };
+  }
+
+  async function ensureLiveInstantReadyForCamera() {
+    const partnerId = getCoupledPartnerId();
+    if (!partnerId) return;
+    const meeting = findActiveInstantSessionWithPartner(partnerId);
+    if (!meeting) return;
+    if (meeting.isHost) {
+      if (!global.appHasPeerConnection?.()) {
+        await global.DualPeerConnect?.prepareHostCall?.();
+      }
+      return;
+    }
+    if (state.sessionJoinedMeetingId !== meeting.id) {
+      await joinInstantMeeting(meeting);
+      return;
+    }
+    const peerId = String(meeting.hostPeerId || "").trim();
+    if (peerId && !global.appHasPeerConnection?.()) {
+      await global.DualPeerConnect?.joinPartnerCall?.(peerId);
+    }
   }
 
   function clearPartnerPlaybookState() {
@@ -2348,9 +2374,10 @@
 
   function getInstantSessionButtonMode(partnerId) {
     const meeting = partnerId ? findActiveInstantSessionWithPartner(partnerId) : null;
-    if (meeting && !meeting.isHost) return "join";
-    if (meeting) return "stop";
-    return "start";
+    if (!meeting) return "start";
+    if (meeting.isHost) return "stop";
+    if (state.sessionJoinedMeetingId === meeting.id) return "active";
+    return "join";
   }
 
   function setInstantSessionButtonMode(mode) {
@@ -2365,6 +2392,15 @@
       if (icon) icon.className = "bi bi-stop-circle";
       if (label) label.textContent = "Stop current session";
       btn.title = "End the instant session for you and your partner";
+      return;
+    }
+    if (mode === "active") {
+      btn.dataset.sessionAction = "active";
+      btn.classList.remove("primary");
+      btn.classList.add("secondary");
+      if (icon) icon.className = "bi bi-broadcast";
+      if (label) label.textContent = "Session active";
+      btn.title = "Instant session is live — use Start Camera below";
       return;
     }
     btn.dataset.sessionAction = "start";
@@ -3175,9 +3211,16 @@
 
   function initPartnerInstantSession() {
     document.getElementById("btnStartInstantSession")?.addEventListener("click", () => {
+      const btn = document.getElementById("btnStartInstantSession");
+      const action = btn?.dataset.sessionAction || "start";
       const partnerId = getCoupledPartnerId();
-      if (findActiveInstantSessionWithPartner(partnerId)) {
+      if (action === "stop") {
         stopCurrentInstantSession();
+        return;
+      }
+      if (action === "active") {
+        setPartnerInstantStatus("Session is live — use Start Camera below.", "ok");
+        document.getElementById("btnStartHost")?.focus();
         return;
       }
       startInstantSessionForPartner(partnerId);
@@ -3288,6 +3331,7 @@
     publishHostPeerId,
     getActiveLiveMeetingId,
     resolveStartCameraRole,
+    ensureLiveInstantReadyForCamera,
     isInstantSessionHostForPartner,
     applyHostPeerIdFromMeetings,
     updateSessionActionHighlight,

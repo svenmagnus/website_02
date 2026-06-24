@@ -4239,6 +4239,14 @@ els.btnStartHost.addEventListener("click", async () => {
   hangup();
   micWantedEnabled = false;
 
+  try {
+    await global.DualPeerSocial?.ensureLiveInstantReadyForCamera?.();
+  } catch (prepErr) {
+    setStatus(els.statusGuest, String(prepErr?.message || prepErr), "err");
+    setStatus(els.statusHost, String(prepErr?.message || prepErr), "err");
+    return;
+  }
+
   const role = global.DualPeerSocial?.resolveStartCameraRole?.() || {
     asGuest: Boolean((els.peerIdIn.value || "").trim()),
     remoteId: (els.peerIdIn.value || "").trim(),
