@@ -33,7 +33,8 @@
     activeUserId: null,
     sessionJoinedMeetingId: null,
     expandedPoolMemberId: null,
-    contactPoolRenderKey: "",
+    contactPoolListKey: "",
+    contactPoolCardStateKey: "",
     poolGenderFilter: "all",
     poolProfileCache: {},
     sessionBookings: [],
@@ -799,7 +800,8 @@
       POOL_GENDER_FILTER_OPTIONS.some((o) => o.id === filterId) ? filterId : "all";
     if (state.poolGenderFilter === next) return;
     state.poolGenderFilter = next;
-    state.contactPoolRenderKey = "";
+    state.contactPoolListKey = "";
+    state.contactPoolCardStateKey = "";
     savePoolGenderFilter(next);
     syncPoolGenderFilterUi(next);
     renderContactPoolPanel();
@@ -834,7 +836,13 @@
     return `${m.id}:${m.signedIn ? 1 : 0}:${live}:${m.isPremiumPartner ? 1 : 0}`;
   }
 
-  function contactPoolRenderKey(regularContacts, premiumContacts, showPremium, genderFilter) {
+  function contactPoolListKey(regularContacts, premiumContacts, showPremium, genderFilter) {
+    const regular = (regularContacts || []).map((m) => m.id).join("|");
+    const premium = showPremium ? (premiumContacts || []).map((m) => m.id).join("|") : "";
+    return `${genderFilter || "all"}::${regular}::${premium}`;
+  }
+
+  function contactPoolCardStateKey(regularContacts, premiumContacts, showPremium, genderFilter) {
     const regular = (regularContacts || []).map(poolCardRenderToken).join("|");
     const premium = showPremium ? (premiumContacts || []).map(poolCardRenderToken).join("|") : "";
     return `${genderFilter || "all"}::${regular}::${premium}`;
@@ -848,6 +856,108 @@
       document.querySelector(`#modelPoolList ${sel}`) ||
       document.querySelector(`#premiumPartnersList ${sel}`)
     );
+  }
+
+  function poolProfileDetailKey(profile, memberMeta) {
+    if (!profile) return "";
+    const gallery = (profile.galleryImages || []).map((img) => String(img?.url || "")).join(",");
+    const prefs = profile.playPrefs || {};
+    return [
+      profile.age,
+      profile.gender,
+      profile.bodyType,
+      profile.interestedIn,
+      profile.nationality,
+      profile.languages,
+      profile.location,
+      profile.bio,
+      (prefs.dynamics || []).join(","),
+      (prefs.kinks || []).join(","),
+      (prefs.intensity || []).join(","),
+      gallery,
+      memberMeta?.hourlyRateMinor ?? "",
+      memberMeta?.isPremiumPartner ? "1" : "0",
+      canAccessPremiumPartners() ? "1" : "0",
+    ].join("\u0001");
+  }
+
+  function updatePoolEntryCardState(entry, m) {
+    if (!entry || !m) return;
+    const card = entry.querySelector(":scope > .model-card");
+    if (!card) return;
+    const sessionLive = Boolean(findActiveInstantSessionWithPartner(m.id));
+    card.classList.toggle("is-signed-in", Boolean(m.signedIn));
+    card.classList.toggle("is-session-live", sessionLive);
+
+    const nameRow = card.querySelector(".model-card-name-row");
+    if (nameRow) {
+      let liveBadge = nameRow.querySelector(".model-live-session-badge");
+      if (sessionLive && !liveBadge) {
+        liveBadge = document.createElement("span");
+        liveBadge.className = "model-live-session-badge";
+        liveBadge.textContent = "Live";
+        liveBadge.title = "Instant session active";
+        nameRow.appendChild(liveBadge);
+      } else if (!sessionLive && liveBadge) {
+        liveBadge.remove();
+      }
+    }
+
+    const head = card.querySelector(".model-card-head");
+    if (head) {
+      let onlineBadge = head.querySelector(".model-signed-in-badge");
+      if (m.signedIn && !onlineBadge) {
+        onlineBadge = document.createElement("span");
+        onlineBadge.className = "model-signed-in-badge";
+        onlineBadge.textContent = "Online";
+        const removeBtn = head.querySelector(".model-card-remove-btn");
+        if (removeBtn) head.insertBefore(onlineBadge, removeBtn);
+        else head.appendChild(onlineBadge);
+      } else if (!m.signedIn && onlineBadge) {
+        onlineBadge.remove();
+      }
+    }
+
+    const metaEl = head?.nextElementSibling;
+    if (metaEl?.tagName === "SPAN") {
+      if (sessionLive) {
+        metaEl.className = "model-live-session-meta";
+        metaEl.textContent = "Live session";
+      } else {
+        metaEl.className = "";
+        metaEl.textContent = m.signedIn ? "Online now" : "Offline";
+      }
+    }
+  }
+
+  function updatePoolEntriesInPlace(root, contacts) {
+    if (!root) return;
+    for (const m of contacts || []) {
+      const entry = root.querySelector(
+        `.model-pool-entry[data-member-id="${CSS.escape(m.id)}"]`
+      );
+      updatePoolEntryCardState(entry, m);
+    }
+  }
+
+  function ensureExpandedPoolMemberVisible() {
+    const memberId = state.expandedPoolMemberId;
+    if (!memberId) return;
+    const entry = findPoolEntryByMemberId(memberId);
+    if (!entry) {
+      state.expandedPoolMemberId = null;
+      return;
+    }
+    const detail = entry.querySelector(".model-pool-detail");
+    if (!detail) return;
+    entry.classList.add("is-expanded");
+    detail.hidden = false;
+    if (!detail.childElementCount) {
+      const cached = state.poolProfileCache[memberId];
+      if (cached) {
+        renderPoolMemberDetail(detail, cached, findPoolMemberMeta(memberId));
+      }
+    }
   }
 
   function restoreExpandedPoolMemberPreview() {
@@ -869,6 +979,7 @@
       renderPoolMemberDetail(detail, cached, findPoolMemberMeta(memberId));
       return;
     }
+    if (detail.childElementCount) return;
 
     detail.replaceChildren();
     const loading = document.createElement("p");
@@ -1152,6 +1263,11 @@
 
   function renderPoolMemberDetail(container, profile, memberMeta) {
     if (!container || !profile) return;
+    const renderKey = poolProfileDetailKey(profile, memberMeta);
+    if (container.dataset.profileRenderKey === renderKey && container.childElementCount > 0) {
+      return;
+    }
+    container.dataset.profileRenderKey = renderKey;
     container.replaceChildren();
 
     const title = document.createElement("h4");
@@ -1255,7 +1371,8 @@
       urls.forEach((src, i) => {
         const el = document.createElement("img");
         el.className = "model-pool-gallery-thumb";
-        el.loading = "lazy";
+        el.loading = "eager";
+        el.decoding = "async";
         el.alt = "";
         el.src = src;
         el.addEventListener("click", () => {
@@ -1295,7 +1412,15 @@
     state.expandedPoolMemberId = memberId;
     entry.classList.add("is-expanded");
     detail.hidden = false;
+
+    const cached = state.poolProfileCache[memberId];
+    if (cached) {
+      renderPoolMemberDetail(detail, cached, findPoolMemberMeta(memberId));
+      return;
+    }
+
     detail.replaceChildren();
+    detail.dataset.profileRenderKey = "";
     const loading = document.createElement("p");
     loading.className = "status-line";
     loading.textContent = "Loading profile…";
@@ -1727,7 +1852,8 @@
     state._pendingMeetingId = null;
     state.sessionJoinedMeetingId = null;
     state.expandedPoolMemberId = null;
-    state.contactPoolRenderKey = "";
+    state.contactPoolListKey = "";
+    state.contactPoolCardStateKey = "";
     state.poolProfileCache = {};
 
     renderMessages({ skipBroadcast: true });
@@ -3237,18 +3363,33 @@
     const premiumContacts = mergeContactPools(state.premiumPartners, poolPartners);
     const regularContacts = filterContactsByGender(allRegular, genderFilter);
     const filteredPremiumContacts = filterContactsByGender(premiumContacts, genderFilter);
-    const renderKey = contactPoolRenderKey(
+    const listKey = contactPoolListKey(
+      regularContacts,
+      filteredPremiumContacts,
+      showPremium,
+      genderFilter
+    );
+    const cardStateKey = contactPoolCardStateKey(
       regularContacts,
       filteredPremiumContacts,
       showPremium,
       genderFilter
     );
 
-    if (renderKey === state.contactPoolRenderKey && root.childElementCount > 0) {
-      restoreExpandedPoolMemberPreview();
+    if (listKey === state.contactPoolListKey && root.childElementCount > 0) {
+      if (cardStateKey !== state.contactPoolCardStateKey) {
+        updatePoolEntriesInPlace(root, regularContacts);
+        if (premiumRoot && showPremium) {
+          updatePoolEntriesInPlace(premiumRoot, filteredPremiumContacts);
+        }
+        state.contactPoolCardStateKey = cardStateKey;
+      }
+      ensureExpandedPoolMemberVisible();
+      syncPoolGenderFilterUi(genderFilter);
       return;
     }
-    state.contactPoolRenderKey = renderKey;
+    state.contactPoolListKey = listKey;
+    state.contactPoolCardStateKey = cardStateKey;
     syncPoolGenderFilterUi(genderFilter);
 
     root.replaceChildren();
