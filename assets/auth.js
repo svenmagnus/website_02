@@ -253,7 +253,7 @@
     if (!user) return "Visitor";
     if (user.membershipLabel) return user.membershipLabel;
     if (user.isAdmin) return "Administrator";
-    if (user.isModel) return "Premium Partner";
+    if (user.isModel) return "Model";
     if (user.isFreeGuest) return "Free";
     const sub = user.subscription;
     if (sub?.membershipLabel) return sub.membershipLabel;
@@ -308,7 +308,7 @@
     if (!user) return "Visitor";
     if (user.isBanned) return "Banned";
     if (user.isAdmin) return "Administrator";
-    if (user.isModel) return "Premium Partner";
+    if (user.isModel) return "Model";
     const override = user.subscriptionOverride || "";
     if (override === "trial_expired") return "Membership expired";
     if (override === "active") return "Premium";
@@ -864,7 +864,7 @@
 
     delete btn.dataset.billingAction;
 
-    if (!isLoggedIn() || isAccountGuest() || accountHasPremiumMembership(user)) {
+    if (!isLoggedIn() || isAccountGuest() || user?.isModel || accountHasPremiumMembership(user)) {
       btn.hidden = true;
       btn.disabled = false;
       return;
@@ -898,7 +898,7 @@
         hint.textContent = `${premiumPrice} add-on · Member ${memberPrice} required`;
       }
       btn.title =
-        `Purchase the Premium add-on (${premiumPrice}) for Premium Partner access in the Member Pool. ` +
+        `Purchase the Premium add-on (${premiumPrice}) for Model access in the Member Pool. ` +
         `Member subscription (${memberPrice}) remains required for platform access.`;
       btn.dataset.billingAction = "premium";
       btn.hidden = false;
@@ -1023,7 +1023,7 @@
           { label: "Plan", value: premiumPrice },
           { label: "Mode", value: "Admin billing test" },
         ],
-        note: "Admin override — simulates active Premium with Premium Partner access.",
+        note: "Admin override — simulates active Premium with Model access.",
         showCheckout: false,
         showPortal: shouldShowBillingPortal(sub),
       };
@@ -1037,7 +1037,7 @@
           { label: "Plan", value: "Full access — no subscription fee" },
           {
             label: "Reason",
-            value: sub.membershipType === "partner" ? "Premium Partner account" : "Administrator account",
+            value: sub.membershipType === "partner" ? "Model account" : "Administrator account",
           },
         ],
         note: "You are not charged the monthly platform fee.",
@@ -1058,7 +1058,7 @@
           { label: "Premium add-on", value: premiumPrice },
         ],
         note:
-          "Subscribe as Member before the test phase ends. Premium add-on unlocks Premium Partners in the Member Pool.",
+          "Subscribe as Member before the test phase ends. Premium add-on unlocks Models in the Member Pool.",
         showCheckout: true,
         showPortal: shouldShowBillingPortal(sub),
         checkoutLabel: "Subscribe as Member",
@@ -1093,10 +1093,10 @@
         note: isPremiumTier
           ? isLifetimePremium
             ? `Premium add-on active. Member subscription (${memberPrice}) is still required for platform access.`
-            : "Premium includes access to Premium Partners in the Member Pool. Member subscription remains required."
+            : "Premium includes access to Models in the Member Pool. Member subscription remains required."
           : sub.hasPremiumPurchased
             ? `Premium add-on purchased. Continue Member subscription (${memberPrice}) for platform access.`
-            : `Upgrade to Premium (${premiumPrice}) for Premium Partner access — Member (${memberPrice}) remains required.`,
+            : `Upgrade to Premium (${premiumPrice}) for Model access — Member (${memberPrice}) remains required.`,
         showCheckout: isPremiumTier && !isLifetimePremium ? false : !isPremiumTier,
         showPortal: shouldShowBillingPortal(sub),
         checkoutLabel: "Upgrade to Premium",
@@ -2461,7 +2461,7 @@
   function adminFlagCell(field, checked, { disabled = false } = {}) {
     const labels = {
       isFreeMembership: "Free account",
-      isModel: "Premium Partner",
+      isModel: "Model",
       isAdmin: "Admin",
       isBanned: "Banned",
     };

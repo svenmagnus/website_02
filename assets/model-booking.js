@@ -1,5 +1,5 @@
 /**
- * Premium Partner booking UI — request → partner accepts → guest pays (escrow).
+ * Model booking UI — request → model accepts → guest pays (escrow).
  */
 (function (global) {
   function minorToEur(minor) {
@@ -37,7 +37,7 @@
             <input type="datetime-local" id="modelBookingEnd" required />
           </div>
           <div class="row">
-            <label for="modelBookingNote">Message for partner (optional)</label>
+            <label for="modelBookingNote" id="modelBookingNoteLabel">Message (optional)</label>
             <textarea id="modelBookingNote" rows="3" maxlength="1000" placeholder="What you have in mind for the session…"></textarea>
           </div>
           <p class="status-line err" id="modelBookingError" hidden></p>
@@ -60,41 +60,14 @@
     return modal;
   }
 
-  let activeModel = null;
+  let activeTarget = null;
+  let activeMode = "guest_to_model";
 
-  function open(model) {
-    if (!model?.id) return;
-    if (!global.DualPeerAuth?.hasPremiumModelAccess?.()) return;
+  function displayName(contact) {
+    return contact?.displayName || contact?.username || "Member";
+  }
 
-    activeModel = model;
-    const modal = ensureModal();
-    const intro = document.getElementById("modelBookingIntro");
-    const amountEl = document.getElementById("modelBookingAmount");
-    const rateHint = document.getElementById("modelBookingRateHint");
-    const splitHint = document.getElementById("modelBookingSplitHint");
-    const errEl = document.getElementById("modelBookingError");
-    const okEl = document.getElementById("modelBookingSuccess");
-
-    if (intro) {
-      intro.textContent = model.bookingReady
-        ? `Propose a paid session with ${model.displayName || model.username}. They review your request first — you only pay after they accept. Funds are held in escrow until the session is completed.`
-        : `${model.displayName || model.username} is still setting up payouts — you can send a request, but payment will be available once Connect onboarding is complete.`;
-    }
-    if (amountEl) {
-      amountEl.value = model.hourlyRateMinor ? minorToEur(model.hourlyRateMinor) : "50.00";
-    }
-    if (rateHint) {
-      rateHint.textContent = model.hourlyRateMinor
-        ? `Partner rate: ${minorToEur(model.hourlyRateMinor)} € / hour (suggested — you can adjust).`
-        : "No published hourly rate yet — propose an amount that fits your session.";
-    }
-    if (splitHint) {
-      const share = model.platformSharePercent ?? 40;
-      splitHint.textContent = `Platform fee ${share}% · Partner receives ${100 - share}% after session completion.`;
-    }
-    if (errEl) errEl.hidden = true;
-    if (okEl) okEl.hidden = true;
-
+  function fillScheduleDefaults() {
     const start = new Date(Date.now() + 60 * 60 * 1000);
     start.setMinutes(0, 0, 0);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -102,6 +75,82 @@
     const endEl = document.getElementById("modelBookingEnd");
     if (startEl) startEl.value = toLocalInput(start);
     if (endEl) endEl.value = toLocalInput(end);
+  }
+
+  function open(model) {
+    if (!model?.id) return;
+    if (!global.DualPeerAuth?.hasPremiumModelAccess?.()) return;
+
+    activeMode = "guest_to_model";
+    activeTarget = model;
+    const modal = ensureModal();
+    const title = document.getElementById("modelBookingModalTitle");
+    const intro = document.getElementById("modelBookingIntro");
+    const amountEl = document.getElementById("modelBookingAmount");
+    const rateHint = document.getElementById("modelBookingRateHint");
+    const splitHint = document.getElementById("modelBookingSplitHint");
+    const noteLabel = document.getElementById("modelBookingNoteLabel");
+    const errEl = document.getElementById("modelBookingError");
+    const okEl = document.getElementById("modelBookingSuccess");
+    const submitBtn = document.getElementById("modelBookingSubmitBtn");
+
+    if (title) title.textContent = "Request paid session";
+    if (submitBtn) submitBtn.textContent = "Send request";
+    if (noteLabel) noteLabel.textContent = "Message for model (optional)";
+    if (intro) {
+      intro.textContent = model.bookingReady
+        ? `Propose a paid session with ${displayName(model)}. They review your request first — you only pay after they accept. Funds are held in escrow until the session is completed.`
+        : `${displayName(model)} is still setting up payouts — you can send a request, but payment will be available once Connect onboarding is complete.`;
+    }
+    if (amountEl) {
+      amountEl.value = model.hourlyRateMinor ? minorToEur(model.hourlyRateMinor) : "50.00";
+    }
+    if (rateHint) {
+      rateHint.textContent = model.hourlyRateMinor
+        ? `Model rate: ${minorToEur(model.hourlyRateMinor)} € / hour (suggested — you can adjust).`
+        : "No published hourly rate yet — propose an amount that fits your session.";
+    }
+    if (splitHint) {
+      const share = model.platformSharePercent ?? 40;
+      splitHint.textContent = `Platform fee ${share}% · Model receives ${100 - share}% after session completion.`;
+    }
+    if (errEl) errEl.hidden = true;
+    if (okEl) okEl.hidden = true;
+    fillScheduleDefaults();
+
+    modal.hidden = false;
+    global.dualPeerUi?.openAuthModal?.("modelBookingModal");
+  }
+
+  function openForGuest(guest) {
+    if (!guest?.id) return;
+    if (!global.DualPeerAuth?.getSession?.()?.user?.isModel) return;
+
+    activeMode = "model_to_guest";
+    activeTarget = guest;
+    const modal = ensureModal();
+    const title = document.getElementById("modelBookingModalTitle");
+    const intro = document.getElementById("modelBookingIntro");
+    const amountEl = document.getElementById("modelBookingAmount");
+    const rateHint = document.getElementById("modelBookingRateHint");
+    const splitHint = document.getElementById("modelBookingSplitHint");
+    const noteLabel = document.getElementById("modelBookingNoteLabel");
+    const errEl = document.getElementById("modelBookingError");
+    const okEl = document.getElementById("modelBookingSuccess");
+    const submitBtn = document.getElementById("modelBookingSubmitBtn");
+
+    if (title) title.textContent = "Send session offer";
+    if (submitBtn) submitBtn.textContent = "Send offer";
+    if (noteLabel) noteLabel.textContent = "Message for member (optional)";
+    if (intro) {
+      intro.textContent = `Propose a paid session with ${displayName(guest)}. They can pay into escrow once they accept your offer.`;
+    }
+    if (amountEl) amountEl.value = "50.00";
+    if (rateHint) rateHint.textContent = "Propose an amount for this session.";
+    if (splitHint) splitHint.textContent = "Platform fee applies per your model account settings.";
+    if (errEl) errEl.hidden = true;
+    if (okEl) okEl.hidden = true;
+    fillScheduleDefaults();
 
     modal.hidden = false;
     global.dualPeerUi?.openAuthModal?.("modelBookingModal");
@@ -110,7 +159,8 @@
   function close() {
     const modal = document.getElementById("modelBookingModal");
     if (modal) modal.hidden = true;
-    activeModel = null;
+    activeTarget = null;
+    activeMode = "guest_to_model";
   }
 
   function toLocalInput(date) {
@@ -124,7 +174,7 @@
 
   async function onSubmit(e) {
     e.preventDefault();
-    if (!activeModel) return;
+    if (!activeTarget) return;
     const errEl = document.getElementById("modelBookingError");
     const okEl = document.getElementById("modelBookingSuccess");
     const submitBtn = document.getElementById("modelBookingSubmitBtn");
@@ -157,20 +207,33 @@
     if (submitBtn) submitBtn.disabled = true;
     try {
       const totalAmountMinor = Math.round(amountEur * 100);
-      const created = await global.DualPeerAuth.bookModel({
-        modelUserId: activeModel.id,
-        scheduledStartAt,
-        scheduledEndAt,
-        currency: "EUR",
-        totalAmountMinor,
-        guestNote: note,
-      });
+      const payload =
+        activeMode === "model_to_guest"
+          ? {
+              guestUserId: activeTarget.id,
+              scheduledStartAt,
+              scheduledEndAt,
+              currency: "EUR",
+              totalAmountMinor,
+              modelNote: note,
+            }
+          : {
+              modelUserId: activeTarget.id,
+              scheduledStartAt,
+              scheduledEndAt,
+              currency: "EUR",
+              totalAmountMinor,
+              guestNote: note,
+            };
+      const created = await global.DualPeerAuth.bookModel(payload);
       if (!created?.booking?.id) throw new Error("Request could not be sent.");
 
       if (okEl) {
         okEl.hidden = false;
         okEl.textContent =
-          "Request sent. Check Session bookings below — you can pay once the partner accepts.";
+          activeMode === "model_to_guest"
+            ? "Session offer sent. The member can pay once they review it in Session bookings."
+            : "Request sent. Check Session bookings below — you can pay once the model accepts.";
       }
       notifyBookingsChanged();
       setTimeout(close, 1800);
@@ -184,5 +247,5 @@
     }
   }
 
-  global.DualPeerModelBooking = { open, close };
+  global.DualPeerModelBooking = { open, openForGuest, close };
 })(window);

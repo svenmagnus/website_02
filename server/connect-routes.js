@@ -149,36 +149,15 @@ connectRouter.post("/connect/onboard", requireAuth, async (req, res) => {
   return res.json({ ok: true, url: accountLink.url, accountId });
 });
 
-/** Guest: create booking request with server-side fee split */
+/** Guest or model: create booking request with server-side fee split */
 connectRouter.post("/book-model", requireAuth, async (req, res) => {
-  try {
-    assertSubscriptionAccess(req.authUser);
-  } catch (err) {
-    if (err.code === "subscription_required") {
-      return res.status(402).json({ ok: false, error: err.code, subscription: err.subscription });
-    }
-    throw err;
-  }
-  if (!hasPremiumModelPoolAccess(req.authUser)) {
-    return res.status(403).json({
-      ok: false,
-      error: "premium_required",
-      message: "Premium membership is required to book Premium Partners.",
-    });
-  }
-
   const db = getDb();
-  const guestUserId = req.authUser.id;
-  const modelUserId = String(req.body?.modelUserId || "").trim();
+  const authUser = req.authUser;
   const scheduledStartAt = Number(req.body?.scheduledStartAt);
   const scheduledEndAt = Number(req.body?.scheduledEndAt);
   const currency = normalizeCurrency(req.body?.currency || "EUR");
   const totalAmountMinor = normalizeAmountMinor(req.body?.totalAmountMinor);
-  const guestNote = String(req.body?.guestNote || "").trim().slice(0, 1000);
 
-  if (!modelUserId || modelUserId === guestUserId) {
-    return res.status(400).json({ ok: false, error: "invalid_model_user" });
-  }
   if (!Number.isFinite(scheduledStartAt) || !Number.isFinite(scheduledEndAt)) {
     return res.status(400).json({ ok: false, error: "invalid_schedule" });
   }
@@ -187,6 +166,54 @@ connectRouter.post("/book-model", requireAuth, async (req, res) => {
   }
   if (!currency || totalAmountMinor == null || totalAmountMinor < 100) {
     return res.status(400).json({ ok: false, error: "invalid_amount" });
+  }
+
+  let guestUserId;
+  let modelUserId;
+  let guestNote = "";
+  let modelNote = "";
+  let initialStatus = "pending";
+  let responseMessage = "Session request sent. The model will confirm before you pay.";
+
+  if (authUser.is_model) {
+    guestUserId = String(req.body?.guestUserId || "").trim();
+    modelUserId = authUser.id;
+    modelNote = String(req.body?.modelNote || "").trim().slice(0, 1000);
+    initialStatus = "accepted";
+    responseMessage = "Session offer sent. The member can pay into escrow from Session bookings.";
+    if (!guestUserId || guestUserId === modelUserId) {
+      return res.status(400).json({ ok: false, error: "invalid_guest_user" });
+    }
+    const guest = db.prepare("SELECT id, is_model FROM users WHERE id = ?").get(guestUserId);
+    if (!guest) {
+      return res.status(404).json({ ok: false, error: "guest_not_found" });
+    }
+    if (guest.is_model) {
+      return res.status(400).json({ ok: false, error: "invalid_guest_user" });
+    }
+  } else {
+    try {
+      assertSubscriptionAccess(authUser);
+    } catch (err) {
+      if (err.code === "subscription_required") {
+        return res.status(402).json({ ok: false, error: err.code, subscription: err.subscription });
+      }
+      throw err;
+    }
+    if (!hasPremiumModelPoolAccess(authUser)) {
+      return res.status(403).json({
+        ok: false,
+        error: "premium_required",
+        message: "Premium membership is required to book models.",
+      });
+    }
+
+    guestUserId = authUser.id;
+    modelUserId = String(req.body?.modelUserId || "").trim();
+    guestNote = String(req.body?.guestNote || "").trim().slice(0, 1000);
+    if (!modelUserId || modelUserId === guestUserId) {
+      return res.status(400).json({ ok: false, error: "invalid_model_user" });
+    }
   }
 
   let modelInfo;
@@ -215,7 +242,7 @@ connectRouter.post("/book-model", requireAuth, async (req, res) => {
     bookingId,
     guestUserId,
     modelUserId,
-    "pending",
+    initialStatus,
     currency,
     totalAmountMinor,
     platformFeeMinor,
@@ -227,7 +254,7 @@ connectRouter.post("/book-model", requireAuth, async (req, res) => {
     null,
     null,
     guestNote,
-    "",
+    modelNote,
     "",
     now,
     now
@@ -236,7 +263,7 @@ connectRouter.post("/book-model", requireAuth, async (req, res) => {
   const booking = getBookingById(db, bookingId);
   return res.status(201).json({
     ok: true,
-    message: "Session request sent. The Premium Partner will confirm before you pay.",
+    message: responseMessage,
     booking: {
       ...booking,
       modelName: modelInfo.model.display_name || modelInfo.model.username || "Model",
@@ -267,7 +294,7 @@ connectRouter.post("/bookings/:bookingId/checkout", requireAuth, async (req, res
     return res.status(400).json({
       ok: false,
       error: "booking_not_accepted",
-      message: "The Premium Partner must accept your request before payment.",
+      message: "The model must accept your request before payment.",
     });
   }
 
@@ -280,12 +307,12 @@ connectRouter.post("/bookings/:bookingId/checkout", requireAuth, async (req, res
     return res.status(400).json({
       ok: false,
       error: err.code || "model_not_ready",
-      message: "This Premium Partner has not completed payout setup yet.",
+      message: "This model has not completed payout setup yet.",
     });
   }
 
   const model = db.prepare("SELECT display_name, username FROM users WHERE id = ?").get(booking.model_user_id);
-  const modelName = model?.display_name || model?.username || "Premium Partner";
+  const modelName = model?.display_name || model?.username || "Model";
   const appUrl = getAppPublicUrl();
   const customerId = await getOrCreateStripeCustomer(db, req.authUser);
 
@@ -300,7 +327,7 @@ connectRouter.post("/bookings/:bookingId/checkout", requireAuth, async (req, res
           unit_amount: booking.total_amount_minor,
           product_data: {
             name: `Session with ${modelName}`,
-            description: `Tangent Club Premium Partner booking (escrow)`,
+            description: `Tangent Club model booking (escrow)`,
           },
         },
         quantity: 1,

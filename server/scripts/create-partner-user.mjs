@@ -46,7 +46,7 @@ if (existing) {
       id, username, password_hash, email, email_verified_at, display_name,
       gender, bio, techniques_json, custom_techniques_json, lovense_toys,
       created_at, account_type, is_admin, is_premium, is_model, is_free_guest
-    ) VALUES (?, ?, ?, ?, ?, ?, 'female', 'Premium Partner on Tangent Club.', '[]', '[]', '', ?, 'host', 0, 1, 1, 0)`
+    ) VALUES (?, ?, ?, ?, ?, ?, 'female', 'Model on Tangent Club.', '[]', '[]', '', ?, 'host', 0, 1, 1, 0)`
   ).run(id, username, hash, email, now, displayName, now);
   console.log(
     JSON.stringify({

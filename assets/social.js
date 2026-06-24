@@ -348,6 +348,78 @@
     return isPremiumPartnerAccount() || canAccessPremiumPartners();
   }
 
+  function findContactById(memberId) {
+    const id = String(memberId || "").trim();
+    if (!id) return null;
+    return (
+      state.contactPool.find((c) => c.id === id) ||
+      state.premiumPartners.find((c) => c.id === id) ||
+      state.activeMembers.find((c) => c.id === id) ||
+      null
+    );
+  }
+
+  function isBookableModelContact(contact) {
+    return Boolean(contact?.isModel || contact?.isPremiumPartner);
+  }
+
+  function resolveModelForBooking(memberId) {
+    const contact = findContactById(memberId);
+    if (!contact || !isBookableModelContact(contact)) return null;
+    return contact;
+  }
+
+  function resolveGuestForBooking(memberId) {
+    const contact = findContactById(memberId);
+    if (!contact || isBookableModelContact(contact)) return null;
+    return contact;
+  }
+
+  function canShowSessionBookingRequest() {
+    if (!canUseSessionBookings()) return false;
+    if (isPremiumPartnerAccount()) {
+      return Boolean(resolveGuestForBooking(getActiveSessionPartner()?.id));
+    }
+    if (canAccessPremiumPartners()) {
+      return Boolean(resolveModelForBooking(getActiveSessionPartner()?.id));
+    }
+    return false;
+  }
+
+  function openSessionBookingRequest() {
+    const partner = getActiveSessionPartner();
+    if (!partner?.id) {
+      alert("Select a partner under Partner for this session first (double-click in Member Pool).");
+      return;
+    }
+    if (isPremiumPartnerAccount()) {
+      const guest = resolveGuestForBooking(partner.id);
+      if (!guest) {
+        alert("Choose a member (not another model) as your session partner to send a paid session request.");
+        return;
+      }
+      global.DualPeerModelBooking?.openForGuest?.(guest);
+      return;
+    }
+    const model = resolveModelForBooking(partner.id);
+    if (!model) {
+      alert("Choose a model as your session partner, or open a model profile in the Member Pool.");
+      return;
+    }
+    global.DualPeerModelBooking?.open?.(model);
+  }
+
+  function updateSessionBookingRequestButtons() {
+    const show = canShowSessionBookingRequest();
+    const showSection = canUseSessionBookings() && (isPremiumPartnerAccount() || canAccessPremiumPartners());
+    const setupBtn = document.getElementById("btnSetupPartnerSessionRequest");
+    const bookingsActions = document.getElementById("sessionBookingsActions");
+    const bookingsBtn = document.getElementById("btnSessionBookingRequest");
+    if (setupBtn) setupBtn.hidden = !show;
+    if (bookingsActions) bookingsActions.hidden = !showSection;
+    if (bookingsBtn) bookingsBtn.disabled = !show;
+  }
+
   function mergeContactPools(...lists) {
     const byId = new Map();
     for (const list of lists) {
@@ -602,7 +674,11 @@
     if (booking.status === "completed") return "Completed";
     if (booking.escrowStatus === "released") return "Paid out";
     if (booking.escrowStatus === "funded") return "Paid — session scheduled";
-    if (booking.status === "accepted") return "Accepted — awaiting payment";
+    if (booking.status === "accepted") {
+      if (booking.role === "guest" && booking.modelNote) return "Offer received — pay now";
+      if (booking.role === "model" && booking.modelNote) return "Offer sent — awaiting payment";
+      return "Accepted — awaiting payment";
+    }
     if (booking.status === "pending") return "Awaiting partner";
     return booking.status || "—";
   }
@@ -616,6 +692,7 @@
     }
     if (section) section.hidden = false;
     updateSessionBookingsChrome();
+    updateSessionBookingRequestButtons();
     try {
       const data = await global.DualPeerAuth?.fetchMyBookings?.();
       state.sessionBookings = data?.bookings || [];
@@ -631,10 +708,10 @@
     if (!hint) return;
     if (isPremiumPartnerAccount()) {
       hint.textContent =
-        "Incoming paid session requests from Premium Members. Accept or decline — they pay into escrow after you accept.";
+        "Incoming paid session requests from Premium Members. Accept or decline — they pay into escrow after you accept. You can also send a session offer when a member is selected as Partner for this session.";
     } else {
       hint.textContent =
-        "Agree on a session with a Premium Partner: you send a request, they accept, then you pay into escrow.";
+        "Agree on a session with a model: send a request, they accept, then you pay into escrow.";
     }
   }
 
@@ -654,7 +731,7 @@
           status.textContent = "No incoming session requests yet.";
         } else if (canAccessPremiumPartners()) {
           status.textContent =
-            "No session requests yet — open a Premium Partner profile in the Member Pool and tap Request paid session.";
+            "No session requests yet — select a model as Partner for this session and tap Request paid session, or open a model profile in the Member Pool.";
         } else {
           status.textContent = "No session requests yet.";
         }
@@ -674,7 +751,7 @@
       const title = document.createElement("strong");
       title.textContent =
         booking.role === "guest"
-          ? `With ${booking.modelName || "Premium Partner"}`
+          ? `With ${booking.modelName || "Model"}`
           : `From ${booking.guestName || "Member"}`;
       const badge = document.createElement("span");
       badge.className = "session-booking-status";
@@ -688,7 +765,7 @@
       meta.textContent = `${formatBookingWhen(booking.scheduledStartAt, booking.scheduledEndAt)} · ${formatBookingAmount(booking.totalAmountMinor, booking.currency)}`;
       card.appendChild(meta);
 
-      const note = String(booking.guestNote || "").trim();
+      const note = String(booking.guestNote || booking.modelNote || "").trim();
       if (note) {
         const noteEl = document.createElement("p");
         noteEl.className = "status-line session-booking-note";
@@ -783,7 +860,7 @@
   }
 
   async function handleBookingComplete(bookingId, btn) {
-    if (!window.confirm("Release escrow payout to the Premium Partner?")) return;
+    if (!window.confirm("Release escrow payout to the model?")) return;
     if (btn) btn.disabled = true;
     try {
       await global.DualPeerAuth.completeModelBooking(bookingId);
@@ -1038,7 +1115,7 @@
     if (premiumPartner || m.isPremiumPartner) {
       const partnerBadge = document.createElement("span");
       partnerBadge.className = "model-premium-partner-badge";
-      partnerBadge.textContent = "Premium Partner";
+      partnerBadge.textContent = "Model";
       nameRow.appendChild(partnerBadge);
     }
     head.appendChild(nameRow);
@@ -2211,6 +2288,7 @@
     row.hidden = !partnerId;
     btn.disabled = !partnerId || meetingCreateInFlight;
     setInstantSessionButtonMode(Boolean(active));
+    updateSessionBookingRequestButtons();
     updateSessionActionHighlight();
   }
 
@@ -2683,7 +2761,7 @@
       if (premiumStatus) {
         premiumStatus.className = "status-line";
         premiumStatus.textContent =
-          "No Premium Partners in your pool yet — they appear here when you add or book them.";
+          "No models in your pool yet — they appear here when you add or book them.";
       }
       restoreExpandedPoolMemberPreview();
       return;
@@ -2691,7 +2769,7 @@
 
     if (premiumStatus) {
       premiumStatus.className = "status-line ok";
-      premiumStatus.textContent = `${premiumContacts.length} Premium Partner${premiumContacts.length === 1 ? "" : "s"} · click for profile · double-click for Current Chat Partner`;
+      premiumStatus.textContent = `${premiumContacts.length} Model${premiumContacts.length === 1 ? "" : "s"} · click for profile · double-click for Current Chat Partner`;
     }
     for (const m of premiumContacts) {
       premiumRoot.appendChild(
@@ -2736,6 +2814,7 @@
       }
       setPartnerInstantStatus("");
       updatePartnerInstantRow();
+      updateSessionBookingRequestButtons();
       return;
     }
     state.activeMembers = [partner];
@@ -2752,6 +2831,7 @@
       })
     );
     updatePartnerInstantRow();
+    updateSessionBookingRequestButtons();
   }
 
   async function refreshMembersWorkspace() {
@@ -2943,6 +3023,12 @@
     });
   }
 
+  function initSessionBookingRequestButtons() {
+    const onClick = () => openSessionBookingRequest();
+    document.getElementById("btnSessionBookingRequest")?.addEventListener("click", onClick);
+    document.getElementById("btnSetupPartnerSessionRequest")?.addEventListener("click", onClick);
+  }
+
   function initPartnerInstantSession() {
     document.getElementById("btnStartInstantSession")?.addEventListener("click", () => {
       const partnerId = getCoupledPartnerId();
@@ -3003,6 +3089,7 @@
     initAddToModelPool();
     initMembersToolbar();
     initPartnerInstantSession();
+    initSessionBookingRequestButtons();
     initLiveChatToolbar();
     initHeaderChatSend();
     handleCalendarRedirect();

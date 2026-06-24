@@ -246,8 +246,8 @@
           <strong>Test account</strong> (trial phase),
           <strong>Free</strong> (admin-granted guest),
           <strong>Member</strong> (2.95&nbsp;€/month after trial),
-          <strong>Premium</strong> (9.95&nbsp;€/month, Premium Partner access),
-          <strong>Premium Partner</strong> (models).
+          <strong>Premium</strong> (9.95&nbsp;€/month, Model access),
+          <strong>Model</strong> (hosts).
           Check <strong>Free</strong> for special guests without billing.
           <strong>Billing test</strong> is only available for <strong>Mr_X</strong>.
           Double-click a <strong>username</strong> to view the full profile. Click <strong>Save</strong> on each row
@@ -284,7 +284,7 @@
           <input type="email" id="adminCreateEmail" class="admin-input" placeholder="new email" />
           <input type="password" id="adminCreatePassword" class="admin-input" placeholder="password (min 8)" />
           <input type="hidden" id="adminCreateRole" value="guest" />
-          <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsModel" /> Premium Partner</label>
+          <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsModel" /> Model</label>
           <label class="admin-create-admin-toggle"><input type="checkbox" id="adminCreateIsAdmin" /> Admin</label>
           <button type="button" class="primary" id="adminUsersCreateBtn">Create</button>
         </div>
@@ -902,6 +902,14 @@
               <div class="setup-partner-instant-col" id="setupPartnerInstantRow" hidden>
                 <button
                   type="button"
+                  class="secondary setup-session-request-btn"
+                  id="btnSetupPartnerSessionRequest"
+                  hidden
+                >
+                  Request paid session
+                </button>
+                <button
+                  type="button"
                   class="primary setup-instant-session-btn"
                   id="btnStartInstantSession"
                   data-session-action="start"
@@ -917,6 +925,9 @@
           <div id="sessionBookingsSection" class="setup-session-bookings-section" hidden>
             <h3 class="setup-section-title">Session bookings</h3>
             <p class="status-line setup-bookings-hint" id="sessionBookingsHint"></p>
+            <div class="row session-bookings-actions" id="sessionBookingsActions" hidden>
+              <button type="button" class="primary" id="btnSessionBookingRequest">Request paid session</button>
+            </div>
             <div id="sessionBookingsList" class="session-bookings-list"></div>
             <p class="status-line" id="sessionBookingsStatus">No session requests yet.</p>
           </div>
@@ -1097,7 +1108,7 @@
             <h2 class="panel-tab-title">Member Pool</h2>
             <p class="status-line" style="margin: 0 0 0.5rem">
               Everyone you have shared sessions or chat with. <strong>Click</strong> a contact to view their profile.
-              Premium Partners: open the profile and tap <strong>Request paid session</strong> to agree on amount and time.
+              Models: open the profile and tap <strong>Request paid session</strong> to agree on amount and time.
               <strong>Double-click</strong> to add them to <strong>Current Chat Partner</strong> (Setup, left).
               <strong>Online</strong> only while they are signed in now.
             </p>
@@ -1120,7 +1131,7 @@
             <div id="modelPoolList" class="model-pool-grid"></div>
             <p class="status-line" id="modelPoolStatus">Sign in to load your member pool.</p>
             <div id="premiumPartnersSection" class="member-pool-premium-section" hidden>
-              <h3 class="member-pool-section-title">Premium Partners</h3>
+              <h3 class="member-pool-section-title">Models</h3>
               <p class="status-line member-pool-premium-hint">
                 Available with <strong>Premium add-on</strong> (9.95&nbsp;€ one-time). Requires active <strong>Member</strong> subscription (2.95&nbsp;€/month).
                 Click a partner for their profile, then <strong>Request paid session</strong> to agree on amount and time before payment.

@@ -4482,6 +4482,15 @@ body.has-gallery-lightbox-open {
   font-size: 0.82rem;
 }
 
+.session-bookings-actions {
+  margin: 0 0 0.65rem;
+  gap: 0.5rem;
+}
+
+.setup-session-request-btn {
+  white-space: nowrap;
+}
+
 .member-pool-bookings-hint {
   margin-bottom: 0.65rem;
 }

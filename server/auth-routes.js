@@ -1287,7 +1287,7 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
     return res.status(403).json({
       ok: false,
       error: "premium_required",
-      message: "Premium membership is required to browse Premium Partners.",
+      message: "Premium membership is required to browse models.",
     });
   }
   const db = getDb();

@@ -16,7 +16,8 @@
       <article class="login-overlay-card auth-card manual-card">
         <h1>Become a Partner / Creator</h1>
         <p class="status-line manual-intro">
-          Build premium sessions on Tangent Club. This portal is the foundation for onboarding creator partners.
+          You are a professional cam model. Build premium sessions on Tangent Club — transparent pricing,
+          escrow payments, and Stripe Connect payouts.
         </p>
         <section class="manual-section">
           <h2>How much can I earn?</h2>
@@ -33,11 +34,11 @@
         <section class="manual-section">
           <h2>How do payouts work?</h2>
           <p class="status-line">
-            Premium Partners receive <strong>60%</strong> of each booked session (platform fee
-            <strong>40%</strong>, configurable per partner). Guest payments are held in escrow on the platform account
+            Models receive <strong>60%</strong> of each booked session (platform fee
+            <strong>40%</strong>, configurable per model). Guest payments are held in escrow on the platform account
             until the session is marked complete — then payout is sent to your bank via <strong>Stripe Connect</strong>.
           </p>
-          <p class="status-line" id="partnerConnectStatus">Sign in as a Premium Partner to set up payouts.</p>
+          <p class="status-line" id="partnerConnectStatus">Sign in as a model to set up payouts.</p>
           <button type="button" class="primary" id="partnerConnectOnboardBtn" hidden>
             Set up Stripe payouts
           </button>
@@ -60,7 +61,7 @@
         const statusEl = document.getElementById("partnerConnectStatus");
         const btn = document.getElementById("partnerConnectOnboardBtn");
         if (!window.DualPeerAuth?.isLoggedIn?.()) {
-          if (statusEl) statusEl.textContent = "Log in with your Premium Partner account to connect Stripe.";
+          if (statusEl) statusEl.textContent = "Log in with your model account to connect Stripe.";
           return;
         }
         try {
@@ -80,7 +81,7 @@
             });
           }
         } catch (_) {
-          if (statusEl) statusEl.textContent = "Payout setup is only available for Premium Partner accounts.";
+          if (statusEl) statusEl.textContent = "Payout setup is only available for model accounts.";
         }
       });
     </script>

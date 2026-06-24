@@ -311,7 +311,7 @@ export function resolveMembershipLabel(user, subRow = null) {
   if (!user) return { label: "Visitor", type: "visitor" };
   if (user.banned_at) return { label: "Banned", type: "banned" };
   if (isAdminUser(user)) return { label: "Administrator", type: "admin" };
-  if (isModelUser(user)) return { label: "Premium Partner", type: "partner" };
+  if (isModelUser(user)) return { label: "Model", type: "partner" };
 
   const access = resolveSubscriptionAccess(user, subRow);
   switch (access.membershipType) {
