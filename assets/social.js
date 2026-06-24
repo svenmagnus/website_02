@@ -1187,6 +1187,52 @@
         payBtn.textContent = "Pay now (escrow)";
         payBtn.addEventListener("click", () => void handleBookingPay(booking.id, payBtn));
         actions.appendChild(payBtn);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "secondary";
+        removeBtn.textContent = "Remove offer";
+        removeBtn.title = "Dismiss this session offer without paying";
+        removeBtn.addEventListener("click", () =>
+          void handleBookingCancel(booking.id, removeBtn, {
+            confirmText: "Remove this session offer?",
+          })
+        );
+        actions.appendChild(removeBtn);
+      }
+
+      if (
+        booking.role === "guest" &&
+        booking.status === "pending" &&
+        booking.escrowStatus === "not_funded"
+      ) {
+        const cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "secondary";
+        cancelBtn.textContent = "Cancel request";
+        cancelBtn.addEventListener("click", () =>
+          void handleBookingCancel(booking.id, cancelBtn, {
+            confirmText: "Cancel this session request?",
+          })
+        );
+        actions.appendChild(cancelBtn);
+      }
+
+      if (
+        booking.role === "model" &&
+        booking.status === "accepted" &&
+        booking.escrowStatus === "not_funded"
+      ) {
+        const withdrawBtn = document.createElement("button");
+        withdrawBtn.type = "button";
+        withdrawBtn.className = "secondary";
+        withdrawBtn.textContent = "Withdraw offer";
+        withdrawBtn.addEventListener("click", () =>
+          void handleBookingCancel(booking.id, withdrawBtn, {
+            confirmText: "Withdraw this session offer?",
+          })
+        );
+        actions.appendChild(withdrawBtn);
       }
 
       if (booking.escrowStatus === "funded" && ["accepted", "in_progress"].includes(booking.status)) {
@@ -1223,6 +1269,20 @@
       await loadSessionBookings();
     } catch (err) {
       alert(err.message || "Could not decline request.");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function handleBookingCancel(bookingId, btn, { confirmText } = {}) {
+    if (confirmText && !window.confirm(confirmText)) return;
+    if (btn) btn.disabled = true;
+    try {
+      await global.DualPeerAuth.cancelModelBooking(bookingId);
+      await loadSessionBookings();
+      global.dispatchEvent(new CustomEvent("dualpeer:bookings-changed"));
+    } catch (err) {
+      alert(err.message || "Could not remove booking.");
     } finally {
       if (btn) btn.disabled = false;
     }

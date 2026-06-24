@@ -1764,6 +1764,14 @@
     });
   }
 
+  async function cancelModelBooking(bookingId, reason = "", options = {}) {
+    return api(`/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+      ...options,
+    });
+  }
+
   async function completeModelBooking(bookingId, options = {}) {
     return api(`/api/bookings/${encodeURIComponent(bookingId)}/complete`, {
       method: "POST",
@@ -3591,6 +3599,7 @@
     fetchMyBookings,
     acceptModelBooking,
     rejectModelBooking,
+    cancelModelBooking,
     completeModelBooking,
     fetchConnectStatus,
     startConnectOnboarding,

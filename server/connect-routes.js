@@ -393,6 +393,34 @@ connectRouter.post("/bookings/:bookingId/reject", requireAuth, (req, res) => {
   return res.json({ ok: true, booking: getBookingById(db, booking.id) });
 });
 
+/** Guest or model: cancel an unfunded request or offer */
+connectRouter.post("/bookings/:bookingId/cancel", requireAuth, (req, res) => {
+  const db = getDb();
+  const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(req.params.bookingId);
+  if (!booking) return res.status(404).json({ ok: false, error: "booking_not_found" });
+  const userId = req.authUser.id;
+  const isGuest = booking.guest_user_id === userId;
+  const isModel = booking.model_user_id === userId;
+  if (!isGuest && !isModel) {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+  if (!["pending", "accepted"].includes(booking.status)) {
+    return res.status(400).json({ ok: false, error: "invalid_status" });
+  }
+  if (booking.escrow_status !== "not_funded") {
+    return res.status(400).json({ ok: false, error: "already_funded" });
+  }
+  if (booking.status === "pending" && isModel) {
+    return res.status(400).json({ ok: false, error: "use_decline" });
+  }
+  const reason = String(req.body?.reason || "").trim().slice(0, 500);
+  const now = nowMs();
+  db.prepare(
+    `UPDATE bookings SET status = 'cancelled', cancel_reason = ?, updated_at = ? WHERE id = ?`
+  ).run(reason, now, booking.id);
+  return res.json({ ok: true, booking: getBookingById(db, booking.id) });
+});
+
 /** Mark session complete and release model payout via Stripe Transfer */
 connectRouter.post("/bookings/:bookingId/complete", requireAuth, async (req, res) => {
   const db = getDb();
@@ -435,7 +463,8 @@ connectRouter.get("/bookings/mine", requireAuth, (req, res) => {
        FROM bookings b
        INNER JOIN users g ON g.id = b.guest_user_id
        INNER JOIN users m ON m.id = b.model_user_id
-       WHERE b.guest_user_id = ? OR b.model_user_id = ?
+       WHERE (b.guest_user_id = ? OR b.model_user_id = ?)
+         AND b.status NOT IN ('cancelled', 'rejected')
        ORDER BY b.scheduled_start_at DESC
        LIMIT 50`
     )
