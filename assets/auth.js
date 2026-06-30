@@ -288,6 +288,27 @@
   }
 
   const ADMIN_BILLING_TEST_USERNAME = "mr_x";
+  let publicRegistrationEnabled = false;
+
+  async function syncPublicRegistrationFlag() {
+    try {
+      const config = global.dualPeerPublicRegistrationUi?.ready
+        ? await global.dualPeerPublicRegistrationUi.ready
+        : await fetchRegistrationConfig();
+      publicRegistrationEnabled = Boolean(config?.publicRegistration);
+    } catch (_) {
+      publicRegistrationEnabled = false;
+    }
+    document.querySelectorAll("[data-invite-only].meeting-invite-row, .meeting-invite-row[data-invite-only]").forEach(
+      (el) => {
+        el.hidden = publicRegistrationEnabled;
+      }
+    );
+  }
+
+  function isPublicRegistrationOpen() {
+    return publicRegistrationEnabled;
+  }
 
   function isAdminBillingTestUser(user) {
     return String(user?.username || "").trim().toLowerCase() === ADMIN_BILLING_TEST_USERNAME;
@@ -1599,8 +1620,9 @@
     return global.dualPeerSession?.getRole?.() === "guest";
   }
 
-  /** Any signed-in member may invite models into their personal pool. */
+  /** Signed-in members may invite others when registration is invite-only. */
   function canManageInvites() {
+    if (publicRegistrationEnabled) return false;
     return isLoggedIn();
   }
 
@@ -3622,6 +3644,7 @@
   }
 
   async function bootstrap() {
+    await syncPublicRegistrationFlag();
     updateAccountMenuAuthState();
     updateSettingsMailSection();
     let hasSiteAccess = false;
