@@ -355,7 +355,9 @@ export function subscriptionFieldsForProfile(user) {
       currentPeriodEnd: access.currentPeriodEnd,
       cancelAtPeriodEnd: access.cancelAtPeriodEnd,
       stripeCustomerId: access.stripeCustomerId || null,
-      adminOverride: access.adminOverride,
+      adminOverride: String(user?.subscription_override || "").trim()
+      ? adminOverride || null
+      : null,
       hasPremiumModelAccess: access.hasPremiumModelAccess,
       hasPremiumPurchased: access.hasPremiumPurchased,
       premiumBillingMode: access.premiumBillingMode || (isPremiumOneTimeBilling() ? "one_time" : "subscription"),

@@ -279,13 +279,18 @@
 
     <script src="assets/api-config.js?v=8611"></script>
     <script src="assets/ui-shell.js?v=8629"></script>
-    <script src="assets/auth.js?v=8658"></script>
+    <script src="assets/auth.js?v=8692"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         if (window.dualPeerUi) window.dualPeerUi.initSettingsPage();
-        if (window.DualPeerAuth?.refreshSettingsBilling) {
+        if (window.DualPeerAuth?.onReady) {
           window.DualPeerAuth.onReady(function () {
-            window.DualPeerAuth.refreshSettingsBilling();
+            if (window.DualPeerAuth.refreshSettingsBilling) {
+              window.DualPeerAuth.refreshSettingsBilling();
+            }
+            if (window.DualPeerAuth.isLoggedIn?.() && window.DualPeerAuth.fetchProfile) {
+              void window.DualPeerAuth.fetchProfile().catch(function () {});
+            }
           });
         }
         if (location.hash === "#email-server") {

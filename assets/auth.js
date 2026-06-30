@@ -932,7 +932,7 @@
     return ["active", "trialing", "past_due"].includes(String(sub.status || ""));
   }
 
-  function describeSubscriptionForSettings(sub) {
+  function describeSubscriptionForSettings(sub, profile) {
     if (!sub) {
       return {
         badge: "Unknown",
@@ -957,6 +957,7 @@
 
     const memberPrice = `${sub.priceEurMember || sub.priceEur || "2.95"} € / month`;
     const premiumPrice = formatPremiumPrice(sub);
+    const billingTestUser = isAdminBillingTestUser(profile);
 
     if (sub.membershipType === "free" || sub.phase === "free") {
       return {
@@ -975,7 +976,24 @@
       };
     }
 
-    if (sub.adminOverride === "trial_member") {
+    if (sub.exempt) {
+      return {
+        badge: "Included",
+        badgeClass: "ok",
+        rows: [
+          { label: "Plan", value: "Full access — no subscription fee" },
+          {
+            label: "Reason",
+            value: sub.membershipType === "partner" ? "Model account" : "Administrator account",
+          },
+        ],
+        note: "You are not charged the monthly platform fee.",
+        showCheckout: false,
+        showPortal: false,
+      };
+    }
+
+    if (billingTestUser && sub.adminOverride === "trial_member") {
       return {
         badge: "Test account",
         badgeClass: "trial",
@@ -998,7 +1016,7 @@
       };
     }
 
-    if (sub.adminOverride === "trial_expired") {
+    if (billingTestUser && sub.adminOverride === "trial_expired") {
       return {
         badge: "Trial ended",
         badgeClass: "warn",
@@ -1017,7 +1035,7 @@
       };
     }
 
-    if (sub.adminOverride === "member") {
+    if (billingTestUser && sub.adminOverride === "member") {
       return {
         badge: "Member",
         badgeClass: "ok",
@@ -1031,7 +1049,7 @@
       };
     }
 
-    if (sub.adminOverride === "active") {
+    if (billingTestUser && sub.adminOverride === "active") {
       return {
         badge: "Premium",
         badgeClass: "ok",
@@ -1042,23 +1060,6 @@
         note: "Admin override — simulates active Premium with Model access.",
         showCheckout: false,
         showPortal: shouldShowBillingPortal(sub),
-      };
-    }
-
-    if (sub.exempt) {
-      return {
-        badge: "Included",
-        badgeClass: "ok",
-        rows: [
-          { label: "Plan", value: "Full access — no subscription fee" },
-          {
-            label: "Reason",
-            value: sub.membershipType === "partner" ? "Model account" : "Administrator account",
-          },
-        ],
-        note: "You are not charged the monthly platform fee.",
-        showCheckout: false,
-        showPortal: false,
       };
     }
 
@@ -1217,7 +1218,7 @@
     }
 
     const sub = profile?.subscription;
-    const info = describeSubscriptionForSettings(sub);
+    const info = describeSubscriptionForSettings(sub, profile);
 
     if (intro) {
       intro.innerHTML =
