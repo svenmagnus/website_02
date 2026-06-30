@@ -1710,8 +1710,14 @@
     });
   }
 
-  async function fetchAdminUsers() {
-    return api("/api/admin/users");
+  async function fetchAdminUsers({ page = 1, limit = 50, q = "" } = {}) {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(limit));
+    const query = String(q || "").trim();
+    if (query) params.set("q", query);
+    const qs = params.toString();
+    return api(`/api/admin/users${qs ? `?${qs}` : ""}`);
   }
 
   async function updateAdminUser(userId, patch) {
@@ -2556,7 +2562,18 @@
     const status = document.getElementById("adminUsersStatus");
     const tbody = document.getElementById("adminUsersTbody");
     const footerAdminLink = document.getElementById("footerAdminUsersLink");
+    const searchInput = document.getElementById("adminUsersSearch");
+    const prevBtn = document.getElementById("adminUsersPrevBtn");
+    const nextBtn = document.getElementById("adminUsersNextBtn");
+    const loadMoreBtn = document.getElementById("adminUsersLoadMoreBtn");
+    const pagerLabel = document.getElementById("adminUsersPagerLabel");
     if (!modal || !tbody) return;
+
+    let adminListPage = 1;
+    let adminListQuery = "";
+    let adminListLoading = false;
+    let adminListPagination = { page: 1, totalPages: 0, total: 0, hasMore: false };
+    let adminSearchTimer = null;
 
     const setStatus = (msg, cls = "") => {
       if (!status) return;
@@ -2564,20 +2581,62 @@
       status.textContent = msg || "";
     };
 
-    const load = async () => {
-      if (!canAccessMailSettings()) return;
-      setStatus("Loading profiles…");
-      try {
-        const data = await fetchAdminUsers();
-        tbody.innerHTML = "";
-        (data.users || []).forEach((u) => {
-          tbody.appendChild(buildAdminUserRow(u));
-        });
-        setStatus(`${(data.users || []).length} profiles loaded.`, "ok");
-      } catch (err) {
-        setStatus(err.message || "Failed to load profiles.", "err");
+    const appendAdminUserRows = (users) => {
+      for (const u of users || []) {
+        tbody.appendChild(buildAdminUserRow(u));
       }
     };
+
+    const updateAdminUsersPager = (pag = {}) => {
+      adminListPagination = {
+        page: pag.page || adminListPage,
+        totalPages: pag.totalPages || 0,
+        total: pag.total ?? 0,
+        hasMore: Boolean(pag.hasMore),
+      };
+      adminListPage = adminListPagination.page;
+      if (pagerLabel) {
+        pagerLabel.textContent = adminListPagination.total
+          ? `Page ${adminListPagination.page} of ${adminListPagination.totalPages} (${adminListPagination.total} total)`
+          : `Page ${adminListPagination.page}`;
+      }
+      if (prevBtn) prevBtn.disabled = adminListLoading || adminListPagination.page <= 1;
+      if (nextBtn) {
+        nextBtn.disabled =
+          adminListLoading ||
+          !adminListPagination.totalPages ||
+          adminListPagination.page >= adminListPagination.totalPages;
+      }
+      if (loadMoreBtn) loadMoreBtn.hidden = adminListLoading || !adminListPagination.hasMore;
+    };
+
+    const fetchAdminUserPage = async (page, { append = false, statusPrefix = "Loading profiles…" } = {}) => {
+      if (!canAccessMailSettings()) return;
+      if (adminListLoading) return;
+      adminListLoading = true;
+      updateAdminUsersPager(adminListPagination);
+      setStatus(statusPrefix);
+      try {
+        const data = await fetchAdminUsers({ page, limit: 50, q: adminListQuery });
+        const users = data.users || [];
+        const pag = data.pagination || {};
+        if (!append) tbody.innerHTML = "";
+        appendAdminUserRows(users);
+        updateAdminUsersPager(pag);
+        const shown = tbody.querySelectorAll("tr").length;
+        const qNote = adminListQuery ? ` matching “${adminListQuery}”` : "";
+        setStatus(`Showing ${shown} of ${pag.total ?? shown}${qNote}.`, "ok");
+      } catch (err) {
+        setStatus(err.message || "Failed to load profiles.", "err");
+      } finally {
+        adminListLoading = false;
+        updateAdminUsersPager(adminListPagination);
+      }
+    };
+
+    const reloadAdminUserList = () => fetchAdminUserPage(1, { append: false });
+
+    const load = reloadAdminUserList;
 
     const open = async () => {
       const cached = getCachedProfile();
@@ -2592,7 +2651,8 @@
         modal.removeAttribute("aria-hidden");
         document.body.classList.add("has-auth-modal-open");
       }
-      await load();
+      adminListQuery = searchInput instanceof HTMLInputElement ? searchInput.value.trim() : "";
+      await reloadAdminUserList();
     };
 
     if (openBtn) {
@@ -2613,7 +2673,46 @@
       if (global.dualPeerUi?.closeAuthModals) global.dualPeerUi.closeAuthModals();
       else modal.hidden = true;
     });
-    if (refreshBtn) refreshBtn.addEventListener("click", () => load());
+    if (refreshBtn) refreshBtn.addEventListener("click", () => reloadAdminUserList());
+
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        clearTimeout(adminSearchTimer);
+        adminSearchTimer = setTimeout(() => {
+          adminListQuery = searchInput.value.trim();
+          reloadAdminUserList();
+        }, 350);
+      });
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        clearTimeout(adminSearchTimer);
+        adminListQuery = searchInput.value.trim();
+        reloadAdminUserList();
+      });
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener("click", () => {
+        if (adminListPage <= 1) return;
+        fetchAdminUserPage(adminListPage - 1, { append: false });
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", () => {
+        if (adminListPagination.page >= adminListPagination.totalPages) return;
+        fetchAdminUserPage(adminListPagination.page + 1, { append: false });
+      });
+    }
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener("click", () => {
+        if (!adminListPagination.hasMore) return;
+        fetchAdminUserPage(adminListPagination.page + 1, {
+          append: true,
+          statusPrefix: "Loading more profiles…",
+        });
+      });
+    }
 
     const profileModal = document.getElementById("adminUserProfileModal");
     const profileCloseBtn = document.getElementById("adminUserProfileClose");

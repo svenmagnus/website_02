@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8676" />
+    <link rel="stylesheet" href="assets/styles.css?v=8682" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -242,7 +242,7 @@
       <div class="login-overlay-card auth-card-wide">
         <h2 id="adminUsersModalTitle">Administrator: User Profiles</h2>
         <p class="login-overlay-hint">
-          Review all registered accounts. <strong>Role</strong> shows account type:
+          Review registered accounts (50 per page). <strong>Role</strong> shows account type:
           <strong>Test account</strong> (trial phase),
           <strong>Free</strong> (admin-granted guest),
           <strong>Member</strong> (2.95&nbsp;€/month after trial),
@@ -253,6 +253,22 @@
           Double-click a <strong>username</strong> to view the full profile. Click <strong>Save</strong> on each row
           after edits.
         </p>
+        <div class="admin-users-toolbar">
+          <label class="admin-users-search-label" for="adminUsersSearch">Search</label>
+          <input
+            type="search"
+            id="adminUsersSearch"
+            class="admin-input admin-users-search"
+            placeholder="Username or email…"
+            autocomplete="off"
+          />
+          <div class="admin-users-pager">
+            <button type="button" class="secondary" id="adminUsersPrevBtn" disabled>Previous</button>
+            <span class="admin-users-pager-label" id="adminUsersPagerLabel">Page 1</span>
+            <button type="button" class="secondary" id="adminUsersNextBtn" disabled>Next</button>
+            <button type="button" class="secondary" id="adminUsersLoadMoreBtn" hidden>Load more</button>
+          </div>
+        </div>
         <p class="status-line" id="adminUsersStatus"></p>
         <div class="admin-users-table-wrap">
           <table class="admin-users-table" id="adminUsersTable">
@@ -1385,7 +1401,7 @@
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
     <script src="assets/app.js?v=8673"></script>
-    <script src="assets/auth.js?v=8678"></script>
+    <script src="assets/auth.js?v=8682"></script>
     <script src="assets/model-booking.js?v=8680"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8678"></script>

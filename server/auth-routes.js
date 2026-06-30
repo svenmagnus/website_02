@@ -1339,13 +1339,36 @@ authRouter.get("/models/premium", requireAuth, (req, res) => {
 
 authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
   const db = getDb();
+  const q = String(req.query.q || "").trim();
+  const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+  const limit = Math.min(200, Math.max(1, Number.parseInt(String(req.query.limit || "50"), 10) || 50));
+  const offset = (page - 1) * limit;
+
+  const whereParts = [];
+  const whereParams = [];
+  if (q) {
+    const safe = q.replace(/[%_]/g, "").trim();
+    if (safe) {
+      const like = `%${safe}%`;
+      whereParts.push(
+        "(username LIKE ? COLLATE NOCASE OR email LIKE ? COLLATE NOCASE OR display_name LIKE ? COLLATE NOCASE)"
+      );
+      whereParams.push(like, like, like);
+    }
+  }
+  const whereSql = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
+
+  const total = db.prepare(`SELECT COUNT(*) AS c FROM users ${whereSql}`).get(...whereParams)?.c || 0;
   const rows = db
     .prepare(
       `SELECT id, username, email, display_name, account_type, is_admin, is_premium, is_model, is_free_guest, nationality, languages, location, email_verified_at, created_at, banned_at, ban_reason, subscription_override
        FROM users
-       ORDER BY created_at ASC`
+       ${whereSql}
+       ORDER BY created_at ASC
+       LIMIT ? OFFSET ?`
     )
-    .all();
+    .all(...whereParams, limit, offset);
+
   const users = rows.map((row) => {
     const subRow = getSubscriptionRow(db, row.id);
     const membership = resolveMembershipLabel(row, subRow);
@@ -1371,7 +1394,19 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
       ...banFieldsForProfile(row),
     };
   });
-  res.json({ ok: true, users });
+
+  const totalPages = total ? Math.ceil(total / limit) : 0;
+  res.json({
+    ok: true,
+    users,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasMore: page * limit < total,
+    },
+  });
 });
 
 authRouter.get("/admin/users/:id/profile", requireAuth, requireAdminAccount, (req, res) => {
