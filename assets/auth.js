@@ -881,7 +881,7 @@
 
     delete btn.dataset.billingAction;
 
-    if (!isLoggedIn() || isAccountGuest() || user?.isModel || accountHasPremiumMembership(user)) {
+    if (!isLoggedIn() || isAccountGuest() || user?.isAdmin || user?.isModel || accountHasPremiumMembership(user)) {
       btn.hidden = true;
       btn.disabled = false;
       return;
@@ -2074,8 +2074,12 @@
     if (premiumBtn) {
       const user = session?.user;
       const roleLabel = user ? resolveAccountRoleLabel(user) : "";
-      // Role badge already shows Premium — avoid duplicate PREMIUM in the header.
-      premiumBtn.hidden = !isPremium() || roleLabel === "Premium";
+      // Admins/models use the role badge only — no separate PREMIUM upsell button.
+      premiumBtn.hidden =
+        Boolean(user?.isAdmin) ||
+        Boolean(user?.isModel) ||
+        !isPremium() ||
+        roleLabel === "Premium";
     }
 
     updateHeaderRoleBadge();

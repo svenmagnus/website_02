@@ -42,12 +42,20 @@
             aria-expanded="false"
             aria-haspopup="true"
             aria-controls="accountDropdown"
+            aria-label="Account menu"
+            title="Account menu"
           >
-            <span class="account-avatar" data-profile-initial>G</span>
+            <span class="account-avatar" data-account-avatar>
+              <img class="account-avatar-photo" data-profile-avatar-photo alt="" width="32" height="32" hidden />
+              <span data-profile-initial>G</span>
+            </span>
           </button>
           <div class="account-dropdown" id="accountDropdown" hidden role="menu">
             <div class="account-dropdown-head">
-              <span class="account-avatar account-avatar-lg" data-profile-initial>G</span>
+              <span class="account-avatar account-avatar-lg" data-account-avatar>
+                <img class="account-avatar-photo" data-profile-avatar-photo alt="" width="40" height="40" hidden />
+                <span data-profile-initial>G</span>
+              </span>
               <div class="account-dropdown-meta">
                 <span class="account-name" data-profile-name>Guest</span>
                 <span class="account-role" id="accountRoleLabel">Member</span>
@@ -88,6 +96,8 @@
             </a>
           </div>
         </div>
+
+        <span class="header-role-badge is-visitor" id="headerRoleBadge" aria-live="polite">Visitor</span>
       </nav>
     </header>
 
@@ -279,7 +289,7 @@
 
     <script src="assets/api-config.js?v=8611"></script>
     <script src="assets/ui-shell.js?v=8629"></script>
-    <script src="assets/auth.js?v=8694"></script>
+    <script src="assets/auth.js?v=8695"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         if (window.dualPeerUi) window.dualPeerUi.initSettingsPage();
