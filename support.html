@@ -34,22 +34,34 @@
         <section class="manual-section">
           <h2>Account &amp; login</h2>
           <ul>
-            <li>
+            <li data-invite-only>
               <strong>Invitation only</strong> — register via the link or 4-digit code from your partner. Open
               <a href="register.html">register</a> with a valid token.
+            </li>
+            <li data-public-registration hidden>
+              <strong>Sign up</strong> — create a free account on the
+              <a href="register.html">registration page</a>. Email verification may be required before your first login.
             </li>
             <li>
               <strong>Email verification</strong> — if required, use the link in the registration email before logging
               in.
             </li>
-            <li>
+            <li data-invite-only>
               <strong>Forgot password</strong> — ask the person who invited you or a site administrator to reset your
               account.
             </li>
-            <li>
+            <li data-public-registration hidden>
+              <strong>Forgot password</strong> — use the
+              <a href="forgot-password.html">password reset</a> page or contact a site administrator.
+            </li>
+            <li data-invite-only>
               <strong>SMTP / invites</strong> — administrators configure outgoing mail under
               <strong>Settings → Email server (SMTP)</strong>. Without SMTP, share the invite link manually from the
               invite dialog.
+            </li>
+            <li data-public-registration hidden>
+              <strong>SMTP</strong> — administrators configure outgoing mail under
+              <strong>Settings → Email server (SMTP)</strong> for verification and notification emails.
             </li>
           </ul>
         </section>
@@ -132,8 +144,12 @@
             Note your <strong>username</strong>, browser (Chrome version), and what you already tried from the list
             above. Include a screenshot of the <strong>Setup</strong> tab (extension status) for Lovense issues.
           </p>
-          <p class="status-line">
+          <p class="status-line" data-invite-only>
             Contact the person who invited you or your site administrator. For platform support:
+            <a href="mailto:limagno@icloud.com">limagno@icloud.com</a>.
+          </p>
+          <p class="status-line" data-public-registration hidden>
+            Contact your site administrator or platform support:
             <a href="mailto:limagno@icloud.com">limagno@icloud.com</a>.
           </p>
         </section>
@@ -155,5 +171,7 @@
         </p>
       </article>
     </main>
+    <script src="assets/api-config.js?v=8690"></script>
+    <script src="assets/public-registration-ui.js?v=8690"></script>
   </body>
 </html>

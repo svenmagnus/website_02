@@ -66,18 +66,26 @@
 
         <section class="manual-section">
           <h2>1. Service</h2>
-          <p class="status-line">
+          <p class="status-line" data-invite-only>
             Tangent Club provides a private, invitation-based platform for 1:1 video sessions, chat, member pools, and
             optional Lovense toy integration. The service is intended for adults who use it with mutual consent. We may
             update features or suspend access for violations of our
             <a href="code-of-conduct.html">Code of Conduct</a>.
+          </p>
+          <p class="status-line" data-public-registration hidden>
+            Tangent Club provides a private platform for 1:1 video sessions, chat, member pools, and optional Lovense toy
+            integration. The service is intended for adults who use it with mutual consent. We may update features or
+            suspend access for violations of our <a href="code-of-conduct.html">Code of Conduct</a>.
           </p>
         </section>
 
         <section class="manual-section">
           <h2>2. Accounts &amp; eligibility</h2>
           <ul>
-            <li>Registration requires a valid invitation or administrator approval where applicable.</li>
+            <li data-invite-only>Registration requires a valid invitation or administrator approval where applicable.</li>
+            <li data-public-registration hidden>
+              Registration is open to adults who accept these terms; administrator approval may apply in special cases.
+            </li>
             <li>You must provide accurate information and keep your login credentials secure.</li>
             <li>One person per account; sharing accounts is not permitted.</li>
             <li>You are responsible for all activity under your account.</li>
@@ -172,5 +180,7 @@
         </p>
       </article>
     </main>
+    <script src="assets/api-config.js?v=8690"></script>
+    <script src="assets/public-registration-ui.js?v=8690"></script>
   </body>
 </html>

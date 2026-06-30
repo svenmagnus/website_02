@@ -3410,7 +3410,7 @@
     location.replace("landing.html");
   }
 
-  function initPublicLoginExtras() {
+  async function initPublicLoginExtras() {
     if (!document.body.classList.contains("login-page")) return;
 
     const params = new URLSearchParams(location.search);
@@ -3418,6 +3418,14 @@
       location.replace(`register.html?token=${encodeURIComponent(params.get("token") || "")}`);
       return;
     }
+
+    const config = global.dualPeerPublicRegistrationUi?.ready
+      ? await global.dualPeerPublicRegistrationUi.ready
+      : await fetchRegistrationConfig();
+    const publicRegistration = Boolean(config?.publicRegistration);
+    const prefillInviteCode = String(params.get("inviteCode") || "")
+      .replace(/\D+/g, "")
+      .slice(0, 4);
 
     if (params.get("verified") === "1") {
       const banner = document.getElementById("loginPageVerifiedBanner");
@@ -3427,12 +3435,14 @@
       }
     }
 
+    if (publicRegistration && !/^\d{4}$/.test(prefillInviteCode)) {
+      return;
+    }
+
     const codeEl = document.getElementById("publicInviteCode");
     const continueBtn = document.getElementById("publicInviteContinue");
     const errEl = document.getElementById("publicInviteError");
-    const prefill = String(params.get("inviteCode") || "")
-      .replace(/\D+/g, "")
-      .slice(0, 4);
+    const prefill = prefillInviteCode;
     if (prefill && codeEl instanceof HTMLInputElement) codeEl.value = prefill;
 
     const goRegisterWithCode = () => {

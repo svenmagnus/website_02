@@ -80,7 +80,7 @@
           </p>
         </div>
 
-        <aside class="public-invite-panel" aria-labelledby="publicInviteTitle">
+        <aside class="public-invite-panel" aria-labelledby="publicInviteTitle" data-invite-only>
           <h2 id="publicInviteTitle">New to Tangent Club?</h2>
           <p class="public-invite-lead">
             Registration is <strong>invitation-only</strong> — that keeps the platform professional and focused on real
@@ -106,7 +106,21 @@
             Create free account
           </button>
           <p class="status-line public-invite-foot">
-            <a href="anleitung.html">How invitations work</a>
+            <a href="anleitung.html#invitations">How invitations work</a>
+            ·
+            <a href="landing.html">About the platform</a>
+          </p>
+        </aside>
+
+        <aside class="public-invite-panel" aria-labelledby="publicSignupTitle" data-public-registration hidden>
+          <h2 id="publicSignupTitle">New to Tangent Club?</h2>
+          <p class="public-invite-lead">
+            Create a <strong>free test account</strong> and explore private 1:1 sessions, chat, and Lovense sync during
+            your trial — no credit card required.
+          </p>
+          <a href="register.html" class="secondary public-invite-btn">Create free account</a>
+          <p class="status-line public-invite-foot">
+            <a href="anleitung.html">User guide</a>
             ·
             <a href="landing.html">About the platform</a>
           </p>
@@ -122,12 +136,14 @@
         <a href="privacy-policy.html">Privacy</a>
         <a href="impressum.html">Impressum</a>
       </nav>
-      <p class="public-footer-note">18+ · Invitation required for registration</p>
+      <p class="public-footer-note" data-invite-only>18+ · Invitation required for registration</p>
+      <p class="public-footer-note" data-public-registration hidden>18+ · Free test account available</p>
     </footer>
 
-    <script src="assets/api-config.js?v=8428"></script>
-    <script src="assets/ui-shell.js?v=8629"></script>
-    <script src="assets/app.js?v=8428"></script>
-    <script src="assets/auth.js?v=8632"></script>
+    <script src="assets/api-config.js?v=8690"></script>
+    <script src="assets/ui-shell.js?v=8690"></script>
+    <script src="assets/app.js?v=8690"></script>
+    <script src="assets/public-registration-ui.js?v=8690"></script>
+    <script src="assets/auth.js?v=8690"></script>
   </body>
 </html>

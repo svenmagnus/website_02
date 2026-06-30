@@ -97,7 +97,8 @@
         <p class="status-line" style="margin-top: 1rem">
           <a href="login.html">Full sign-in page</a>
           ·
-          <a href="register.html">Register with invitation</a>
+          <span data-invite-only><a href="register.html">Register with invitation</a></span>
+          <span data-public-registration hidden><a href="register.html">Create free account</a></span>
           ·
           <a href="landing.html">About Tangent Club</a>
         </p>
@@ -222,8 +223,11 @@
           <button type="button" class="secondary" id="loginResendBtn">Bestätigung erneut senden</button>
           <p class="status-line" id="loginResendStatus" hidden></p>
         </div>
-        <p class="status-line" style="margin-top: 1rem">
+        <p class="status-line" style="margin-top: 1rem" data-invite-only>
           Invited? <a href="register.html">Create account</a>
+        </p>
+        <p class="status-line" style="margin-top: 1rem" data-public-registration hidden>
+          New here? <a href="register.html">Sign up free</a>
         </p>
         <p class="status-line">
           <button type="button" class="linkish" id="premiumLoginModalClose">Schließen</button>
@@ -1401,7 +1405,8 @@
     <script src="assets/play-mode-sounds.js?v=8597"></script>
     <script src="assets/chat-settings.js?v=8592"></script>
     <script src="assets/app.js?v=8673"></script>
-    <script src="assets/auth.js?v=8682"></script>
+    <script src="assets/public-registration-ui.js?v=8690"></script>
+    <script src="assets/auth.js?v=8690"></script>
     <script src="assets/model-booking.js?v=8680"></script>
     <script src="assets/messages-panel.js?v=8464"></script>
     <script src="assets/social.js?v=8678"></script>

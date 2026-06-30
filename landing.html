@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <script src="assets/theme-init.js?v=8624"></script>
+    <script src="assets/theme-init.js?v=8690"></script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
       content="Tangent Club — private 1:1 video for professionals. Low-latency P2P sessions, Lovense sync, invitation-only community."
+      data-public-content="Tangent Club — private 1:1 video for professionals. Low-latency P2P sessions, Lovense sync, and a calm member community."
     />
     <title>Tangent Club — Private 1:1 Video for Professionals</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +16,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="assets/styles.css?v=8624" />
+    <link rel="stylesheet" href="assets/styles.css?v=8690" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   </head>
   <body class="public-page landing-page">
@@ -37,19 +38,29 @@
 
     <main class="landing-main">
       <section class="landing-hero">
-        <p class="landing-eyebrow">Invitation-only · No public gallery</p>
+        <p class="landing-eyebrow" data-invite-only>Invitation-only · No public gallery</p>
+        <p class="landing-eyebrow" data-public-registration hidden>Private 1:1 · No public gallery</p>
         <h1>Your private studio for professional 1:1 sessions</h1>
-        <p class="landing-lead">
+        <p class="landing-lead" data-invite-only>
           Tangent Club is built for creators who want more than a tipping room. Connect only with people you invite —
           with near-zero latency, Lovense toy sync, and a calm space where you are the sole focus.
         </p>
+        <p class="landing-lead" data-public-registration hidden>
+          Tangent Club is built for creators who want more than a tipping room. Run private sessions with your clients —
+          with near-zero latency, Lovense toy sync, and a calm space where you are the sole focus.
+        </p>
         <div class="landing-cta-row">
-          <a href="register.html" class="primary landing-cta-primary">I have an invitation</a>
+          <a href="register.html" class="primary landing-cta-primary" data-invite-only>I have an invitation</a>
+          <a href="register.html" class="primary landing-cta-primary" data-public-registration hidden>Sign up free</a>
           <a href="login.html" class="secondary landing-cta-secondary">Sign in</a>
         </div>
-        <p class="landing-trust-line">
+        <p class="landing-trust-line" data-invite-only>
           <i class="bi bi-shield-check" aria-hidden="true"></i>
           Registration requires a personal invite link or 4-digit code — no credit card to join.
+        </p>
+        <p class="landing-trust-line" data-public-registration hidden>
+          <i class="bi bi-shield-check" aria-hidden="true"></i>
+          Start with a free 30-day test account — no credit card required to join.
         </p>
       </section>
 
@@ -75,9 +86,13 @@
           <article class="landing-benefit-card">
             <i class="bi bi-heart landing-benefit-icon" aria-hidden="true"></i>
             <h3>Quality over quantity</h3>
-            <p>
+            <p data-invite-only>
               Build deeper relationships with existing clients instead of chasing room traffic. Exclusivity supports
               retention and consistent bookings.
+            </p>
+            <p data-public-registration hidden>
+              Build deeper relationships with existing clients instead of chasing room traffic. Private 1:1 sessions
+              support retention and consistent bookings.
             </p>
           </article>
           <article class="landing-benefit-card">
@@ -91,7 +106,11 @@
         </div>
       </section>
 
-      <section class="landing-section landing-invite-section" aria-labelledby="landing-invite-title">
+      <section
+        class="landing-section landing-invite-section"
+        aria-labelledby="landing-invite-title"
+        data-invite-only
+      >
         <div class="landing-invite-inner">
           <h2 id="landing-invite-title">Invitation-only is a feature, not a hurdle</h2>
           <p>
@@ -115,14 +134,48 @@
         </div>
       </section>
 
+      <section
+        class="landing-section landing-invite-section"
+        aria-labelledby="landing-start-title"
+        data-public-registration
+        hidden
+      >
+        <div class="landing-invite-inner">
+          <h2 id="landing-start-title">Get started in minutes</h2>
+          <p>
+            Create your free account, explore the platform during your test phase, and connect with partners when you are
+            ready — no public gallery, no tipping room.
+          </p>
+          <ol class="landing-steps">
+            <li>
+              <strong>Create your free account</strong> — sign up with your email and choose a username.
+            </li>
+            <li>
+              <strong>Set up your profile</strong> — add a photo, write your bio, and configure camera or Lovense if you
+              use them.
+            </li>
+            <li>
+              <strong>Start your first session</strong> — connect with a partner, schedule sessions, and go live when you
+              are ready.
+            </li>
+          </ol>
+          <a href="register.html" class="primary">Create free account</a>
+        </div>
+      </section>
+
       <section class="landing-section landing-guide-section" aria-labelledby="landing-guide-title">
         <h2 id="landing-guide-title" class="landing-section-title">User Guide</h2>
-        <p class="landing-guide-intro">
+        <p class="landing-guide-intro" data-invite-only>
           New to the platform? The full guide walks you through invitations, your first session, camera setup, Lovense
           toys, and troubleshooting — no login required.
         </p>
+        <p class="landing-guide-intro" data-public-registration hidden>
+          New to the platform? The full guide walks you through your first session, camera setup, Lovense toys, and
+          troubleshooting — no login required.
+        </p>
         <div class="landing-guide-topics">
-          <a href="anleitung.html#invitations" class="landing-guide-topic">Invitations &amp; connecting</a>
+          <a href="anleitung.html#invitations" class="landing-guide-topic" data-invite-only>Invitations &amp; connecting</a>
+          <a href="anleitung.html#invitations" class="landing-guide-topic" data-public-registration hidden>Connecting with partners</a>
           <a href="anleitung.html" class="landing-guide-topic">Profile &amp; member pool</a>
           <a href="anleitung.html" class="landing-guide-topic">Camera &amp; streaming modes</a>
           <a href="anleitung.html" class="landing-guide-topic">Lovense toy control</a>
@@ -145,7 +198,11 @@
         <a href="impressum.html">Impressum</a>
         <a href="guidelines.html">Guidelines</a>
       </nav>
-      <p class="public-footer-note">18+ · Invitation required for registration</p>
+      <p class="public-footer-note" data-invite-only>18+ · Invitation required for registration</p>
+      <p class="public-footer-note" data-public-registration hidden>18+ · Free test account available</p>
     </footer>
+
+    <script src="assets/api-config.js?v=8690"></script>
+    <script src="assets/public-registration-ui.js?v=8690"></script>
   </body>
 </html>

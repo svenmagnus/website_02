@@ -133,10 +133,15 @@
         </section>
 
         <section class="manual-section" id="invitations">
-          <h2>2. Invitations &amp; Connecting with your Partner</h2>
-          <p class="status-line">
+          <h2 data-invite-only>2. Invitations &amp; Connecting with your Partner</h2>
+          <h2 data-public-registration hidden>2. Connecting with your Partner</h2>
+          <p class="status-line" data-invite-only>
             Tangent Club is a closed, private community. Connections are built either by inviting new people to join the
             platform or by starting a direct session with existing members.
+          </p>
+          <p class="status-line" data-public-registration hidden>
+            Tangent Club is a private community. You can sign up directly or invite people you know. Connections are
+            built by starting direct sessions with members on the platform.
           </p>
 
           <h3 class="manual-subheading">Inviting People to the Platform</h3>
@@ -545,5 +550,7 @@
         </p>
       </article>
     </main>
+    <script src="assets/api-config.js?v=8690"></script>
+    <script src="assets/public-registration-ui.js?v=8690"></script>
   </body>
 </html>
