@@ -253,10 +253,11 @@
   /** Display role for header, account menu, and admin table. */
   function resolveAccountRoleLabel(user) {
     if (!user) return "Visitor";
-    if (user.membershipLabel) return user.membershipLabel;
+    if (user.isBanned) return "Banned";
     if (user.isAdmin) return "Administrator";
     if (user.isModel) return "Model";
     if (user.isFreeGuest) return "Free";
+    if (user.membershipLabel) return user.membershipLabel;
     const sub = user.subscription;
     if (sub?.membershipLabel) return sub.membershipLabel;
     if (sub?.membershipType === "test" || sub?.phase === "trial") return "Test account";
@@ -977,6 +978,19 @@
     }
 
     if (sub.exempt) {
+      if (profile?.isAdmin) {
+        return {
+          badge: "Administrator",
+          badgeClass: "ok",
+          rows: [
+            { label: "Role", value: "Site administrator" },
+            { label: "Billing", value: "No member subscription required" },
+          ],
+          note: "Administrator accounts have full platform access without Member billing.",
+          showCheckout: false,
+          showPortal: false,
+        };
+      }
       return {
         badge: "Included",
         badgeClass: "ok",
@@ -984,7 +998,7 @@
           { label: "Plan", value: "Full access — no subscription fee" },
           {
             label: "Reason",
-            value: sub.membershipType === "partner" ? "Model account" : "Administrator account",
+            value: sub.membershipType === "partner" ? "Model account" : "Special guest access",
           },
         ],
         note: "You are not charged the monthly platform fee.",
