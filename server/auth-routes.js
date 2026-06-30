@@ -47,6 +47,10 @@ const VERIFY_HOURS = 48;
 const RESET_HOURS = 24;
 /** Host/dev bypass when no invite row (4 digits). Override: DEV_INVITE_CODE in .env */
 const DEV_INVITE_CODE = String(process.env.DEV_INVITE_CODE || "1234").trim();
+/** Allow register without invite when userCount > 0 (invite flow still optional). */
+const PUBLIC_REGISTRATION_ENABLED = /^(1|true|yes)$/i.test(
+  String(process.env.PUBLIC_REGISTRATION || "")
+);
 /** Skip verification emails — accounts are active immediately (dev/small deployments). */
 const SKIP_EMAIL_VERIFY = /^(1|true|yes)$/i.test(String(process.env.SKIP_EMAIL_VERIFY || ""));
 /** Return confirm link in API + server log when mail did not send (dev troubleshooting). */
@@ -592,6 +596,10 @@ function markEmailVerified(userId) {
   return at;
 }
 
+authRouter.get("/auth/registration-config", (_req, res) => {
+  res.json({ ok: true, publicRegistration: PUBLIC_REGISTRATION_ENABLED });
+});
+
 authRouter.get("/auth/invite/:token", (req, res) => {
   const invite = findActiveInviteByToken(req.params.token);
   if (!invite) {
@@ -784,7 +792,7 @@ authRouter.post("/auth/register", async (req, res) => {
   const devBypass = isDevInviteCode(inviteCode);
   let invite = devBypass ? null : resolveInvite({ inviteToken, inviteCode, email });
 
-  if (!invite && !devBypass && userCount > 0) {
+  if (!invite && !devBypass && userCount > 0 && !PUBLIC_REGISTRATION_ENABLED) {
     return res.status(400).json({ ok: false, error: "invite_required" });
   }
 
@@ -801,7 +809,8 @@ authRouter.post("/auth/register", async (req, res) => {
   const userId = randomUUID();
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const createdAt = nowMs();
-  const accountType = invite ? "guest" : "host";
+  const accountType =
+    invite || (PUBLIC_REGISTRATION_ENABLED && !devBypass && userCount > 0) ? "guest" : "host";
   const isAdmin = isAdminUsername(username) ? 1 : 0;
   const isPremium = isAdmin ? 1 : 0;
 

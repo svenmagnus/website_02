@@ -16,16 +16,34 @@
       </a>
       <div class="login-overlay-card auth-card auth-card-wide">
         <h1>Create Account</h1>
-        <div class="tangent-about-box tangent-about-box--register public-invite-callout">
-          <h2 class="tangent-about-title">You&rsquo;re invited — welcome</h2>
+        <div
+          id="registerInviteOnlyCallout"
+          class="tangent-about-box tangent-about-box--register public-invite-callout"
+        >
+          <h2 class="tangent-about-title">Invitation only</h2>
           <p class="status-line tangent-about-text">
             Tangent Club is a <strong>private 1:1 studio</strong> for professionals and their clients — not a public cam
-            site. Your invitation means you join a <strong>curated community</strong>: no anonymous crowds, no public
-            galleries, and no pressure to perform for the masses.
+            site. Registration is <strong>by invitation only</strong>: your invite joins you to a
+            <strong>curated community</strong> — no anonymous crowds, no public galleries.
           </p>
           <p class="status-line tangent-about-text">
-            After registration you can <strong>chat with your host</strong>, join private sessions, invite your own
-            partners, and optionally sync Lovense toys — all in a calm, exclusive space built for real connections.
+            Use the <strong>link or 4-digit code</strong> from your partner. After registration you can chat, join
+            private sessions, invite your own partners, and optionally sync Lovense toys.
+          </p>
+        </div>
+        <div
+          id="registerPublicCallout"
+          class="tangent-about-box tangent-about-box--register"
+          hidden
+        >
+          <h2 class="tangent-about-title">Create your account</h2>
+          <p class="status-line tangent-about-text">
+            Tangent Club is a <strong>private 1:1 studio</strong> for real connections — chat, sessions, and optional
+            toy sync in a calm space built for professionals and their clients.
+          </p>
+          <p class="status-line tangent-about-text">
+            Sign up below to start your <strong>member trial</strong>. You can invite partners later or connect with
+            models from the member pool once you subscribe.
           </p>
         </div>
         <p class="status-line" id="registerApiStatus" hidden></p>
@@ -117,6 +135,6 @@
     <script src="assets/api-config.js?v=8428"></script>
     <script src="assets/ui-shell.js?v=8629"></script>
     <script src="assets/app.js?v=8428"></script>
-    <script src="assets/auth.js?v=8629"></script>
+    <script src="assets/auth.js?v=8681"></script>
   </body>
 </html>

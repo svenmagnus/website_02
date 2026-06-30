@@ -681,6 +681,20 @@
     return user;
   }
 
+  async function fetchRegistrationConfig() {
+    const base = resolveApiBase();
+    if (!base) return { ok: true, publicRegistration: false };
+    try {
+      const res = await fetch(`${base}/api/auth/registration-config`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) return { ok: true, publicRegistration: false };
+      return await res.json();
+    } catch (_) {
+      return { ok: true, publicRegistration: false };
+    }
+  }
+
   async function register(payload) {
     return api("/api/auth/register", {
       method: "POST",
@@ -3108,10 +3122,41 @@
     const successPanel = document.getElementById("registerSuccessPanel");
     if (tokenInput instanceof HTMLInputElement) tokenInput.value = token;
 
-    if (token) {
+    const inviteOnlyCallout = document.getElementById("registerInviteOnlyCallout");
+    const publicCallout = document.getElementById("registerPublicCallout");
+
+    const applyInviteOnlyMessaging = () => {
+      if (inviteOnlyCallout) inviteOnlyCallout.hidden = false;
+      if (publicCallout) publicCallout.hidden = true;
+      if (codeRow && !token) codeRow.hidden = false;
+      if (inviteInfo) inviteInfo.hidden = false;
+    };
+
+    const applyPublicRegistrationMessaging = () => {
+      if (inviteOnlyCallout) inviteOnlyCallout.hidden = true;
+      if (publicCallout) publicCallout.hidden = false;
       if (codeRow) codeRow.hidden = true;
-      validateInviteToken(token)
-        .then((data) => {
+      if (inviteInfo) {
+        inviteInfo.hidden = true;
+        inviteInfo.textContent = "";
+      }
+      if (emailHint) {
+        emailHint.textContent = "Use your own email address for your new account.";
+      }
+    };
+
+    void (async () => {
+      const config = await fetchRegistrationConfig();
+      const publicRegistration = Boolean(config?.publicRegistration);
+      const hasPrefilledInviteCode = /^\d{4}$/.test(prefillInviteCode);
+
+      if (token) {
+        if (inviteOnlyCallout) inviteOnlyCallout.hidden = true;
+        if (publicCallout) publicCallout.hidden = true;
+        if (codeRow) codeRow.hidden = true;
+        if (inviteInfo) inviteInfo.hidden = false;
+        try {
+          const data = await validateInviteToken(token);
           if (inviteInfo) {
             inviteInfo.textContent = data.manualInvite
               ? `Invited by ${data.hostName} — register with your own email address.`
@@ -3127,25 +3172,34 @@
               ? "Choose any email address for your new account."
               : "Pre-filled from your invitation. Feel free to use a different address for your account.";
           }
-        })
-        .catch(() => {
+        } catch (_) {
           if (inviteInfo) {
             inviteInfo.textContent = "Invitation link invalid or expired.";
             inviteInfo.className = "status-line err";
           }
-        });
-    } else if (inviteInfo) {
-      inviteInfo.textContent =
-        "Your invitation link or code unlocks registration — exclusivity keeps the platform focused on real 1:1 sessions.";
-      inviteInfo.className = "status-line";
+        }
+        return;
+      }
+
+      if (publicRegistration && !hasPrefilledInviteCode) {
+        applyPublicRegistrationMessaging();
+        return;
+      }
+
+      applyInviteOnlyMessaging();
+      if (inviteInfo) {
+        inviteInfo.textContent =
+          "Your invitation link or code unlocks registration — exclusivity keeps the platform focused on real 1:1 sessions.";
+        inviteInfo.className = "status-line";
+      }
       if (emailHint) {
         emailHint.textContent = "Use your own email address for your new account.";
       }
-      if (/^\d{4}$/.test(prefillInviteCode)) {
+      if (hasPrefilledInviteCode) {
         const codeInput = document.getElementById("registerInviteCode");
         if (codeInput instanceof HTMLInputElement) codeInput.value = prefillInviteCode;
       }
-    }
+    })();
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
