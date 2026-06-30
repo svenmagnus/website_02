@@ -416,7 +416,16 @@
   }
 
   function isAdmin() {
-    return Boolean(getAccountUser()?.isAdmin);
+    return isSiteAdministrator();
+  }
+
+  function isSiteAdministrator(user = getAccountUser()) {
+    if (!user) return false;
+    if (user.isAdmin) return true;
+    const cached = getCachedProfile();
+    if (cached?.isAdmin) return true;
+    if (user.membershipLabel === "Administrator") return true;
+    return resolveAccountRoleLabel(user) === "Administrator";
   }
 
   function isPremium() {
@@ -902,7 +911,13 @@
 
     delete btn.dataset.billingAction;
 
-    if (!isLoggedIn() || isAccountGuest() || user?.isAdmin || user?.isModel || accountHasPremiumMembership(user)) {
+    if (
+      !isLoggedIn() ||
+      isAccountGuest() ||
+      isSiteAdministrator(user) ||
+      user?.isModel ||
+      accountHasPremiumMembership(user)
+    ) {
       btn.hidden = true;
       btn.disabled = false;
       return;
@@ -2085,6 +2100,7 @@
 
     document.body.classList.toggle("account-host", loggedIn && isAccountHost());
     document.body.classList.toggle("account-guest", loggedIn && isAccountGuest());
+    document.body.classList.toggle("account-is-admin", loggedIn && isSiteAdministrator(session?.user));
 
     if (premiumMenuBtn) {
       updatePremiumMenuItem();
@@ -2098,7 +2114,7 @@
       const roleLabel = user ? resolveAccountRoleLabel(user) : "";
       // Admins/models use the role badge only — no separate PREMIUM upsell button.
       premiumBtn.hidden =
-        Boolean(user?.isAdmin) ||
+        isSiteAdministrator(user) ||
         Boolean(user?.isModel) ||
         !isPremium() ||
         roleLabel === "Premium";

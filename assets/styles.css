@@ -242,6 +242,11 @@ html[data-theme="cb-light"] .account-name {
   font-weight: 700;
 }
 
+body.account-is-admin #btnPremiumFromMenu,
+body.account-is-admin #headerPremiumBtn {
+  display: none !important;
+}
+
 .premium-setup-row {
   margin-bottom: 0.75rem;
 }
