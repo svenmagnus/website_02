@@ -5773,6 +5773,20 @@ body.layout-resize-active * {
   color: var(--muted);
 }
 
+/* display:flex/inline-flex on landing/auth elements overrides the [hidden] attribute */
+[data-invite-only][hidden],
+[data-public-registration][hidden] {
+  display: none !important;
+}
+
+body.public-registration-open [data-invite-only] {
+  display: none !important;
+}
+
+body:not(.public-registration-open) [data-public-registration] {
+  display: none !important;
+}
+
 .landing-cta-row {
   display: flex;
   justify-content: center;
