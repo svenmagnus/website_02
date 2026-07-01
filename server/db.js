@@ -175,6 +175,10 @@ function runMigrations(database) {
        WHERE is_premium = 1 AND is_model = 0 AND is_admin = 0`
     );
   }
+  userColsAfter = tableColumns(database, "users");
+  if (!userColsAfter.includes("trial_reminder_sent_at")) {
+    database.exec(`ALTER TABLE users ADD COLUMN trial_reminder_sent_at INTEGER`);
+  }
   database.exec(`
     CREATE TABLE IF NOT EXISTS chat_threads (
       id TEXT PRIMARY KEY,

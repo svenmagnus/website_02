@@ -2427,6 +2427,32 @@
     }
   }
 
+  function formatAdminTrialCell(user) {
+    if (user.billingExempt) return "—";
+    const phase = String(user.billingPhase || "");
+    if (phase === "active" || phase === "member" || phase === "premium") return "—";
+    if (!user.trialEndsAt) return "—";
+    let date = "—";
+    try {
+      date = new Date(user.trialEndsAt).toLocaleDateString(undefined, { dateStyle: "medium" });
+    } catch (_) {
+      return "—";
+    }
+    const days = Number(user.trialDaysRemaining) || 0;
+    if (days > 0) return `${date} (${days}d)`;
+    if (days === 0) return `${date} (today)`;
+    return `${date} (expired)`;
+  }
+
+  function formatAdminStripeCell(user) {
+    if (user.billingExempt) return "—";
+    const status = String(user.stripeStatus || "none");
+    const parts = [status];
+    if (user.stripeCustomerId) parts.push("customer");
+    if (user.stripeSubscriptionId) parts.push("sub");
+    return parts.join(" · ");
+  }
+
   function renderAdminUserProfileBody(profile) {
     const body = document.getElementById("adminUserProfileBody");
     const title = document.getElementById("adminUserProfileTitle");
@@ -2584,6 +2610,8 @@
         ${adminRoleBadgeHtml(user)}
       </td>
       <td class="admin-member-since-cell" title="Account registration date">${escAdminHtml(formatAdminProfileDate(user.memberSince || user.createdAt))}</td>
+      <td class="admin-billing-trial-cell" title="Local trial end (${escAdminAttr(user.billingPhase || "")})">${escAdminHtml(formatAdminTrialCell(user))}</td>
+      <td class="admin-billing-stripe-cell" title="${user.stripeCustomerId ? escAdminAttr(`Stripe customer: ${user.stripeCustomerId}`) : escAdminAttr(user.stripeStatus || "none")}">${escAdminHtml(formatAdminStripeCell(user))}</td>
       ${adminFlagCell("isFreeMembership", isFreeMembershipUser(user), {
         disabled: user.isAdmin || user.isModel,
       })}

@@ -168,6 +168,21 @@ function resolveTierFromStripeRow(row) {
   return "member";
 }
 
+/** Admin user list: trial + Stripe snapshot without extra round-trips. */
+export function adminBillingSnapshotForUser(user, subRow = null) {
+  const row = subRow ?? getSubscriptionRow(getDb(), user.id);
+  const access = resolveSubscriptionAccess(user, row);
+  return {
+    trialEndsAt: access.trialEndsAt || null,
+    trialDaysRemaining: access.daysRemaining ?? 0,
+    billingPhase: access.phase,
+    stripeStatus: row?.status || access.status || "none",
+    stripeCustomerId: row?.stripe_customer_id || null,
+    stripeSubscriptionId: row?.stripe_subscription_id || null,
+    billingExempt: access.exempt,
+  };
+}
+
 export function resolveSubscriptionAccess(user, subRow = null) {
   const db = getDb();
   const row = subRow ?? getSubscriptionRow(db, user.id);

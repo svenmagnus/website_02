@@ -21,6 +21,7 @@ import { getDb, initDb } from "./db.js";
 import { authRouter } from "./auth-routes.js";
 import { billingRouter, handleStripeWebhook } from "./billing-routes.js";
 import { ensureStripeCheckoutBranding, getStripe, isStripeConfigured } from "./billing.js";
+import { runTrialReminderJob } from "./trial-reminders.js";
 import { connectRouter } from "./connect-routes.js";
 import { socialRouter } from "./social-routes.js";
 import {
@@ -1067,4 +1068,20 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`  WHIP ingest:  POST ${PUBLIC_BASE_URL}/whip/:stream_key`);
   console.log(`  WHEP playback: POST ${PUBLIC_BASE_URL}/whep/:stream_key`);
   console.log(`  Register key: POST ${PUBLIC_BASE_URL}/api/broadcast/register`);
+
+  if (/^(1|true|yes)$/i.test(String(process.env.TRIAL_REMINDERS_ENABLED || ""))) {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const tick = () => {
+      runTrialReminderJob()
+        .then((r) => {
+          if (r.sent) {
+            console.log(`[trial-reminders] ${r.sent} sent (${r.checked} checked)`);
+          }
+        })
+        .catch((err) => console.error("[trial-reminders] job failed:", err));
+    };
+    setTimeout(tick, 60_000);
+    setInterval(tick, DAY_MS);
+    console.log("  Trial reminders: enabled (daily job + 1 min after start)");
+  }
 });

@@ -37,6 +37,7 @@ import {
   getSubscriptionRow,
   hasPremiumModelPoolAccess,
   applyBillingTestOverrideState,
+  adminBillingSnapshotForUser,
 } from "./billing.js";
 import { normalizeAppearanceTheme } from "./mail-design.js";
 
@@ -1392,6 +1393,7 @@ authRouter.get("/admin/users", requireAuth, requireAdminAccount, (req, res) => {
       createdAt: row.created_at,
       subscriptionOverride: normalizeSubscriptionOverride(row.subscription_override),
       ...banFieldsForProfile(row),
+      ...adminBillingSnapshotForUser(row, subRow),
     };
   });
 

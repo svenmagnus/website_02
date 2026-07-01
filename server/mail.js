@@ -370,6 +370,66 @@ export async function sendRegistrationConfirmationEmail({
 }
 
 /**
+ * @param {{ to: string, username: string, trialEndsAt?: number|null, daysRemaining?: number, continueUrl: string, settingsUrl: string }} opts
+ */
+export async function sendTrialEndingReminderEmail({
+  to,
+  username,
+  trialEndsAt,
+  daysRemaining,
+  continueUrl,
+  settingsUrl,
+}) {
+  const name = String(username || "there").trim();
+  const endDate = trialEndsAt
+    ? new Date(trialEndsAt).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "";
+  const days = Math.max(0, Number(daysRemaining) || 0);
+  const dayWord = days === 1 ? "day" : "days";
+  const subject = `Your ${SITE_NAME} trial ends in ${days} ${dayWord}`;
+  const text =
+    `Hello ${name},\n\n` +
+    `your ${SITE_NAME} trial ends on ${endDate} (${days} ${dayWord} remaining).\n\n` +
+    `After that, a Member subscription (EUR 2.95/month) is required to keep using the platform.\n\n` +
+    `Continue your membership: ${continueUrl}\n` +
+    `Billing settings: ${settingsUrl}\n\n` +
+    `If you have questions, reply to this email or use the support page on the site.\n\n` +
+    SITE_NAME;
+
+  const html = emailLayout({
+    title: "Trial ending soon",
+    bodyHtml:
+      `<p style="line-height:1.55;color:#c8c8d0;">Hello <strong style="color:#fff;">${escapeHtml(name)}</strong>,</p>` +
+      `<p style="line-height:1.55;color:#c8c8d0;">Your <strong style="color:#fff;">${escapeHtml(SITE_NAME)}</strong> trial ends on <strong style="color:#fff;">${escapeHtml(endDate)}</strong> (${days} ${dayWord} remaining).</p>` +
+      `<p style="line-height:1.55;color:#c8c8d0;">After that, a Member subscription (EUR 2.95/month) is required to keep using the platform.</p>` +
+      `<p style="margin:20px 0;"><a href="${escapeHtml(continueUrl)}" style="display:inline-block;padding:12px 22px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Continue membership</a></p>` +
+      `<p style="font-size:13px;color:#888;word-break:break-all;"><a href="${escapeHtml(settingsUrl)}" style="color:#f97316;">Billing settings</a></p>`,
+    footerNote: "Reply to this email if you need help.",
+  });
+
+  const result = await sendMail({
+    to,
+    subject,
+    text,
+    html,
+    logContext: "trial-reminder",
+  });
+
+  if (result.devMode) {
+    console.log(
+      `[mail] Trial reminder (manual) for ${to}:\n` +
+        `  Ends: ${endDate} (${days}d)\n` +
+        `  Continue: ${continueUrl}`
+    );
+  }
+  return result;
+}
+
+/**
  * @param {{ to: string, resetUrl: string, username: string, userRow?: Record<string, unknown>|null }} opts
  */
 export async function sendPasswordResetEmail({ to, resetUrl, username, userRow }) {

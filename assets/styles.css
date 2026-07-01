@@ -3213,6 +3213,19 @@ footer {
   color: var(--muted);
 }
 
+.admin-billing-trial-cell,
+.admin-billing-stripe-cell {
+  min-width: 6.5rem;
+  max-width: 9rem;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.admin-billing-stripe-cell {
+  max-width: 10rem;
+}
+
 .admin-status-badge {
   display: inline-block;
   margin-right: 0.35rem;
